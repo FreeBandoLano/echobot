@@ -1,0 +1,80 @@
+"""Configuration management for the radio synopsis application."""
+
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+import pytz
+
+# Load environment variables
+load_dotenv()
+
+class Config:
+    """Application configuration."""
+    
+    # OpenAI Configuration
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+    
+    # Radio Stream Configuration
+    RADIO_STREAM_URL = os.getenv('RADIO_STREAM_URL')
+    AUDIO_INPUT_DEVICE = os.getenv('AUDIO_INPUT_DEVICE', 'default')
+    
+    # Timezone
+    TIMEZONE = pytz.timezone(os.getenv('TZ', 'America/Barbados'))
+    
+    # Directory Configuration
+    BASE_DIR = Path(__file__).parent
+    AUDIO_DIR = Path(os.getenv('AUDIO_DIR', './audio'))
+    TRANSCRIPTS_DIR = Path(os.getenv('TRANSCRIPTS_DIR', './transcripts'))
+    SUMMARIES_DIR = Path(os.getenv('SUMMARIES_DIR', './summaries'))
+    WEB_DIR = Path(os.getenv('WEB_DIR', './web_output'))
+    DB_PATH = BASE_DIR / 'radio_synopsis.db'
+    
+    # Create directories if they don't exist
+    for directory in [AUDIO_DIR, TRANSCRIPTS_DIR, SUMMARIES_DIR, WEB_DIR]:
+        directory.mkdir(parents=True, exist_ok=True)
+    
+    # API Configuration
+    API_HOST = os.getenv('API_HOST', '0.0.0.0')
+    API_PORT = int(os.getenv('API_PORT', 8001))
+    
+    # Schedule Configuration (times in Barbados timezone)
+    BLOCKS = {
+        'A': {
+            'start_time': os.getenv('BLOCK_A_START', '10:00'),
+            'end_time': os.getenv('BLOCK_A_END', '12:00'),
+            'name': 'Morning Block'
+        },
+        'B': {
+            'start_time': os.getenv('BLOCK_B_START', '12:05'), 
+            'end_time': os.getenv('BLOCK_B_END', '12:30'),
+            'name': 'News Summary Block'
+        },
+        'C': {
+            'start_time': os.getenv('BLOCK_C_START', '12:40'),
+            'end_time': os.getenv('BLOCK_C_END', '13:30'), 
+            'name': 'Major Newscast Block'
+        },
+        'D': {
+            'start_time': os.getenv('BLOCK_D_START', '13:35'),
+            'end_time': os.getenv('BLOCK_D_END', '14:00'),
+            'name': 'History Block'
+        }
+    }
+    
+    # Processing Configuration
+    MAX_SUMMARY_LENGTH = int(os.getenv('MAX_SUMMARY_LENGTH', 1000))
+    ENABLE_DETAILED_QUOTES = os.getenv('ENABLE_DETAILED_QUOTES', 'true').lower() == 'true'
+    
+    @classmethod
+    def validate(cls):
+        """Validate required configuration."""
+        if not cls.OPENAI_API_KEY:
+            raise ValueError("OPENAI_API_KEY is required")
+        
+        if not cls.RADIO_STREAM_URL and not cls.AUDIO_INPUT_DEVICE:
+            print("Warning: No audio source configured. Set RADIO_STREAM_URL or AUDIO_INPUT_DEVICE")
+        
+        return True
+
+# Validate configuration on import
+Config.validate()
