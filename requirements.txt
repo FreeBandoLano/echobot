@@ -4,7 +4,7 @@ uvicorn==0.24.0
 gunicorn==21.2.0
 
 # AI/ML services
-openai==1.34.10
+openai==1.35.10
 
 # Transport stack
 httpx==0.27.2
