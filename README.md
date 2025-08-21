@@ -8,8 +8,8 @@ This MVP system captures live radio audio from VOB 92.9 FM, transcribes it using
 
 ## ✅ Current Status: **FULLY FUNCTIONAL**
 
-- ✅ Audio recording via Stereo Mix
-- ✅ Real-time transcription with OpenAI Whisper  
+- ✅ Audio recording via Radio stream URl
+- ✅ Real-time transcription with OpenAI Whisper 
 - ✅ AI-powered summarization with GPT-4
 - ✅ Web dashboard for manual control
 - ✅ Structured output for government use
@@ -20,7 +20,6 @@ This MVP system captures live radio audio from VOB 92.9 FM, transcribes it using
 - Python 3.8+
 - FFmpeg installed
 - OpenAI API key
-- Windows with Stereo Mix enabled
 
 ### 2. Installation
 ```bash
@@ -41,8 +40,12 @@ Edit `.env` file:
 # Required: Your OpenAI API key
 OPENAI_API_KEY=sk-proj-your-key-here
 
-# Audio source (use Stereo Mix for browser audio)
+# Audio source (use Stereo Mix for browser audio) 
 AUDIO_INPUT_DEVICE=Stereo Mix (Realtek(R) Audio)
+# To use Audio from VOB92.9 FM live stream
+RADIO_STREAM_URL=RADIO_STREAM_URL=https://ice66.securenetsystems.net/VOB929
+# Make sure to only use one audio source at a time 
+
 
 # Schedule (Barbados time)
 BLOCK_A_START=10:00
@@ -62,11 +65,11 @@ http://localhost:8001
 ## 📋 Usage
 
 ### Manual Recording (Current)
-1. Ensure VOB 92.9 FM is playing in browser
-2. Click "Record [Block]" button at appropriate time
-3. Wait for recording to complete  
-4. Click "Process [Block]" for transcription & summary
-5. View results in dashboard
+0. Ensure VOB 92.9 FM is playing in browser ( If using Stereo Mix as audio input )
+1. Click "Record [Block]" button at appropriate time
+2. Wait for recording to complete  
+3. Click "Process [Block]" for transcription & summary
+4. View results in dashboard
 
 ### Block Schedule
 - **Block A**: 10:00-12:00 (Morning Block)
