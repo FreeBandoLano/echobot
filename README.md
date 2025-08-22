@@ -176,3 +176,7 @@ For issues or enhancements:
 ## 📞 Support
 
 System captures content from VOB 92.9 FM "Down to Brass Tacks" program for government policy insights and community engagement analysis.
+
+## 🚀 Deployment
+
+This application is automatically deployed to Azure App Service via GitHub Actions.
