@@ -18,5 +18,5 @@ COPY . .
 # Expose the port Gunicorn will run on
 EXPOSE 8000
 
-# Define the command to run your app
-CMD ["sh", "-c", "gunicorn -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000} web_app:app"]
+# Define the command to run your app with increased timeout
+CMD ["sh", "-c", "gunicorn -w 2 -k uvicorn.workers.UvicornWorker --timeout 600 --bind 0.0.0.0:${PORT:-8000} web_app:app"]

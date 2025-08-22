@@ -180,10 +180,21 @@ class RadioScheduler:
         try:
             # Find the recorded block
             blocks = db.get_blocks_by_date(show_date)
+            logger.info(f"Found {len(blocks)} blocks for {show_date}")
+            
+            # Log all blocks for debugging
+            for b in blocks:
+                logger.info(f"Block {b['block_code']}: status={b['status']}, audio_file={b.get('audio_file_path', 'None')}")
+            
             block = next((b for b in blocks if b['block_code'] == block_code and b['status'] == 'recorded'), None)
             
             if not block:
-                logger.error(f"No recorded block found for {block_code} on {show_date}")
+                # Try to find any block with that code regardless of status
+                any_block = next((b for b in blocks if b['block_code'] == block_code), None)
+                if any_block:
+                    logger.error(f"Block {block_code} found but status is '{any_block['status']}', not 'recorded'")
+                else:
+                    logger.error(f"No block found for {block_code} on {show_date}")
                 return
             
             block_id = block['id']

@@ -39,6 +39,33 @@ class AudioTranscriber:
         
         logger.info(f"Starting transcription for block {block_id}: {audio_path}")
         
+        # Check if this is a silence-only file (fallback recording)
+        if "_silence" in str(audio_path) or "anullsrc" in str(audio_path):
+            logger.info(f"Skipping transcription for silence file: {audio_path}")
+            # Create a minimal transcript for silence
+            transcript_data = {
+                'text': "",
+                'language': "en",
+                'duration': 0,
+                'segments': [],
+                'caller_count': 0,
+                'notable_quotes': [],
+                'is_silence': True
+            }
+            
+            # Save transcript to file
+            transcript_filename = f"{audio_path.stem}_transcript.json"
+            transcript_path = Config.TRANSCRIPTS_DIR / transcript_filename
+            
+            with open(transcript_path, 'w', encoding='utf-8') as f:
+                json.dump(transcript_data, f, indent=2, ensure_ascii=False)
+            
+            # Update database
+            db.update_block_status(block_id, 'transcribed', transcript_file_path=transcript_path)
+            
+            logger.info(f"Silence transcription completed for block {block_id}")
+            return transcript_data
+        
         try:
             # Update status
             db.update_block_status(block_id, 'transcribing')
@@ -66,6 +93,55 @@ class AudioTranscriber:
         except Exception as e:
             logger.error(f"Error transcribing block {block_id}: {e}")
             db.update_block_status(block_id, 'failed')
+            return None
+    
+    def _transcribe_audio_direct(self, audio_path: Path) -> Optional[Dict]:
+        """Transcribe audio file directly without size checking (for chunks)."""
+        
+        try:
+            file_size = audio_path.stat().st_size
+            logger.info(f"Transcribing chunk {audio_path} ({file_size} bytes)")
+            
+            with open(audio_path, 'rb') as audio_file:
+                # Request transcript with timestamps and speaker detection hints
+                response = self.client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    response_format="verbose_json",
+                    timestamp_granularities=["segment"],
+                    language="en"  # Assuming English for Barbados radio
+                )
+            
+            # Process response
+            transcript_data = {
+                'text': response.text,
+                'language': response.language,
+                'duration': response.duration,
+                'segments': []
+            }
+            
+            # Process segments with timestamps
+            if hasattr(response, 'segments') and response.segments:
+                for segment in response.segments:
+                    segment_data = {
+                        'start': segment.start,
+                        'end': segment.end,
+                        'text': segment.text.strip(),
+                        'speaker': self._detect_speaker(segment.text)
+                    }
+                    transcript_data['segments'].append(segment_data)
+            
+            # Extract caller information
+            transcript_data['caller_count'] = self._count_callers(transcript_data['segments'])
+            transcript_data['notable_quotes'] = self._extract_quotes(transcript_data['segments'])
+            
+            logger.info(f"Chunk transcription successful: {len(transcript_data['text'])} characters, "
+                       f"{len(transcript_data['segments'])} segments")
+            
+            return transcript_data
+            
+        except Exception as e:
+            logger.error(f"Whisper API error for chunk: {e}")
             return None
     
     def _transcribe_audio(self, audio_path: Path) -> Optional[Dict]:
@@ -146,7 +222,8 @@ class AudioTranscriber:
         for i, chunk_path in enumerate(chunks):
             logger.info(f"Transcribing chunk {i+1}/{len(chunks)}: {chunk_path}")
             
-            chunk_data = self._transcribe_audio(chunk_path)
+            # Call the base transcription method directly to avoid recursion
+            chunk_data = self._transcribe_audio_direct(chunk_path)
             if chunk_data:
                 # Adjust timestamps for chunk offset
                 chunk_offset = i * chunk_duration
