@@ -91,53 +91,116 @@ class AudioRecorder:
         return False
     
     def _record_from_stream(self, output_path: Path, duration_seconds: int) -> bool:
-        """Record from radio stream URL using ffmpeg."""
+        """Record from radio stream using Python requests (more reliable than FFmpeg)."""
         
         if not Config.RADIO_STREAM_URL:
             return False
         
-        cmd = [
-            'ffmpeg',
-            '-hide_banner',
-            '-loglevel', 'error',
-            '-nostdin',
-            '-reconnect', '1',
-            '-reconnect_streamed', '1', 
-            '-reconnect_delay_max', '5',
-            '-reconnect_at_eof', '1',
-            '-user_agent', 'Mozilla/5.0 (compatible; RadioRecorder/1.0)',
-            '-timeout', '30000000',  # 30 second timeout in microseconds
-            '-i', Config.RADIO_STREAM_URL,
-            '-ac', '1',  # Mono
-            '-ar', '16000',  # 16kHz sample rate
-            '-t', str(duration_seconds),
-            '-y',  # Overwrite output file
-            str(output_path)
-        ]
-        
         logger.info(f"Recording from stream: {Config.RADIO_STREAM_URL}")
-        logger.debug(f"FFmpeg command: {' '.join(cmd)}")
         
-        # Test stream connectivity first using Python requests
         try:
             import requests
-            response = requests.head(Config.RADIO_STREAM_URL, timeout=10)
-            if response.status_code == 200:
+            import time
+            
+            # Create session with proper headers
+            session = requests.Session()
+            session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (compatible; RadioRecorder/1.0)',
+                'Accept': 'audio/*,*/*;q=0.9',
+                'Accept-Encoding': 'identity',
+                'Connection': 'keep-alive'
+            })
+            
+            # Test connectivity first
+            logger.info("Testing stream connectivity...")
+            try:
+                test_response = session.head(Config.RADIO_STREAM_URL, timeout=10)
+                if test_response.status_code != 200:
+                    # Try GET with small range if HEAD fails
+                    test_response = session.get(
+                        Config.RADIO_STREAM_URL,
+                        headers={'Range': 'bytes=0-1023'},
+                        timeout=10,
+                        stream=True
+                    )
+                    if test_response.status_code not in [200, 206, 416]:
+                        logger.error(f"Stream test failed with status {test_response.status_code}")
+                        return False
                 logger.info("Stream connectivity test passed")
-            else:
-                logger.error(f"Stream returned status {response.status_code}")
+            except Exception as e:
+                logger.error(f"Stream connectivity test failed: {e}")
                 return False
-        except Exception as e:
-            logger.error(f"Stream connectivity test failed: {e}")
+            
+            # Start streaming request
+            response = session.get(Config.RADIO_STREAM_URL, stream=True, timeout=30)
+            response.raise_for_status()
+            
+            # Log stream info
+            content_type = response.headers.get('content-type', 'unknown')
+            logger.info(f"Stream content type: {content_type}")
+            
+            # Record raw stream data
+            start_time = time.time()
+            bytes_written = 0
+            temp_file = output_path.with_suffix('.raw')
+            
+            with open(temp_file, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:  # filter out keep-alive chunks
+                        f.write(chunk)
+                        bytes_written += len(chunk)
+                        
+                        # Check if we've recorded enough
+                        elapsed = time.time() - start_time
+                        if elapsed >= duration_seconds:
+                            break
+            
+            elapsed = time.time() - start_time
+            logger.info(f"Recorded {bytes_written} bytes in {elapsed:.1f}s")
+            
+            # Verify we got reasonable amount of data
+            if bytes_written < 1000:  # Less than 1KB suggests no real audio
+                logger.warning(f"Very small file recorded: {bytes_written} bytes")
+                temp_file.unlink(missing_ok=True)
+                return False
+            
+            # Convert raw audio to WAV using FFmpeg if available, otherwise keep raw
+            try:
+                cmd = [
+                    'ffmpeg',
+                    '-hide_banner',
+                    '-loglevel', 'error',
+                    '-f', 's16le',  # Assume 16-bit little-endian format
+                    '-ar', '16000',  # 16kHz sample rate
+                    '-ac', '1',  # Mono
+                    '-i', str(temp_file),
+                    '-y',  # Overwrite
+                    str(output_path)
+                ]
+                
+                process = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                
+                if process.returncode == 0:
+                    logger.info(f"Stream recording converted to WAV: {output_path}")
+                    temp_file.unlink(missing_ok=True)
+                    return True
+                else:
+                    logger.warning(f"FFmpeg conversion failed, keeping raw file: {process.stderr}")
+                    # Rename raw file to output path
+                    temp_file.rename(output_path)
+                    return True
+                    
+            except Exception as e:
+                logger.warning(f"FFmpeg not available for conversion: {e}")
+                # Just rename the raw file
+                temp_file.rename(output_path)
+                return True
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error recording stream: {e}")
             return False
-        
-        process = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        
-        if process.returncode == 0:
-            logger.info(f"Stream recording completed: {output_path}")
-            return True
-        else:
-            logger.error(f"FFmpeg error: {process.stderr}")
+        except Exception as e:
+            logger.error(f"Unexpected error recording stream: {e}")
             return False
     
     def _record_from_system_audio(self, output_path: Path, duration_seconds: int) -> bool:
