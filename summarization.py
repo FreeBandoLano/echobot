@@ -48,7 +48,7 @@ class RadioSummarizer:
             db.update_block_status(block_id, 'summarizing')
             
             # Generate summary
-            summary_data = self._generate_summary(block, transcript_data)
+            summary_data = self._generate_summary(block, transcript_data, block_id)
             
             if summary_data:
                 # Save to database
@@ -75,7 +75,7 @@ class RadioSummarizer:
             db.update_block_status(block_id, 'failed')
             return None
     
-    def _generate_summary(self, block: Dict, transcript_data: Dict) -> Optional[Dict]:
+    def _generate_summary(self, block: Dict, transcript_data: Dict, block_id: int) -> Optional[Dict]:
         """Generate summary using OpenAI GPT."""
         
         block_code = block['block_code']
