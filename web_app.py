@@ -14,7 +14,7 @@ from config import Config
 from database import db
 from scheduler import scheduler
 
-# Create FastAPI app
+# Create the single FastAPI app instance here
 app = FastAPI(title="Radio Synopsis Dashboard", version="1.0.0")
 
 # Set up templates directory
@@ -550,13 +550,16 @@ def create_templates():
 create_templates()
 
 def start_web_server():
-    """Start the web server."""
+    """Start the web server for local execution."""
     
+    # This uvicorn.run call is for running locally (e.g., `python main.py web`)
+    # Gunicorn will bypass this and use the 'app' object directly.
     uvicorn.run(
-        app, 
+        "web_app:app",  # Point to this file's app object
         host=Config.API_HOST, 
         port=Config.API_PORT,
-        log_level="info"
+        log_level="info",
+        reload=True # Good for local dev
     )
 
 if __name__ == "__main__":

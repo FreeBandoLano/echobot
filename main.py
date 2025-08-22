@@ -6,10 +6,13 @@ import logging
 from datetime import date
 from pathlib import Path
 
+# REMOVE: from fastapi import FastAPI
+
 from config import Config
 from database import db
 from scheduler import scheduler
-from web_app import start_web_server
+# IMPORT the app from web_app and the start function
+from web_app import app, start_web_server
 from audio_recorder import recorder
 from transcription import transcriber
 from summarization import summarizer
@@ -24,6 +27,8 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# REMOVE: app = FastAPI()  -- We now import it from web_app.py
 
 def setup_directories():
     """Ensure all required directories exist."""
