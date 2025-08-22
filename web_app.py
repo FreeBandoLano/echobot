@@ -14,6 +14,23 @@ from config import Config
 from database import db
 from scheduler import scheduler
 
+# Ensure all required directories exist when the app starts.
+# This is crucial for running in a container where `main.py` is not the entry point.
+def setup_directories():
+    """Ensure all required directories exist."""
+    directories = [
+        Config.AUDIO_DIR,
+        Config.TRANSCRIPTS_DIR,
+        Config.SUMMARIES_DIR,
+        Config.WEB_DIR,
+        Path("templates"),
+        Path("static")
+    ]
+    for directory in directories:
+        directory.mkdir(parents=True, exist_ok=True)
+
+setup_directories()
+
 # Create the single FastAPI app instance here
 app = FastAPI(title="Radio Synopsis Dashboard", version="1.0.0")
 
