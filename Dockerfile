@@ -1,6 +1,6 @@
 # filepath: /workspaces/echobot/Dockerfile
 # Start from the official Python base image
-FROM mcr.microsoft.com/appsvc/python:3.11-slim
+FROM python:3.11-slim
 
 # Install FFmpeg using the system package manager
 RUN apt-get update && apt-get install -y ffmpeg
