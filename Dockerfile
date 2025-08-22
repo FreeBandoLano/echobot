@@ -19,4 +19,4 @@ COPY . .
 EXPOSE 8000
 
 # Define the command to run your app
-CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:${PORT:-8000}", "web_app:app"]
+CMD ["sh", "-c", "gunicorn -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000} web_app:app"]
