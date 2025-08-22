@@ -92,7 +92,11 @@ class RadioSummarizer:
             summary_data = self._create_empty_summary(block_code, block_name, transcript_data)
             
             # Save summary
-            summary_filename = f"{block['audio_file'].split('/')[-1].split('.')[0]}_summary.json"
+            audio_file = block.get('audio_file_path', 'unknown')
+            if audio_file and audio_file != 'unknown':
+                summary_filename = f"{Path(audio_file).stem}_summary.json"
+            else:
+                summary_filename = f"block_{block_code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_summary.json"
             summary_path = Config.SUMMARIES_DIR / summary_filename
             
             with open(summary_path, 'w', encoding='utf-8') as f:
