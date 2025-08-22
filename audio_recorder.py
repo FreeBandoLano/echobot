@@ -46,11 +46,19 @@ class AudioRecorder:
             # Record audio
             success = self._record_audio(audio_path, duration_seconds)
             
-            if success and audio_path.exists():
+            # Check if the actual output file exists (might have _silence suffix)
+            actual_audio_path = audio_path
+            if not audio_path.exists():
+                # Check for silence file variant
+                silence_path = audio_path.parent / f"{audio_path.stem}_silence.wav"
+                if silence_path.exists():
+                    actual_audio_path = silence_path
+            
+            if success and actual_audio_path.exists():
                 # Update database with completed recording
-                db.update_block_status(block_id, 'recorded', audio_file_path=audio_path)
-                logger.info(f"Successfully recorded Block {block_code} to {audio_path}")
-                return audio_path
+                db.update_block_status(block_id, 'recorded', audio_file_path=actual_audio_path)
+                logger.info(f"Successfully recorded Block {block_code} to {actual_audio_path}")
+                return actual_audio_path
             else:
                 # Mark as failed
                 db.update_block_status(block_id, 'failed')
