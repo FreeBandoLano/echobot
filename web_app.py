@@ -8,11 +8,15 @@ import uvicorn
 from datetime import date, datetime, timedelta
 from typing import Optional, List, Dict
 import json
+import logging
 from pathlib import Path
 
 from config import Config
 from database import db
 from scheduler import scheduler
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Ensure all required directories exist when the app starts.
 # This is crucial for running in a container where `main.py` is not the entry point.
