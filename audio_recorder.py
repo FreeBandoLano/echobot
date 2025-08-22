@@ -118,15 +118,18 @@ class AudioRecorder:
         logger.info(f"Recording from stream: {Config.RADIO_STREAM_URL}")
         logger.debug(f"FFmpeg command: {' '.join(cmd)}")
         
-        # Test stream connectivity first
-        test_cmd = ['curl', '-I', '--connect-timeout', '10', Config.RADIO_STREAM_URL]
-        test_result = subprocess.run(test_cmd, capture_output=True, text=True)
-        
-        if test_result.returncode != 0:
-            logger.error(f"Stream connectivity test failed: {test_result.stderr}")
+        # Test stream connectivity first using Python requests
+        try:
+            import requests
+            response = requests.head(Config.RADIO_STREAM_URL, timeout=10)
+            if response.status_code == 200:
+                logger.info("Stream connectivity test passed")
+            else:
+                logger.error(f"Stream returned status {response.status_code}")
+                return False
+        except Exception as e:
+            logger.error(f"Stream connectivity test failed: {e}")
             return False
-        else:
-            logger.info("Stream connectivity test passed")
         
         process = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         
