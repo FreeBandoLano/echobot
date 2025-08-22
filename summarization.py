@@ -88,7 +88,22 @@ class RadioSummarizer:
         
         if not transcript_text.strip():
             logger.warning("Empty transcript text")
-            return None
+            # Handle empty/silence transcript gracefully
+            summary_data = self._create_empty_summary(block_code, block_name, transcript_data)
+            
+            # Save summary
+            summary_filename = f"{transcript_path.stem}_summary.json"
+            summary_path = Config.SUMMARIES_DIR / summary_filename
+            
+            with open(summary_path, 'w', encoding='utf-8') as f:
+                json.dump(summary_data, f, indent=2, ensure_ascii=False)
+            
+            # Update database
+            db.update_block_status(block_id, 'completed')
+            db.save_summary(block_id, summary_data, summary_path)
+            
+            logger.info(f"Empty summary completed for block {block_id}")
+            return summary_data
         
         # Create prompt based on block type
         prompt = self._create_summary_prompt(block_code, block_name, transcript_text, caller_count)
@@ -188,6 +203,27 @@ Focus on: Historical context, educational value, connections to contemporary iss
 Format your response clearly with numbered sections. Keep summaries concise but comprehensive.
 Maintain objectivity and focus on factual content relevant to government decision-making.
 """
+    
+    def _create_empty_summary(self, block_code: str, block_name: str, transcript_data: Dict) -> Dict:
+        """Create a summary for empty/silence recordings."""
+        
+        return {
+            'block_code': block_code,
+            'block_name': block_name,
+            'summary': 'No audio content recorded (silence/fallback recording)',
+            'key_points': [],
+            'caller_count': 0,
+            'notable_quotes': [],
+            'entities_mentioned': [],
+            'policy_implications': 'None - no content available',
+            'is_silence': True,
+            'generated_at': datetime.now().isoformat(),
+            'transcript_stats': {
+                'word_count': 0,
+                'duration': 0,
+                'segments': 0
+            }
+        }
     
     def _parse_summary_response(self, summary_text: str, existing_quotes: List[Dict], caller_count: int) -> Dict:
         """Parse the GPT response into structured data."""
