@@ -163,24 +163,29 @@ class AudioRecorder:
     def _record_silence(self, output_path: Path, duration_seconds: int) -> bool:
         """Record silence as a fallback for testing."""
         
+        # For silence recordings, create a very short file (10 seconds) to minimize size
+        # but mark it as a silence file in the filename
+        actual_output = output_path.parent / f"{output_path.stem}_silence.wav"
+        short_duration = min(10, duration_seconds)  # Max 10 seconds for silence
+        
         cmd = [
             'ffmpeg',
             '-hide_banner',
             '-loglevel', 'error',
             '-f', 'lavfi',
             '-i', 'anullsrc=channel_layout=mono:sample_rate=16000',
-            '-t', str(duration_seconds),
+            '-t', str(short_duration),
             '-y',
-            str(output_path)
+            str(actual_output)
         ]
         
-        logger.warning("Recording silence as fallback (no audio source configured)")
+        logger.warning(f"Recording {short_duration}s silence as fallback (no audio source configured)")
         logger.debug(f"FFmpeg command: {' '.join(cmd)}")
         
         process = subprocess.run(cmd, capture_output=True, text=True)
         
         if process.returncode == 0:
-            logger.info(f"Silence recording completed: {output_path}")
+            logger.info(f"Silence recording completed: {actual_output}")
             return True
         else:
             logger.error(f"Silence recording failed: {process.stderr}")

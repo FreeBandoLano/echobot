@@ -40,8 +40,8 @@ class AudioTranscriber:
         logger.info(f"Starting transcription for block {block_id}: {audio_path}")
         
         # Check if this is a silence-only file (fallback recording)
-        if "_silence" in str(audio_path) or "anullsrc" in str(audio_path):
-            logger.info(f"Skipping transcription for silence file: {audio_path}")
+        if "_silence" in str(audio_path):
+            logger.info(f"Detected silence file, creating empty transcript: {audio_path}")
             # Create a minimal transcript for silence
             transcript_data = {
                 'text': "",
@@ -206,8 +206,8 @@ class AudioTranscriber:
         
         logger.info("Splitting large audio file for transcription")
         
-        # Use ffmpeg to split into 20-minute chunks
-        chunk_duration = 20 * 60  # 20 minutes in seconds
+        # Use ffmpeg to split into 10-minute chunks (smaller to stay under 25MB limit)
+        chunk_duration = 10 * 60  # 10 minutes in seconds
         chunks = self._split_audio_file(audio_path, chunk_duration)
         
         if not chunks:

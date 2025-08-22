@@ -234,6 +234,68 @@ async def health_check():
         "timestamp": datetime.now().isoformat()
     }
 
+@app.get("/debug/blocks")
+async def debug_blocks():
+    """Debug endpoint to check block status."""
+    
+    try:
+        blocks = db.get_blocks_by_date(date.today())
+        block_list = []
+        for block in blocks:
+            block_info = {
+                "id": block["id"],
+                "block_code": block["block_code"], 
+                "status": block["status"],
+                "audio_file_path": block.get("audio_file_path"),
+                "transcript_file_path": block.get("transcript_file_path"),
+                "start_time": str(block.get("start_time")),
+                "end_time": str(block.get("end_time"))
+            }
+            block_list.append(block_info)
+        
+        return {
+            "date": str(date.today()),
+            "blocks": block_list
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/debug/reset-block-status")
+async def reset_block_status(block_code: str = Form(...)):
+    """Reset block status to 'recorded' for debugging."""
+    
+    try:
+        blocks = db.get_blocks_by_date(date.today())
+        block = next((b for b in blocks if b['block_code'] == block_code), None)
+        
+        if block and block.get('audio_file_path'):
+            db.update_block_status(block['id'], 'recorded')
+            return {"message": f"Reset Block {block_code} status to 'recorded'"}
+        else:
+            return {"error": f"Block {block_code} not found or has no audio file"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    
+    try:
+        # Test database connection
+        with db.get_connection() as conn:
+            conn.execute("SELECT 1").fetchone()
+        
+        db_status = "healthy"
+    except:
+        db_status = "unhealthy"
+    
+    return {
+        "status": "healthy" if db_status == "healthy" else "unhealthy",
+        "database": db_status,
+        "scheduler": "running" if scheduler.running else "stopped",
+        "timestamp": datetime.now().isoformat()
+    }
+
 # Create HTML templates
 def create_templates():
     """Create HTML template files."""
