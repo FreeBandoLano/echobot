@@ -91,7 +91,7 @@ class AudioRecorder:
         return False
     
     def _record_from_stream(self, output_path: Path, duration_seconds: int) -> bool:
-        """Record from radio stream using Python requests (more reliable than FFmpeg)."""
+        """Record from radio stream using dynamic session ID retrieval when needed."""
         
         if not Config.RADIO_STREAM_URL:
             return False
@@ -101,24 +101,59 @@ class AudioRecorder:
         try:
             import requests
             import time
+            import re
             
-            # Create session with proper headers
-            session = requests.Session()
+            # Check if we need to use dynamic session ID
+            if "playSessionID=DYNAMIC" in Config.RADIO_STREAM_URL:
+                logger.info("Dynamic session ID detected, fetching fresh session...")
+                
+                # First, get fresh session ID from station settings
+                session = requests.Session()
+                session.headers.update({
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive',
+                    'Referer': 'https://starcomnetwork.net/'
+                })
+                
+                logger.info("Fetching fresh session ID from station settings...")
+                settings_url = "https://radio.securenetsystems.net/cirrusencore/embed/stationSettings.cfm?stationCallSign=VOB929"
+                settings_response = session.get(settings_url, timeout=10)
+                settings_response.raise_for_status()
+                
+                # Extract session ID from settings
+                session_match = re.search(r"playSessionID['\"]='([^'\"]+)", settings_response.text)
+                if not session_match:
+                    logger.error("Could not extract session ID from station settings")
+                    return False
+                
+                session_id = session_match.group(1)
+                stream_url = f"https://ice66.securenetsystems.net/VOB929?playSessionID={session_id}"
+                logger.info(f"Using fresh session ID: {session_id}")
+                logger.info(f"Stream URL: {stream_url}")
+            else:
+                # Use the configured URL directly
+                stream_url = Config.RADIO_STREAM_URL
+                session = requests.Session()
+                logger.info(f"Using configured stream URL directly: {stream_url}")
+                    
+            # Update headers to match embed player
             session.headers.update({
-                'User-Agent': 'Mozilla/5.0 (compatible; RadioRecorder/1.0)',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Accept': 'audio/*,*/*;q=0.9',
                 'Accept-Encoding': 'identity',
-                'Connection': 'keep-alive'
-            })
-            
-            # Test connectivity first
+                'Connection': 'keep-alive',
+                'Referer': 'https://starcomnetwork.net/radio-stations/stream-vob-92-9-fm/'
+            })            # Test connectivity first
             logger.info("Testing stream connectivity...")
             try:
-                test_response = session.head(Config.RADIO_STREAM_URL, timeout=10)
+                test_response = session.head(stream_url, timeout=10)
                 if test_response.status_code != 200:
                     # Try GET with small range if HEAD fails
                     test_response = session.get(
-                        Config.RADIO_STREAM_URL,
+                        stream_url,
                         headers={'Range': 'bytes=0-1023'},
                         timeout=10,
                         stream=True
@@ -131,8 +166,8 @@ class AudioRecorder:
                 logger.error(f"Stream connectivity test failed: {e}")
                 return False
             
-            # Start streaming request
-            response = session.get(Config.RADIO_STREAM_URL, stream=True, timeout=30)
+            # Start streaming request with fresh session ID
+            response = session.get(stream_url, stream=True, timeout=30)
             response.raise_for_status()
             
             # Log stream info
