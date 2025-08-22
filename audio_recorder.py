@@ -104,6 +104,9 @@ class AudioRecorder:
             '-reconnect', '1',
             '-reconnect_streamed', '1', 
             '-reconnect_delay_max', '5',
+            '-reconnect_at_eof', '1',
+            '-user_agent', 'Mozilla/5.0 (compatible; RadioRecorder/1.0)',
+            '-timeout', '30000000',  # 30 second timeout in microseconds
             '-i', Config.RADIO_STREAM_URL,
             '-ac', '1',  # Mono
             '-ar', '16000',  # 16kHz sample rate
@@ -115,7 +118,17 @@ class AudioRecorder:
         logger.info(f"Recording from stream: {Config.RADIO_STREAM_URL}")
         logger.debug(f"FFmpeg command: {' '.join(cmd)}")
         
-        process = subprocess.run(cmd, capture_output=True, text=True)
+        # Test stream connectivity first
+        test_cmd = ['curl', '-I', '--connect-timeout', '10', Config.RADIO_STREAM_URL]
+        test_result = subprocess.run(test_cmd, capture_output=True, text=True)
+        
+        if test_result.returncode != 0:
+            logger.error(f"Stream connectivity test failed: {test_result.stderr}")
+            return False
+        else:
+            logger.info("Stream connectivity test passed")
+        
+        process = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         
         if process.returncode == 0:
             logger.info(f"Stream recording completed: {output_path}")
