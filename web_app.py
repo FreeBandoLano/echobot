@@ -276,6 +276,78 @@ async def reset_block_status(block_code: str = Form(...)):
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/debug/stream-test")
+async def debug_stream_test():
+    """Debug endpoint to test stream connectivity with dynamic session."""
+    try:
+        import requests
+        import re
+        import time
+        
+        # Get fresh session ID from station settings
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Referer': 'https://starcomnetwork.net/'
+        })
+        
+        logger.info("Debug: Fetching fresh session ID from station settings...")
+        settings_url = "https://radio.securenetsystems.net/cirrusencore/embed/stationSettings.cfm?stationCallSign=VOB929"
+        settings_response = session.get(settings_url, timeout=10)
+        settings_response.raise_for_status()
+        
+        # Extract session ID from settings
+        session_match = re.search(r"playSessionID['\"]='([^'\"]+)", settings_response.text)
+        if not session_match:
+            return {"error": "Could not extract session ID from station settings", "response_text": settings_response.text[:500]}
+        
+        session_id = session_match.group(1)
+        stream_url = f"https://ice66.securenetsystems.net/VOB929?playSessionID={session_id}"
+        
+        # Update headers for stream request
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'audio/*,*/*;q=0.9',
+            'Accept-Encoding': 'identity',
+            'Connection': 'keep-alive',
+            'Referer': 'https://starcomnetwork.net/radio-stations/stream-vob-92-9-fm/'
+        })
+        
+        # Test stream connectivity
+        start_time = time.time()
+        response = session.get(
+            stream_url,
+            headers={'Range': 'bytes=0-5119'},  # Request first 5KB
+            timeout=10,
+            stream=True
+        )
+        
+        bytes_read = 0
+        for chunk in response.iter_content(chunk_size=1024):
+            if chunk:
+                bytes_read += len(chunk)
+                if bytes_read >= 5120:  # Stop after 5KB
+                    break
+        
+        elapsed = time.time() - start_time
+        
+        return {
+            "status": "success",
+            "session_id": session_id,
+            "stream_url": stream_url,
+            "http_status": response.status_code,
+            "content_type": response.headers.get('content-type', 'unknown'),
+            "bytes_downloaded": bytes_read,
+            "time_elapsed": f"{elapsed:.2f}s"
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
