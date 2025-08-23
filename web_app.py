@@ -280,6 +280,58 @@ async def reset_block_status(block_code: str = Form(...)):
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/debug/station-settings")
+async def debug_station_settings():
+    """Debug endpoint to check the station settings response."""
+    try:
+        import requests
+        import re
+        
+        # Get station settings response
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Referer': 'https://starcomnetwork.net/'
+        })
+        
+        logger.info("Debug: Fetching station settings...")
+        settings_url = "https://radio.securenetsystems.net/cirrusencore/embed/stationSettings.cfm?stationCallSign=VOB929"
+        settings_response = session.get(settings_url, timeout=10)
+        settings_response.raise_for_status()
+        
+        # Try different regex patterns
+        patterns = [
+            r"playSessionID['\"]='([^'\"]+)",
+            r"playSessionID['\"]:\s*['\"]([^'\"]+)",
+            r"playSessionID['\"][=:]\s*['\"]([^'\"]+)",
+            r"sessionID['\"]='([^'\"]+)",
+            r"streamSRC['\"]='[^'\"]*playSessionID=([^'\"&]+)"
+        ]
+        
+        matches = {}
+        for i, pattern in enumerate(patterns):
+            match = re.search(pattern, settings_response.text)
+            if match:
+                matches[f"pattern_{i+1}"] = match.group(1)
+        
+        return {
+            "status": "success",
+            "response_length": len(settings_response.text),
+            "response_preview": settings_response.text[:1000],
+            "response_full": settings_response.text,
+            "patterns_tried": len(patterns),
+            "matches_found": matches,
+            "http_status": settings_response.status_code,
+            "headers": dict(settings_response.headers)
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/debug/stream-test")
 async def debug_stream_test():
     """Debug endpoint to test stream connectivity with dynamic session."""
