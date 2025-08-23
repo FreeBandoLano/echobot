@@ -123,21 +123,28 @@ class AudioRecorder:
                 settings_response = session.get(settings_url, timeout=10)
                 settings_response.raise_for_status()
                 
-                # Extract session ID from settings
-                session_match = re.search(r"playSessionID['\"]='([^'\"]+)", settings_response.text)
+                # Extract session ID from settings using improved pattern
+                session_match = re.search(r"playSessionID=([A-F0-9\-]{32,})", settings_response.text)
                 if not session_match:
-                    logger.error("Could not extract session ID from station settings")
-                    return False
-                
-                session_id = session_match.group(1)
-                stream_url = f"https://ice66.securenetsystems.net/VOB929?playSessionID={session_id}"
-                logger.info(f"Using fresh session ID: {session_id}")
+                    logger.warning("Could not extract session ID from station settings, trying direct stream...")
+                    # Fallback to direct stream without session ID (discovered working method)
+                    stream_url = "https://ice66.securenetsystems.net/VOB929"
+                    logger.info("Using direct stream URL (no session ID required)")
+                else:
+                    session_id = session_match.group(1)
+                    stream_url = f"https://ice66.securenetsystems.net/VOB929?playSessionID={session_id}"
+                    logger.info(f"Using fresh session ID: {session_id}")
                 logger.info(f"Stream URL: {stream_url}")
             else:
-                # Use the configured URL directly
-                stream_url = Config.RADIO_STREAM_URL
+                # Use the configured URL directly, but prefer the working direct stream for VOB
+                if "VOB929" in Config.RADIO_STREAM_URL or not Config.RADIO_STREAM_URL:
+                    # Use the discovered working direct stream
+                    stream_url = "https://ice66.securenetsystems.net/VOB929"
+                    logger.info("Using discovered direct VOB stream (budget solution)")
+                else:
+                    stream_url = Config.RADIO_STREAM_URL
+                    logger.info(f"Using configured stream URL directly: {stream_url}")
                 session = requests.Session()
-                logger.info(f"Using configured stream URL directly: {stream_url}")
                     
             # Update headers to match embed player
             session.headers.update({
