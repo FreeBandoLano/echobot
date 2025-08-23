@@ -1,4 +1,5 @@
-"""Simple web interface for viewing radio synopsis results."""
+"""Simple web interface for viewing radio synopsis results.
+Deploy test - workflow verification."""
 
 from fastapi import FastAPI, Request, HTTPException, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -113,7 +114,8 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
         "recent_dates": recent_dates,
         "is_today": view_date == date.today(),
         "message": message,
-        "error": error
+        "error": error,
+        "config": Config
     })
 
 @app.get("/block/{block_id}", response_class=HTMLResponse)
