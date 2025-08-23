@@ -338,6 +338,70 @@ class AudioRecorder:
         
         return self.record_block(block_code, start_time, end_time, show_id)
     
+    def record_live_duration(self, block_code: str, duration_minutes: int = 5) -> Optional[Path]:
+        """Record a block for a specific duration starting now (ignoring scheduled times)."""
+        
+        now = datetime.now(Config.TIMEZONE)
+        duration_seconds = duration_minutes * 60
+        
+        # Create start and end times based on current time + duration
+        start_time = now
+        end_time = now + timedelta(seconds=duration_seconds)
+        
+        logger.info(f"Starting immediate recording for Block {block_code}")
+        logger.info(f"Duration: {duration_minutes} minutes ({duration_seconds} seconds)")
+        logger.info(f"Start: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"End: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Get or create show for today
+        today = now.date()
+        show = db.get_show(today)
+        if not show:
+            show_id = db.create_show(today)
+        else:
+            show_id = show['id']
+        
+        # Generate filename with current timestamp
+        timestamp_str = now.strftime('%Y-%m-%d_%H-%M-%S')
+        audio_filename = f"{timestamp_str}_block_{block_code}_live_{duration_minutes}min.wav"
+        audio_path = Config.AUDIO_DIR / audio_filename
+        
+        # Create block in database
+        block_id = db.create_block(show_id, block_code, start_time, end_time)
+        
+        logger.info(f"Starting live recording for Block {block_code}: {audio_filename}")
+        
+        try:
+            # Update status to recording
+            db.update_block_status(block_id, 'recording')
+            
+            # Record audio for the specified duration
+            success = self._record_audio(audio_path, duration_seconds)
+            
+            # Check if the actual output file exists (might have _silence suffix)
+            actual_audio_path = audio_path
+            if not audio_path.exists():
+                # Check for silence file variant
+                silence_path = audio_path.parent / f"{audio_path.stem}_silence.wav"
+                if silence_path.exists():
+                    actual_audio_path = silence_path
+            
+            if success and actual_audio_path.exists():
+                # Update database with completed recording
+                db.update_block_status(block_id, 'recorded', audio_file_path=actual_audio_path)
+                logger.info(f"Successfully recorded Block {block_code} to {actual_audio_path}")
+                return actual_audio_path
+            else:
+                # Mark as failed
+                db.update_block_status(block_id, 'failed')
+                logger.error(f"Failed to record Block {block_code}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error recording Block {block_code}: {e}")
+            db.update_block_status(block_id, 'failed')
+            return None
+    
     def test_recording(self, duration_seconds: int = 10) -> bool:
         """Test recording functionality."""
         

@@ -204,6 +204,45 @@ async def manual_record(block_code: str = Form(...)):
     except Exception as e:
         return RedirectResponse(url=f"/?error=Failed to start recording: {str(e)}", status_code=303)
 
+@app.post("/api/manual-record-duration")
+async def manual_record_duration(
+    block_code: str = Form(...), 
+    duration_minutes: int = Form(5)
+):
+    """Manually trigger recording for a specific duration (ignoring scheduled times)."""
+    
+    if block_code not in Config.BLOCKS:
+        raise HTTPException(status_code=400, detail="Invalid block code")
+    
+    if duration_minutes < 1 or duration_minutes > 120:
+        raise HTTPException(status_code=400, detail="Duration must be between 1 and 120 minutes")
+    
+    try:
+        from audio_recorder import recorder
+        import threading
+        
+        # Run recording in background thread
+        def record_thread():
+            try:
+                result = recorder.record_live_duration(block_code, duration_minutes)
+                if result:
+                    logger.info(f"Duration-based recording completed: {result}")
+                else:
+                    logger.error(f"Duration-based recording failed for Block {block_code}")
+            except Exception as e:
+                logger.error(f"Duration-based recording error: {e}")
+        
+        recording_thread = threading.Thread(target=record_thread, daemon=True)
+        recording_thread.start()
+        
+        # Redirect back to dashboard with a message
+        return RedirectResponse(
+            url=f"/?message=Started {duration_minutes}-minute recording for Block {block_code}", 
+            status_code=303
+        )
+    except Exception as e:
+        return RedirectResponse(url=f"/?error=Failed to start duration recording: {str(e)}", status_code=303)
+
 @app.post("/api/manual-process")
 async def manual_process(block_code: str = Form(...)):
     """Manually trigger processing for a block."""
@@ -572,16 +611,36 @@ def create_templates():
                         <h6 class="mb-0">Manual Controls</h6>
                     </div>
                     <div class="card-body">
-                        <div class="d-grid gap-2">
+                        <div class="d-grid gap-3">
                             {% for code in ['A', 'B', 'C', 'D'] %}
-                                <div class="btn-group" role="group">
-                                    <form method="post" action="/api/manual-record" class="d-inline">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-2">Block {{ code }} - {{ config.BLOCKS[code].name }}</h6>
+                                    
+                                    <!-- Original scheduled recording -->
+                                    <div class="btn-group mb-2" role="group">
+                                        <form method="post" action="/api/manual-record" class="d-inline">
+                                            <input type="hidden" name="block_code" value="{{ code }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Record (Scheduled)</button>
+                                        </form>
+                                        <form method="post" action="/api/manual-process" class="d-inline">
+                                            <input type="hidden" name="block_code" value="{{ code }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-primary">Process</button>
+                                        </form>
+                                    </div>
+                                    
+                                    <!-- Duration-based recording -->
+                                    <form method="post" action="/api/manual-record-duration" class="d-flex gap-2 align-items-center">
                                         <input type="hidden" name="block_code" value="{{ code }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">Record {{ code }}</button>
-                                    </form>
-                                    <form method="post" action="/api/manual-process" class="d-inline">
-                                        <input type="hidden" name="block_code" value="{{ code }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-primary">Process {{ code }}</button>
+                                        <label class="form-label mb-0 small">Duration:</label>
+                                        <select name="duration_minutes" class="form-select form-select-sm" style="width: auto;">
+                                            <option value="1">1 min</option>
+                                            <option value="2">2 min</option>
+                                            <option value="5" selected>5 min</option>
+                                            <option value="10">10 min</option>
+                                            <option value="15">15 min</option>
+                                            <option value="30">30 min</option>
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-success">Record Now</button>
                                     </form>
                                 </div>
                             {% endfor %}
