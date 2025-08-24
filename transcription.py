@@ -123,12 +123,21 @@ class AudioTranscriber:
             # Process segments with timestamps
             if hasattr(response, 'segments') and response.segments:
                 for segment in response.segments:
-                    segment_data = {
-                        'start': segment.start,
-                        'end': segment.end,
-                        'text': segment.text.strip(),
-                        'speaker': self._detect_speaker(segment.text)
-                    }
+                    # Handle both dict and object formats for API compatibility
+                    if isinstance(segment, dict):
+                        segment_data = {
+                            'start': segment['start'],
+                            'end': segment['end'],
+                            'text': segment['text'].strip(),
+                            'speaker': self._detect_speaker(segment['text'])
+                        }
+                    else:
+                        segment_data = {
+                            'start': segment.start,
+                            'end': segment.end,
+                            'text': segment.text.strip(),
+                            'speaker': self._detect_speaker(segment.text)
+                        }
                     transcript_data['segments'].append(segment_data)
             
             # Extract caller information
@@ -179,12 +188,21 @@ class AudioTranscriber:
             # Process segments with timestamps
             if hasattr(response, 'segments') and response.segments:
                 for segment in response.segments:
-                    segment_data = {
-                        'start': segment.start,
-                        'end': segment.end,
-                        'text': segment.text.strip(),
-                        'speaker': self._detect_speaker(segment.text)
-                    }
+                    # Handle both dict and object formats for API compatibility
+                    if isinstance(segment, dict):
+                        segment_data = {
+                            'start': segment['start'],
+                            'end': segment['end'],
+                            'text': segment['text'].strip(),
+                            'speaker': self._detect_speaker(segment['text'])
+                        }
+                    else:
+                        segment_data = {
+                            'start': segment.start,
+                            'end': segment.end,
+                            'text': segment.text.strip(),
+                            'speaker': self._detect_speaker(segment.text)
+                        }
                     transcript_data['segments'].append(segment_data)
             
             # Extract caller information
