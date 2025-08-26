@@ -809,13 +809,7 @@ def create_templates():
 </html>
 """
 
-    # Write templates to files
-    (templates_dir / "dashboard.html").write_text(dashboard_template)
-    (templates_dir / "block_detail.html").write_text(block_detail_template)
-    (templates_dir / "archive.html").write_text(archive_template)
 
-# Create templates on startup
-create_templates()
 
 def start_web_server():
     """Start the web server for local execution."""
