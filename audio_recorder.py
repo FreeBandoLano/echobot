@@ -10,8 +10,6 @@ from typing import Optional
 from config import Config
 from database import db
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class AudioRecorder:

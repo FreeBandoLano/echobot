@@ -18,6 +18,17 @@ class Config:
     RADIO_STREAM_URL = os.getenv('RADIO_STREAM_URL')
     AUDIO_INPUT_DEVICE = os.getenv('AUDIO_INPUT_DEVICE', 'default')
     
+    # Station/Program Configuration (NEW - Parameterized)
+    STATION_NAME = os.getenv('STATION_NAME', 'Radio Station')
+    PROGRAM_NAME = os.getenv('PROGRAM_NAME', 'Radio Program')
+    TARGET_AUDIENCE = os.getenv('TARGET_AUDIENCE', 'general public')
+    ORGANIZATION_TYPE = os.getenv('ORGANIZATION_TYPE', 'radio station')
+    CONTENT_FOCUS = os.getenv('CONTENT_FOCUS', 'general topics and public interest')
+    SUMMARY_STYLE = os.getenv('SUMMARY_STYLE', 'objective, structured, and accessible')
+    
+    # Application Settings (NEW)
+    ENABLE_DEBUG_ENDPOINTS = os.getenv('ENABLE_DEBUG_ENDPOINTS', 'false').lower() == 'true'
+    
     # Timezone
     TIMEZONE = pytz.timezone(os.getenv('TZ', 'America/Barbados'))
     
@@ -68,13 +79,33 @@ class Config:
     @classmethod
     def validate(cls):
         """Validate required configuration."""
+        missing_config = []
+        
         if not cls.OPENAI_API_KEY:
-            raise ValueError("OPENAI_API_KEY is required")
+            missing_config.append("OPENAI_API_KEY")
         
         if not cls.RADIO_STREAM_URL and not cls.AUDIO_INPUT_DEVICE:
-            print("Warning: No audio source configured. Set RADIO_STREAM_URL or AUDIO_INPUT_DEVICE")
+            missing_config.append("audio source (RADIO_STREAM_URL or AUDIO_INPUT_DEVICE)")
+        
+        if missing_config:
+            print(f"Warning: Missing configuration: {', '.join(missing_config)}")
+            print("Some features may not work without proper configuration.")
+            print("See .env.example for configuration options.")
         
         return True
+    
+    @classmethod
+    def get_display_config(cls):
+        """Get configuration for display (without sensitive data)."""
+        return {
+            'station_name': cls.STATION_NAME,
+            'program_name': cls.PROGRAM_NAME,
+            'target_audience': cls.TARGET_AUDIENCE,
+            'content_focus': cls.CONTENT_FOCUS,
+            'timezone': str(cls.TIMEZONE),
+            'debug_endpoints': cls.ENABLE_DEBUG_ENDPOINTS,
+            'api_port': cls.API_PORT,
+        }
 
 # Validate configuration on import
 Config.validate()

@@ -17,7 +17,16 @@ class RadioSummarizer:
     """Generates summaries for radio transcripts using OpenAI GPT."""
     
     def __init__(self):
-        self.client = openai.OpenAI(api_key=Config.OPENAI_API_KEY)
+        self._client = None
+    
+    @property
+    def client(self):
+        """Lazy-load OpenAI client only when needed."""
+        if self._client is None:
+            if not Config.OPENAI_API_KEY:
+                raise ValueError("OPENAI_API_KEY is required for summarization")
+            self._client = openai.OpenAI(api_key=Config.OPENAI_API_KEY)
+        return self._client
     
     def summarize_block(self, block_id: int) -> Optional[Dict]:
         """Create summary for a transcribed block."""
@@ -102,9 +111,16 @@ class RadioSummarizer:
             with open(summary_path, 'w', encoding='utf-8') as f:
                 json.dump(summary_data, f, indent=2, ensure_ascii=False)
             
-            # Update database
+            # Update database - use the correct method to save summary
             db.update_block_status(block_id, 'completed')
-            db.save_summary(block_id, summary_data, summary_path)
+            db.create_summary(
+                block_id=block_id,
+                summary_text=summary_data.get('summary', ''),
+                key_points=summary_data.get('key_points', []),
+                entities=summary_data.get('entities_mentioned', []),
+                caller_count=summary_data.get('caller_count', 0),
+                quotes=summary_data.get('notable_quotes', [])
+            )
             
             logger.info(f"Empty summary completed for block {block_id}")
             return summary_data
