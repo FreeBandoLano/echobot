@@ -118,7 +118,7 @@ class AudioTranscriber:
                     file=audio_file,
                     response_format="verbose_json",
                     timestamp_granularities=["segment"],
-                    language="en"  # Assuming English for Barbados radio
+                    language="en"  # Default English, configure as needed
                 )
             
             # Process response
@@ -183,7 +183,7 @@ class AudioTranscriber:
                     file=audio_file,
                     response_format="verbose_json",
                     timestamp_granularities=["segment"],
-                    language="en"  # Assuming English for Barbados radio
+                    language="en"  # Default English, configure as needed
                 )
             
             # Process response

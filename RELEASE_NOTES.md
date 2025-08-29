@@ -45,7 +45,7 @@ python main.py web      # Start dashboard
 - **OS**: Linux, macOS, Windows (with FFmpeg)
 
 ### ⚙️ Configuration
-The system is pre-configured for VOB 92.9 FM (Barbados) but can be adapted for any radio station by modifying the `.env` file.
+The system is easily configurable for any radio station by modifying the `.env` file.
 
 Key configuration options:
 - `RADIO_STREAM_URL`: Direct stream URL

@@ -145,7 +145,7 @@ cp .env.example .env
 python main.py setup
 ```
 
-💡 Pre-configured for VOB 92.9 FM (Barbados) but easily adaptable to any radio station.
+💡 Easily adaptable to any radio station with minimal configuration.
 
 🔗 Try it out: https://github.com/FreeBandoLano/echobot/releases/tag/v{__version__}
 

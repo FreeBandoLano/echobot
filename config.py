@@ -30,7 +30,7 @@ class Config:
     ENABLE_DEBUG_ENDPOINTS = os.getenv('ENABLE_DEBUG_ENDPOINTS', 'false').lower() == 'true'
     
     # Timezone
-    TIMEZONE = pytz.timezone(os.getenv('TZ', 'America/Barbados'))
+    TIMEZONE = pytz.timezone(os.getenv('TZ', 'UTC'))
     
     # Directory Configuration
     BASE_DIR = Path(__file__).parent
@@ -48,7 +48,7 @@ class Config:
     API_HOST = os.getenv('API_HOST', '0.0.0.0')
     API_PORT = int(os.getenv('API_PORT', 8001))
     
-    # Schedule Configuration (times in Barbados timezone)
+    # Schedule Configuration (times in configured timezone)
     BLOCKS = {
         'A': {
             'start_time': os.getenv('BLOCK_A_START', '10:00'),
