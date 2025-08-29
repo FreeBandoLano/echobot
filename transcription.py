@@ -17,7 +17,16 @@ class AudioTranscriber:
     """Handles audio transcription using OpenAI Whisper API."""
     
     def __init__(self):
-        self.client = openai.OpenAI(api_key=Config.OPENAI_API_KEY)
+        self._client = None
+    
+    @property
+    def client(self):
+        """Lazy-load OpenAI client only when needed."""
+        if self._client is None:
+            if not Config.OPENAI_API_KEY:
+                raise ValueError("OPENAI_API_KEY is required for transcription")
+            self._client = openai.OpenAI(api_key=Config.OPENAI_API_KEY)
+        return self._client
     
     def transcribe_block(self, block_id: int) -> Optional[Dict]:
         """Transcribe audio for a specific block."""

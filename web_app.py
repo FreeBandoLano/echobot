@@ -184,13 +184,32 @@ async def api_status():
         status = block['status']
         status_counts[status] = status_counts.get(status, 0) + 1
     
+    # Test database status
+    try:
+        with db.get_connection() as conn:
+            conn.execute("SELECT 1").fetchone()
+        db_status = "healthy"
+    except:
+        db_status = "unhealthy"
+    
     return {
         "date": today.isoformat(),
         "total_blocks": len(blocks),
         "status_counts": status_counts,
-        "scheduler_running": scheduler.running,
+        "database": db_status,
+        "scheduler": "running" if scheduler.running else "stopped",
         "timestamp": datetime.now().isoformat()
     }
+
+@app.get("/api/config")
+async def get_public_config():
+    """Get public configuration information (safe for production)."""
+    config_data = Config.get_display_config()
+    config_data.update({
+        "scheduler_running": scheduler.running,
+        "timestamp": datetime.now().isoformat()
+    })
+    return config_data
 
 @app.post("/api/manual-record")
 async def manual_record(block_code: str = Form(...)):
@@ -281,7 +300,9 @@ async def health_check():
 
 @app.get("/debug/blocks")
 async def debug_blocks():
-    """Debug endpoint to check block status."""
+    """Debug endpoint to check block status - disabled by default for security."""
+    if not Config.ENABLE_DEBUG_ENDPOINTS:
+        raise HTTPException(status_code=404, detail="Debug endpoints are disabled")
     
     try:
         blocks = db.get_blocks_by_date(date.today())
@@ -307,7 +328,9 @@ async def debug_blocks():
 
 @app.post("/debug/reset-block-status")
 async def reset_block_status(block_code: str = Form(...)):
-    """Reset block status to 'recorded' for debugging."""
+    """Reset block status to 'recorded' for debugging - disabled by default for security."""
+    if not Config.ENABLE_DEBUG_ENDPOINTS:
+        raise HTTPException(status_code=404, detail="Debug endpoints are disabled")
     
     try:
         blocks = db.get_blocks_by_date(date.today())
@@ -323,7 +346,9 @@ async def reset_block_status(block_code: str = Form(...)):
 
 @app.get("/debug/station-settings")
 async def debug_station_settings():
-    """Debug endpoint to check the station settings response."""
+    """Debug endpoint to check the station settings response - disabled by default for security."""
+    if not Config.ENABLE_DEBUG_ENDPOINTS:
+        raise HTTPException(status_code=404, detail="Debug endpoints are disabled")
     try:
         import requests
         import re
@@ -375,7 +400,9 @@ async def debug_station_settings():
 
 @app.get("/debug/stream-test")
 async def debug_stream_test():
-    """Debug endpoint to test stream connectivity with dynamic session."""
+    """Debug endpoint to test stream connectivity - disabled by default for security."""
+    if not Config.ENABLE_DEBUG_ENDPOINTS:
+        raise HTTPException(status_code=404, detail="Debug endpoints are disabled")
     try:
         import requests
         import re
@@ -444,26 +471,6 @@ async def debug_stream_test():
         
     except Exception as e:
         return {"error": str(e)}
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    
-    try:
-        # Test database connection
-        with db.get_connection() as conn:
-            conn.execute("SELECT 1").fetchone()
-        
-        db_status = "healthy"
-    except:
-        db_status = "unhealthy"
-    
-    return {
-        "status": "healthy" if db_status == "healthy" else "unhealthy",
-        "database": db_status,
-        "scheduler": "running" if scheduler.running else "stopped",
-        "timestamp": datetime.now().isoformat()
-    }
 
 # Create HTML templates
 def create_templates():

@@ -6,8 +6,10 @@ from pydub import AudioSegment
 from pydub.utils import make_chunks
 import requests
 import io
+import time
 import logging
 from pathlib import Path
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,11 @@ class PydubStreamRecorder:
     def record_and_convert(self, duration_seconds: int, output_file: Path) -> bool:
         """Record stream and convert to standard WAV format."""
         try:
+            # Check if stream URL is configured
+            if not Config.RADIO_STREAM_URL:
+                logger.error("No RADIO_STREAM_URL configured")
+                return False
+                
             # Download raw stream data
             response = requests.get(
                 Config.RADIO_STREAM_URL,

@@ -13,6 +13,7 @@ from web_app import app, start_web_server
 from audio_recorder import recorder
 from transcription import transcriber
 from summarization import summarizer
+from version import get_version_string, print_version_info
 
 # Set up logging
 logging.basicConfig(
@@ -165,11 +166,15 @@ def create_daily_digest(show_date: str = None):
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Radio Synopsis Application")
+    parser.add_argument('--version', action='version', version=get_version_string())
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
     # Setup command
     setup_parser = subparsers.add_parser('setup', help='Set up directories and test system')
+    
+    # Version command
+    version_parser = subparsers.add_parser('version', help='Show detailed version information')
     
     # Scheduler command
     schedule_parser = subparsers.add_parser('schedule', help='Run the scheduler service')
@@ -208,14 +213,18 @@ def main():
         if success:
             print("\n✓ Setup completed successfully!")
             print(f"Next steps:")
-            print(f"1. Copy config.env.example to .env and configure your settings")
+            print(f"1. Copy .env.example to .env and configure your settings")
             print(f"2. Set your OPENAI_API_KEY in .env")
             print(f"3. Configure RADIO_STREAM_URL or AUDIO_INPUT_DEVICE in .env")
-            print(f"4. Run 'python main.py web' to start the web interface")
-            print(f"5. Run 'python main.py schedule' to start automated recording")
+            print(f"4. Install FFmpeg if not available: apt install ffmpeg (Linux) or brew install ffmpeg (Mac)")
+            print(f"5. Run 'python main.py web' to start the web interface")
+            print(f"6. Run 'python main.py schedule' to start automated recording")
         else:
             print("\n✗ Setup failed. Check the logs for details.")
             sys.exit(1)
+    
+    elif args.command == 'version':
+        print_version_info()
     
     elif args.command == 'schedule':
         run_scheduler()

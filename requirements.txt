@@ -22,10 +22,18 @@ schedule==1.2.0
 # Audio processing
 pydub==0.25.1
 
+# HTML parsing (for stream detection)
+beautifulsoup4==4.12.2
+
 # Date/time handling
 pytz==2023.3
 
 # Database
 sqlalchemy==2.0.23
+
+# Optional audio system dependencies (uncomment if needed)
+# sounddevice==0.4.6
+# soundfile==0.12.1
+# numpy==1.24.3
 
 # Note: sqlite3, threading, logging, subprocess, pathlib, json are built into Python
