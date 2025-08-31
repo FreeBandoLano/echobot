@@ -4,5 +4,5 @@
 # and setting an environment variable, but we also hard-code the current short
 # commit for traceability when running outside Docker.
 
-COMMIT = "a2f6d6a"  # updated manually; Docker image will expose GIT_COMMIT env
+COMMIT = "5758c7b"  # updated manually; Docker image will expose GIT_COMMIT env
 BUILD_TIME = "2025-08-31T00:00:00Z"  # update if needed; optional

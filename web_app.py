@@ -1,6 +1,7 @@
 """Simple web interface for viewing radio synopsis results.
 Deploy test - workflow verification."""
 
+import os
 from fastapi import FastAPI, Request, HTTPException, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -18,11 +19,14 @@ from database import db
 # Import version info early for logging
 try:
     from version import COMMIT as APP_COMMIT, BUILD_TIME as APP_BUILD_TIME
+    # Override with environment variables if available (from Docker build args)
+    APP_COMMIT = os.environ.get('GIT_COMMIT_SHA', APP_COMMIT)
+    APP_BUILD_TIME = os.environ.get('BUILD_TIME', APP_BUILD_TIME)
     version_available = True
 except Exception as ver_err:
     print(f"Could not import version info: {ver_err}")
-    APP_COMMIT = "UNKNOWN"
-    APP_BUILD_TIME = "UNKNOWN"
+    APP_COMMIT = os.environ.get('GIT_COMMIT_SHA', "UNKNOWN")
+    APP_BUILD_TIME = os.environ.get('BUILD_TIME', "UNKNOWN")
     version_available = False
 
 # Set up logging first - before any other imports that might use it
