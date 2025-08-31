@@ -2,13 +2,10 @@
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 # More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
 
-name: Build and deploy Python app to Azure Web App - echobot-bb
+name: (Disabled) Legacy code deploy to Azure Web App - echobot-bb
 
 on:
-  push:
-    branches:
-      - master
-  workflow_dispatch:
+  workflow_dispatch:  # push trigger removed to avoid conflict with container deployment
 
 jobs:
   build:

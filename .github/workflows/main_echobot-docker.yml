@@ -1,4 +1,4 @@
-name: Build and Push to Azure Container Registry
+name: Build and Push Container Image (ACR + WebApp update)
 
 on:
   push:
@@ -20,9 +20,40 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
-      - name: Build and push container image
+      - name: Build (single multi-tag) and push images
         run: |
-          docker build . -t echobotbb.azurecr.io/echobot:${{ github.sha }}
-          docker build . -t echobotbb.azurecr.io/echobot:latest
+          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          docker build . \
+            -t echobotbb.azurecr.io/echobot:${{ github.sha }} \
+            -t echobotbb.azurecr.io/echobot:latest \
+            --build-arg GIT_COMMIT=${{ github.sha }} \
+            --build-arg BUILD_TIME=$BUILD_TIME
           docker push echobotbb.azurecr.io/echobot:${{ github.sha }}
           docker push echobotbb.azurecr.io/echobot:latest
+
+      - name: Azure Login (for WebApp image update)
+        if: secrets.AZUREAPPSERVICE_CLIENTID_5ACEE5C52EFE4962ADF645C14DE747DF && secrets.AZUREAPPSERVICE_TENANTID_606E6CD7BD5743A3922FD4827C5D8359 && secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_0BF20D2091404FBA81CC050F38BFAC1A && secrets.AZURE_RESOURCE_GROUP
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_5ACEE5C52EFE4962ADF645C14DE747DF }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_606E6CD7BD5743A3922FD4827C5D8359 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_0BF20D2091404FBA81CC050F38BFAC1A }}
+
+      - name: Update Web App to commit tag & restart
+        if: success() && env.AZURE_WEBAPP_NAME && secrets.AZURE_RESOURCE_GROUP
+        env:
+          AZURE_WEBAPP_NAME: echobot-bb
+          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+        run: |
+          az webapp config container set \
+            --name "$AZURE_WEBAPP_NAME" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --docker-custom-image-name echobotbb.azurecr.io/echobot:${{ github.sha }}
+          az webapp restart --name "$AZURE_WEBAPP_NAME" --resource-group "$AZURE_RESOURCE_GROUP"
+          echo "Updated WebApp to image tag ${{ github.sha }}"
+
+      - name: Output next steps (if Azure credentials missing)
+        if: ! (secrets.AZURE_RESOURCE_GROUP)
+        run: |
+          echo "Azure resource group secret missing: set AZURE_RESOURCE_GROUP to auto-update running app." 
+          echo "Current image tags pushed: ${{ github.sha }} and latest."
