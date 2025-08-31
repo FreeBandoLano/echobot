@@ -35,7 +35,8 @@ class Config:
     
     # API Configuration
     API_HOST = os.getenv('API_HOST', '0.0.0.0')
-    API_PORT = int(os.getenv('API_PORT', 8001))
+    # Allow Azure's injected PORT to act as fallback if API_PORT not explicitly set
+    API_PORT = int(os.getenv('API_PORT') or os.getenv('PORT', 8001))
     
     # Schedule Configuration (times in Barbados timezone)
     BLOCKS = {
@@ -79,8 +80,8 @@ class Config:
     COST_GPT4O_MINI_PROMPT = float(os.getenv('COST_GPT4O_MINI_PROMPT', 0.0003))
     COST_GPT4O_MINI_COMPLETION = float(os.getenv('COST_GPT4O_MINI_COMPLETION', 0.0006))
     
-    # Expose cost endpoint flag
-    EXPOSE_COST_ENDPOINT = True  # set False in production to hide cost endpoints
+    # Expose cost endpoint flag (env-driven)
+    EXPOSE_COST_ENDPOINT = os.getenv('EXPOSE_COST_ENDPOINT', 'true').lower() in ('1','true','yes','on')
     
     @classmethod
     def validate(cls):

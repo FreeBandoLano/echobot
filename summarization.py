@@ -10,7 +10,19 @@ from config import Config
 from database import db
 from topic_extraction import extract_topics
 from embedding_clustering import cluster_transcript
-from cost_estimator import cost_tracker, estimate_tokens_from_chars
+try:  # Defensive: allow deployment to run even if cost_estimator not packaged
+    from cost_estimator import cost_tracker, estimate_tokens_from_chars
+except ImportError:  # pragma: no cover - fallback path
+    import logging as _logging
+    _logging.getLogger(__name__).warning("cost_estimator module missing; using no-op cost tracking fallback")
+    class _NoOpCostTracker:
+        def add(self, *a, **k):
+            pass
+        def snapshot(self):
+            return {"totals": {"prompt_tokens": 0, "completion_tokens": 0, "usd": 0.0}, "models": {}}
+    def estimate_tokens_from_chars(chars: int) -> int:
+        return max(1, int(chars / 4))
+    cost_tracker = _NoOpCostTracker()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

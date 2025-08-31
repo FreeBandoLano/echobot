@@ -17,7 +17,17 @@ from database import db
 from scheduler import scheduler
 from rolling_summary import generate_rolling
 from summarization import summarizer
-from cost_estimator import cost_tracker
+try:
+    from cost_estimator import cost_tracker
+except ImportError:  # pragma: no cover
+    import logging as _logging
+    _logging.getLogger(__name__).warning("cost_estimator module missing; using no-op tracker")
+    class _NoOpCostTracker:
+        def add(self, *a, **k):
+            pass
+        def snapshot(self):
+            return {"totals": {"prompt_tokens": 0, "completion_tokens": 0, "usd": 0.0}, "models": {}}
+    cost_tracker = _NoOpCostTracker()
 from datetime import date as _date
 
 def get_local_date() -> date:
