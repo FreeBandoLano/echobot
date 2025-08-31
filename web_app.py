@@ -187,6 +187,33 @@ async def block_detail(request: Request, block_id: int):
         'transcript': transcript_data,
         'emergent': emergent
     }
+
+    # Guard band statistics (computed if segments present)
+    if transcript_data and isinstance(transcript_data, dict) and transcript_data.get('segments'):
+        segments = transcript_data.get('segments', [])
+        gb_segments = [s for s in segments if s.get('guard_band')]
+        gb_duration = 0.0
+        for s in gb_segments:
+            try:
+                gb_duration += max(0, float(s.get('end', 0)) - float(s.get('start', 0)))
+            except Exception:
+                pass
+        total_duration = transcript_data.get('duration')
+        if not total_duration:
+            # Fallback: sum segment durations
+            try:
+                total_duration = sum(max(0, float(s.get('end',0)) - float(s.get('start',0))) for s in segments)
+            except Exception:
+                total_duration = None
+        content_duration = (total_duration - gb_duration) if (total_duration is not None) else None
+        block_info['guard_band_stats'] = {
+            'count': len(gb_segments),
+            'duration_seconds': round(gb_duration, 1),
+            'content_seconds': round(content_duration, 1) if content_duration is not None else None,
+            'total_seconds': round(total_duration, 1) if total_duration is not None else None
+        }
+    else:
+        block_info['guard_band_stats'] = None
     
     return templates.TemplateResponse("block_detail.html", {
         "request": request,

@@ -128,10 +128,20 @@
             {% endif %}
             {% if block.transcript %}
                 <h3 class="sub-heading" style="margin-top:2rem;">Transcript</h3>
-                <div style="max-height:600px; overflow:auto; padding-right:.5rem;">
+                {% if block.guard_band_stats %}
+                <div class="gb-stats">
+                    <span>{{ block.guard_band_stats.count }} filler segments</span>
+                    <span>{{ block.guard_band_stats.duration_seconds }}s filler</span>
+                    {% if block.guard_band_stats.content_seconds is not none and block.guard_band_stats.total_seconds %}
+                        <span>{{ block.guard_band_stats.content_seconds }}s content of {{ block.guard_band_stats.total_seconds }}s total</span>
+                    {% endif %}
+                    <button class="gb-toggle-btn" id="gbToggle" data-state="show">HIDE FILLER</button>
+                </div>
+                {% endif %}
+                <div style="max-height:600px; overflow:auto; padding-right:.5rem;" id="transcriptContainer">
                     {% if block.transcript.segments %}
                         {% for segment in block.transcript.segments %}
-                            <div class="transcript-seg">
+                            <div class="transcript-seg{% if segment.guard_band %} guard-band{% endif %}" data-guard-band="{{ segment.guard_band|default(false) }}">
                                 <small>[{{ "%.0f" | format(segment.start) }}s] {{ segment.speaker or 'Speaker' }}</small>
                                 {{ segment.text }}
                             </div>
@@ -143,5 +153,20 @@
             {% endif %}
         </section>
     </main>
+    <script>
+    (function(){
+        const btn = document.getElementById('gbToggle');
+        if(!btn) return;
+        const container = document.getElementById('transcriptContainer');
+        btn.addEventListener('click', () => {
+            const hide = btn.getAttribute('data-state') === 'show';
+            container.querySelectorAll('.transcript-seg.guard-band').forEach(el => {
+                if(hide) el.classList.add('guard-band-hidden'); else el.classList.remove('guard-band-hidden');
+            });
+            btn.textContent = hide ? 'SHOW FILLER' : 'HIDE FILLER';
+            btn.setAttribute('data-state', hide ? 'hidden' : 'show');
+        });
+    })();
+    </script>
 </body>
 </html>
