@@ -10,8 +10,10 @@
     <style>
         /* Match dashboard styling */
         :root {
-            --primary-blue: #1b365d;
-            --accent-blue: #2856a3;
+            --primary-red: #c41e3a;
+            --accent-red: #dc3545;
+            --gold-accent: #ffc107;
+            --dark-gold: #e0a800;
             --light-bg: #f8f9fa;
         }
         
@@ -23,7 +25,7 @@
         }
         
         .main-header {
-            background: linear-gradient(135deg, var(--primary-blue), var(--accent-blue));
+            background: linear-gradient(135deg, var(--primary-red), var(--accent-red));
             color: white;
             padding: 1.5rem 0;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -53,7 +55,7 @@
         .date-header {
             font-size: 1.4rem;
             font-weight: 600;
-            color: var(--primary-blue);
+            color: var(--primary-red);
             margin-bottom: 0.5rem;
         }
         
@@ -86,9 +88,9 @@
         
         .filter-btn {
             padding: 0.6rem 1.2rem;
-            border: 2px solid var(--accent-blue);
+            border: 2px solid var(--accent-red);
             background: white;
-            color: var(--accent-blue);
+            color: var(--accent-red);
             border-radius: 25px;
             font-weight: 500;
             text-decoration: none;
@@ -96,7 +98,7 @@
         }
         
         .filter-btn:hover, .filter-btn.active {
-            background: var(--accent-blue);
+            background: var(--accent-red);
             color: white;
         }
         
@@ -129,7 +131,7 @@
     <main class="container">
         <!-- Search and Filters -->
         <section class="search-section mt-4">
-            <h3 style="color: var(--primary-blue); margin-bottom: 1.5rem;">
+            <h3 style="color: var(--primary-red); margin-bottom: 1.5rem;">
                 <i class="bi bi-search"></i> Find Briefings
             </h3>
             
@@ -137,7 +139,7 @@
                 <div class="col-md-8">
                     <div class="input-group input-group-lg">
                         <input type="text" class="form-control" placeholder="Search by date, keywords, or topics..." style="font-size: 1.1rem;">
-                        <button class="btn btn-primary" type="button" style="background-color: var(--accent-blue); border-color: var(--accent-blue);">
+                        <button class="btn btn-primary" type="button" style="background-color: var(--accent-red); border-color: var(--accent-red);">
                             <i class="bi bi-search"></i> Search
                         </button>
                     </div>
@@ -187,8 +189,8 @@
                         
                         <!-- Progress Bar -->
                         <div class="completion-bar progress">
-                            <div class="progress-bar bg-success" 
-                                 style="width: {{ (show.completed_blocks / show.total_blocks * 100) if show.total_blocks > 0 else 0 }}%">
+                            <div class="progress-bar" 
+                                 style="width: {{ (show.completed_blocks / show.total_blocks * 100) if show.total_blocks > 0 else 0 }}%; background-color: var(--gold-accent);">
                             </div>
                         </div>
                         <small style="color: #6c757d;">
@@ -212,7 +214,7 @@
                     
                     <div class="col-md-2 text-end">
                         <a href="/?date_param={{ show.show_date }}" class="btn btn-primary btn-large" 
-                           style="background-color: var(--accent-blue); border-color: var(--accent-blue);">
+                           style="background-color: var(--accent-red); border-color: var(--accent-red);">
                             <i class="bi bi-eye"></i> View
                         </a>
                         {% if show.has_digest %}
