@@ -65,11 +65,32 @@ class Database:
                     total_callers INTEGER,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
+
+                /* Phase 1 Analytics: topic intelligence tables */
+                CREATE TABLE IF NOT EXISTS topics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL,
+                    normalized_name TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS block_topics (
+                    block_id INTEGER NOT NULL REFERENCES blocks(id) ON DELETE CASCADE,
+                    topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+                    weight REAL DEFAULT 0,
+                    PRIMARY KEY (block_id, topic_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_topics_normalized ON topics(normalized_name);
+                CREATE INDEX IF NOT EXISTS idx_block_topics_topic ON block_topics(topic_id);
                 
                 CREATE INDEX IF NOT EXISTS idx_blocks_show_date ON blocks(show_id);
                 CREATE INDEX IF NOT EXISTS idx_blocks_status ON blocks(status);
                 CREATE INDEX IF NOT EXISTS idx_summaries_block ON summaries(block_id);
             """)
+            # Lightweight migrations
+            try:
+                conn.execute("ALTER TABLE summaries ADD COLUMN raw_json TEXT")
+            except Exception:
+                pass  # Column may already exist
     
     def create_show(self, show_date: date, title: str = "Down to Brass Tacks") -> int:
         """Create a new show record."""
@@ -187,6 +208,71 @@ class Database:
                 "SELECT * FROM daily_digests WHERE show_date = ?", (show_date,)
             ).fetchone()
             return dict(row) if row else None
+
+    # ---------------- Topic Analytics Helpers ----------------
+    @staticmethod
+    def _normalize_topic(name: str) -> str:
+        return ''.join(ch.lower() for ch in name.strip() if ch.isalnum() or ch.isspace())
+
+    def upsert_topic(self, name: str) -> int:
+        norm = self._normalize_topic(name)
+        if not norm:
+            raise ValueError("Empty topic")
+        with self.get_connection() as conn:
+            row = conn.execute("SELECT id FROM topics WHERE normalized_name = ?", (norm,)).fetchone()
+            if row:
+                return row[0]
+            cur = conn.execute("INSERT INTO topics (name, normalized_name) VALUES (?, ?)", (name.strip(), norm))
+            return cur.lastrowid
+
+    def link_topic_to_block(self, block_id: int, topic_id: int, weight: float):
+        with self.get_connection() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO block_topics (block_id, topic_id, weight) VALUES (?, ?, ?)",
+                (block_id, topic_id, weight)
+            )
+
+    def get_top_topics(self, days: int = 14, limit: int = 15) -> List[Dict]:
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT t.name, SUM(bt.weight) as total_weight, COUNT(DISTINCT bt.block_id) as blocks
+                FROM block_topics bt
+                JOIN topics t ON t.id = bt.topic_id
+                JOIN blocks b ON b.id = bt.block_id
+                JOIN shows s ON s.id = b.show_id
+                WHERE s.show_date >= date('now', ?)
+                GROUP BY t.id
+                ORDER BY total_weight DESC
+                LIMIT ?
+                """,
+                (f'-{int(days)} days', limit)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_completion_timeline(self, days: int = 7) -> List[Dict]:
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT s.show_date as date,
+                       COUNT(b.id) as total_blocks,
+                       SUM(CASE WHEN b.status='completed' THEN 1 ELSE 0 END) as completed_blocks
+                FROM shows s
+                LEFT JOIN blocks b ON b.show_id = s.id
+                WHERE s.show_date >= date('now', ?)
+                GROUP BY s.show_date
+                ORDER BY s.show_date ASC
+                """,
+                (f'-{int(days)} days',)
+            ).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            total = d['total_blocks'] or 0
+            completed = d['completed_blocks'] or 0
+            d['completion_rate'] = round(completed / total * 100) if total else 0
+            result.append(d)
+        return result
 
 # Global database instance
 db = Database()

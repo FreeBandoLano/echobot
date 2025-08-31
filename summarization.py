@@ -8,6 +8,8 @@ from typing import Dict, List, Optional
 from datetime import datetime
 from config import Config
 from database import db
+from topic_extraction import extract_topics
+from embedding_clustering import cluster_transcript
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -60,6 +62,26 @@ class RadioSummarizer:
                     caller_count=summary_data['caller_count'],
                     quotes=summary_data['quotes']
                 )
+                # Persist raw_json if available
+                try:
+                    if 'raw_json' in summary_data:
+                        with db.get_connection() as conn:
+                            conn.execute("UPDATE summaries SET raw_json = ? WHERE block_id = ?", (json.dumps(summary_data['raw_json']), block_id))
+                except Exception as rje:
+                        logger.warning(f"Failed to store raw_json for block {block_id}: {rje}")
+
+                # Topic extraction (Phase 1): derive topics from summary + key points
+                try:
+                    topic_source_text = (summary_data['summary'] + '\n' + '\n'.join(summary_data['key_points']))[:8000]
+                    topics = extract_topics(topic_source_text, max_topics=12)
+                    for word, weight in topics:
+                        try:
+                            tid = db.upsert_topic(word)
+                            db.link_topic_to_block(block_id, tid, float(weight))
+                        except Exception as inner_e:
+                            logger.warning(f"Topic link error for '{word}': {inner_e}")
+                except Exception as te:
+                    logger.warning(f"Topic extraction failed for block {block_id}: {te}")
                 
                 # Update block status
                 db.update_block_status(block_id, 'completed')
@@ -109,8 +131,14 @@ class RadioSummarizer:
             logger.info(f"Empty summary completed for block {block_id}")
             return summary_data
         
-        # Create prompt based on block type
-        prompt = self._create_summary_prompt(block_code, block_name, transcript_text, caller_count)
+        # Optional embedding clustering for emergent hints
+        clusters = []
+        try:
+            clusters = cluster_transcript(transcript_text)
+        except Exception as ce:
+            logger.warning(f"Clustering failed block {block_id}: {ce}")
+
+        prompt = self._create_emergent_prompt(block_code, transcript_text, caller_count, clusters)
         
         try:
             logger.info(f"Generating summary with GPT-5 Nano for {block_name}")
@@ -131,10 +159,30 @@ class RadioSummarizer:
                 max_tokens=1500
             )
             
-            summary_text = response.choices[0].message.content
-            
-            # Parse structured elements from summary
-            parsed_data = self._parse_summary_response(summary_text, existing_quotes, caller_count)
+            summary_text = response.choices[0].message.content.strip()
+
+            # Expect JSON; attempt to load
+            parsed_json = None
+            try:
+                json_start = summary_text.find('{')
+                json_end = summary_text.rfind('}')
+                if json_start != -1 and json_end != -1:
+                    parsed_json = json.loads(summary_text[json_start:json_end+1])
+            except Exception as je:
+                logger.warning(f"JSON parse failed for block {block_id}: {je}")
+
+            # Fallback minimal structure if JSON missing
+            if not parsed_json:
+                parsed_json = {
+                    "block": block_code,
+                    "key_themes": [],
+                    "positions": [],
+                    "quotes": existing_quotes[:2],
+                    "entities": [],
+                    "actions": []
+                }
+
+            parsed_data = self._map_json_to_legacy_fields(parsed_json, caller_count)
             
             logger.info(f"Summary generated: {len(summary_text)} characters")
             return parsed_data
@@ -142,70 +190,33 @@ class RadioSummarizer:
         except Exception as e:
             logger.error(f"GPT API error: {e}")
             return None
-    
-    def _create_summary_prompt(self, block_code: str, block_name: str, transcript: str, caller_count: int) -> str:
-        """Create appropriate prompt based on block type."""
-        
-        base_context = f"""
-Radio Program: Down to Brass Tacks
-Block: {block_code} - {block_name}
-Callers: {caller_count}
-Duration: {len(transcript.split())} words
 
-Transcript:
-{transcript}
+    def _create_emergent_prompt(self, block_code: str, transcript: str, caller_count: int, clusters: List[Dict]) -> str:
+        cluster_hint = "\nCLUSTER HINTS (candidate emergent themes – refine, rename, merge if needed):\n" + \
+            "\n".join(f"- {c['title']} (sentences: {len(c['members'])})" for c in clusters) if clusters else ""
+        return f"""
+You are summarizing a live, open-topic call-in radio program. No fixed thematic segments exist. Detect emergent topics via clustering; report Key Themes (bulleted), caller count per theme, Positions (=> or <=), up to 2 Quotes (<20 words, timestamped), Entities, and Actions. Treat scheduled news/history inserts as separate micro-summaries and exclude them from caller themes. Output valid JSON only.
 
-Please provide a structured summary for government civil servants including:
-"""
-        
-        if block_code == 'A':  # Morning Block (10:00-12:00)
-            specific_instructions = """
-1. EXECUTIVE SUMMARY (2-3 sentences)
-2. KEY TOPICS DISCUSSED (bullet points)
-3. PUBLIC CONCERNS RAISED (by callers)
-4. POLICY IMPLICATIONS (if any)
-5. NOTABLE QUOTES (1-2 most significant)
-6. ENTITIES MENTIONED (people, organizations, places)
+Block: {block_code}
+Approx Caller Count: {caller_count}
+Transcript Text (may include news/history inserts):\n{transcript}\n
+{cluster_hint}
+Required JSON schema (compact):
+{{
+  "block": "{block_code}",
+  "key_themes": [{{"title": "...", "summary_bullets": ["- ..."], "callers": 0}}],
+  "positions": [{{"actor": "Host|Caller k|Official", "stance": "=>|<=", "claim": "..."}}],
+  "quotes": [{{"t": "HH:MM", "speaker": "Caller k", "text": "<20 words"}}],
+  "entities": ["..."],
+  "actions": [{{"who": "...", "what": "...", "when": "..."}}]
+}}
 
-Focus on: Major topics, recurring themes, government-related discussions, community issues.
-"""
-        elif block_code == 'B':  # News Summary Block (12:05-12:30)
-            specific_instructions = """
-1. NEWS SUMMARY (key headlines covered)
-2. GOVERNMENT ANNOUNCEMENTS (if any)
-3. PUBLIC REACTION (caller responses)
-4. NOTABLE QUOTES (1-2 most relevant)
-5. ENTITIES MENTIONED (officials, ministries, organizations)
-
-Focus on: Official announcements, policy updates, public reactions to news.
-"""
-        elif block_code == 'C':  # Major Newscast Block (12:40-13:30)
-            specific_instructions = """
-1. MAJOR NEWS ITEMS (prioritized list)
-2. GOVERNMENT/POLITICAL CONTENT
-3. COMMUNITY ISSUES HIGHLIGHTED
-4. CALLER CONTRIBUTIONS (concerns, questions)
-5. NOTABLE QUOTES (1-2 most impactful)
-6. ENTITIES MENTIONED (key figures, organizations)
-
-Focus on: Breaking news, political developments, community concerns, official statements.
-"""
-        else:  # Block D - History Block (13:35-14:00)
-            specific_instructions = """
-1. HISTORICAL TOPIC COVERED
-2. RELEVANCE TO CURRENT ISSUES (if any)
-3. EDUCATIONAL CONTENT SUMMARY
-4. CALLER ENGAGEMENT (questions, comments)
-5. NOTABLE QUOTES (1-2 educational highlights)
-6. ENTITIES MENTIONED (historical figures, places, events)
-
-Focus on: Historical context, educational value, connections to contemporary issues.
-"""
-        
-        return base_context + specific_instructions + """
-
-Format your response clearly with numbered sections. Keep summaries concise but comprehensive.
-Maintain objectivity and focus on factual content relevant to government decision-making.
+Rules:
+- Do not invent fixed theme categories.
+- Max 2 quotes, each <=20 words.
+- Use caller indices (Caller 1, Caller 2) if names unknown.
+- Empty arrays if no data.
+- Output ONLY JSON.
 """
     
     def _create_empty_summary(self, block_code: str, block_name: str, transcript_data: Dict) -> Dict:
@@ -229,60 +240,31 @@ Maintain objectivity and focus on factual content relevant to government decisio
             }
         }
     
-    def _parse_summary_response(self, summary_text: str, existing_quotes: List[Dict], caller_count: int) -> Dict:
-        """Parse the GPT response into structured data."""
-        
-        # Extract key points (look for bullet points or numbered items)
+    def _map_json_to_legacy_fields(self, data: Dict, caller_count: int) -> Dict:
+        # Convert emergent JSON into legacy summary field structure for existing UI.
         key_points = []
-        entities = []
+        for theme in data.get('key_themes', [])[:10]:
+            bullets = theme.get('summary_bullets', [])
+            if bullets:
+                first = bullets[0].lstrip('- ').lstrip('• ').strip()
+                key_points.append(f"{theme.get('title','Theme')}: {first}")
+        entities = data.get('entities', [])[:20]
+        quotes_json = data.get('quotes', [])[:3]
         quotes = []
-        
-        lines = summary_text.split('\n')
-        current_section = None
-        
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            
-            # Identify sections
-            if any(keyword in line.lower() for keyword in ['key topics', 'summary', 'issues', 'concerns']):
-                current_section = 'key_points'
-            elif any(keyword in line.lower() for keyword in ['entities', 'mentioned', 'people', 'organizations']):
-                current_section = 'entities'
-            elif any(keyword in line.lower() for keyword in ['quotes', 'notable']):
-                current_section = 'quotes'
-            
-            # Extract bullet points and numbered items
-            if line.startswith('•') or line.startswith('-') or (len(line) > 0 and line[0].isdigit() and '.' in line[:5]):
-                cleaned_line = line.lstrip('•-0123456789. ').strip()
-                if len(cleaned_line) > 10:  # Minimum length for meaningful content
-                    if current_section == 'entities':
-                        # Split comma-separated entities
-                        entity_list = [e.strip() for e in cleaned_line.split(',')]
-                        entities.extend([e for e in entity_list if len(e) > 2])
-                    else:
-                        key_points.append(cleaned_line)
-        
-        # Extract quotes from existing transcript quotes or parse from summary
-        if existing_quotes:
-            quotes = existing_quotes[:3]  # Limit to top 3
-        else:
-            # Try to extract quotes from summary text
-            import re
-            quote_pattern = r'"([^"]{20,100})"'
-            found_quotes = re.findall(quote_pattern, summary_text)
-            quotes = [{'text': q, 'speaker': 'Unknown', 'timestamp': '00:00'} for q in found_quotes[:2]]
-        
-        # Clean up entities (remove duplicates, common words)
-        entities = list(set([e for e in entities if len(e) > 2 and e.lower() not in ['the', 'and', 'for', 'with']]))
-        
+        for q in quotes_json:
+            quotes.append({
+                'text': q.get('text','')[:120],
+                'speaker': q.get('speaker','Unknown'),
+                'timestamp': q.get('t','00:00')
+            })
+        summary_text = json.dumps(data, ensure_ascii=False)
         return {
             'summary': summary_text,
-            'key_points': key_points[:10],  # Limit to 10 key points
-            'entities': entities[:20],  # Limit to 20 entities
+            'key_points': key_points,
+            'entities': entities,
             'caller_count': caller_count,
-            'quotes': quotes
+            'quotes': quotes,
+            'raw_json': data
         }
     
     def create_daily_digest(self, show_date: datetime.date) -> Optional[str]:
@@ -360,21 +342,7 @@ Key Entities: {', '.join(entities[:15])}
 Block Summaries:
 {blocks_content}
 
-Please create a comprehensive daily digest with:
-
-1. EXECUTIVE SUMMARY (3-4 sentences covering the day's most important content)
-
-2. KEY THEMES & ISSUES (ranked by importance and government relevance)
-
-3. PUBLIC SENTIMENT & CONCERNS (what citizens are saying)
-
-4. POLICY IMPLICATIONS (potential areas requiring government attention)
-
-5. NOTABLE QUOTES & STATEMENTS
-
-6. RECOMMENDED FOLLOW-UP ACTIONS (if any)
-
-Format: Professional government briefing style. Focus on actionable intelligence and public concerns requiring attention.
+Provide: Executive Summary, Key Themes, Public Sentiment, Policy Implications, Notable Quotes, Recommended Follow-Up Actions.
 """
         
         try:
@@ -383,7 +351,7 @@ Format: Professional government briefing style. Focus on actionable intelligence
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a senior government analyst creating daily briefings for civil servants and ministers. Focus on policy-relevant content, public concerns, and actionable intelligence."
+                        "content": "You are a senior government analyst creating daily briefings."
                     },
                     {
                         "role": "user",

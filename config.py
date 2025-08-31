@@ -64,6 +64,11 @@ class Config:
     # Processing Configuration
     MAX_SUMMARY_LENGTH = int(os.getenv('MAX_SUMMARY_LENGTH', 1000))
     ENABLE_DETAILED_QUOTES = os.getenv('ENABLE_DETAILED_QUOTES', 'true').lower() == 'true'
+    ENABLE_EMBED_CLUSTERING = os.getenv('ENABLE_EMBED_CLUSTERING', 'true').lower() == 'true'
+    EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'text-embedding-3-small')
+    CLUSTER_SIM_THRESHOLD = float(os.getenv('CLUSTER_SIM_THRESHOLD', 0.78))
+    CLUSTER_MIN_SENT_LEN = int(os.getenv('CLUSTER_MIN_SENT_LEN', 30))
+    CLUSTER_MAX_CLUSTERS = int(os.getenv('CLUSTER_MAX_CLUSTERS', 8))
     
     @classmethod
     def validate(cls):

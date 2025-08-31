@@ -135,6 +135,26 @@ async def block_detail(request: Request, block_id: int):
         raise HTTPException(status_code=404, detail="Block not found")
     
     summary = db.get_summary(block_id)
+    # Attempt to load emergent structured JSON (either raw_json column or summary_text JSON)
+    emergent = None
+    try:
+        if summary:
+            if summary.get('raw_json'):
+                if isinstance(summary['raw_json'], dict):
+                    emergent = summary['raw_json']
+                else:
+                    emergent = json.loads(summary['raw_json'])
+            else:
+                # Fallback: if summary_text contains JSON (emergent format)
+                st = summary.get('summary_text') or summary.get('summary')
+                if st and '{' in st:
+                    json_start = st.find('{')
+                    json_end = st.rfind('}')
+                    if json_start != -1 and json_end != -1:
+                        maybe_json = st[json_start:json_end+1]
+                        emergent = json.loads(maybe_json)
+    except Exception:
+        emergent = None
     
     # Load transcript if available
     transcript_data = None
@@ -149,7 +169,8 @@ async def block_detail(request: Request, block_id: int):
         **block,
         'block_name': Config.BLOCKS[block['block_code']]['name'],
         'summary': summary,
-        'transcript': transcript_data
+        'transcript': transcript_data,
+        'emergent': emergent
     }
     
     return templates.TemplateResponse("block_detail.html", {
@@ -179,6 +200,37 @@ async def archive(request: Request):
         "request": request,
         "archive_data": archive_data
     })
+
+@app.get("/analytics", response_class=HTMLResponse)
+async def analytics(request: Request):
+    """Early analytics preview using aggregated show + block metrics."""
+    with db.get_connection() as conn:
+        totals = conn.execute("""
+            SELECT 
+                COUNT(DISTINCT s.id) as total_shows,
+                COUNT(b.id) as total_blocks,
+                SUM(CASE WHEN b.status='completed' THEN 1 ELSE 0 END) as completed_blocks
+            FROM shows s
+            LEFT JOIN blocks b ON b.show_id = s.id
+        """).fetchone()
+    total_blocks = totals["total_blocks"] or 0
+    completed_blocks = totals["completed_blocks"] or 0
+    avg_completion_rate = 0
+    if total_blocks > 0:
+        avg_completion_rate = round(completed_blocks / total_blocks * 100)
+    metrics = {
+        "total_shows": totals["total_shows"] or 0,
+        "total_blocks": total_blocks,
+        "completed_blocks": completed_blocks,
+        "avg_completion_rate": avg_completion_rate
+    }
+    # Topic and timeline analytics
+    top_topics = db.get_top_topics(days=14, limit=12)
+    timeline = db.get_completion_timeline(days=7)
+    return templates.TemplateResponse(
+        "analytics.html",
+        {"request": request, "metrics": metrics, "top_topics": top_topics, "timeline": timeline}
+    )
 
 @app.get("/api/status")
 async def api_status():

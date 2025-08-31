@@ -1,56 +1,112 @@
-# VOB 92.9 FM Radio Synopsis System
+# Radio Synopsis & Emergent Topic Intelligence (VOB 92.9 – "Down to Brass Tacks")
 
-An automated system for capturing, transcribing, and summarizing "Down to Brass Tacks" radio program content for government/civil service use.
+Automated collection, transcription, emergent topic summarization, clustering intelligence, and daily briefing generation for the Barbados call‑in program "Down to Brass Tacks" — optimized for civil service situational awareness.
 
-## 🎯 System Overview
+## 🎯 Current Scope (August 2025)
 
-This MVP system captures live radio audio from VOB 92.9 FM, transcribes it using OpenAI Whisper, and generates structured summaries using GPT-4 for policy makers and civil servants.
+Operational pipeline (record → transcribe → summarize → store → analyze → optional email) with early analytics and emergent topic extraction. Focus now shifting to richer diarization and insert/guard-band detection.
 
-## ✅ Current Status: **FULLY FUNCTIONAL**
+| Layer | Status | Notes |
+|-------|--------|-------|
+| Stream acquisition | ✅ | Dynamic session stream URL (VOB 92.9) + fallback local device capture |
+| Block scheduling | ✅ | Four canonical blocks (A–D) in Barbados timezone (configurable) |
+| Recording + persistence | ✅ | Audio stored per block with duration calculation |
+| Transcription | ✅ | Whisper/OpenAI text JSON with segments (speaker placeholder for now) |
+| Summarization | ✅ | Emergent JSON schema via GPT model `gpt-5-nano-2025-08-07` |
+| Embedding clustering | ✅ | Sentence embedding (`text-embedding-3-small`) + greedy centroid clustering hints in prompt |
+| Topic extraction (heuristic) | ✅ | Term frequency + capitalization weighting persisted to `topics` / `block_topics` |
+| Structured storage | ✅ | SQLite: shows, blocks, summaries (raw_json), topics, block_topics, daily_digests |
+| Web UI (dashboard, archive, block detail, analytics) | ✅ | Themed executive HUD + emergent panel on block detail |
+| Email delivery | ✅ (toggle) | SMTP (Gmail app password) for block & daily digest (config-driven) |
+| Daily digest synthesis | ✅ | Aggregated multi‑block policy briefing |
+| Accessibility & theming | ✅ | High contrast red/gold scheme, large type, reduced-motion respect |
+| Guard bands / insert detection | ⏳ | Planned (news/history segmentation to exclude from caller themes) |
+| Speaker diarization | ⏳ | Planned (attribute positions & quote origins) |
+| Longitudinal trend analytics | ⏳ | Future (topic drift, emergent issue alerts) |
 
-- ✅ Audio recording via Radio stream URl
-- ✅ Real-time transcription with OpenAI Whisper 
-- ✅ AI-powered summarization with GPT-4
-- ✅ Web dashboard for manual control
-- ✅ Structured output for government use
+## 🧠 Emergent JSON Summary Schema
+Each block summary is generated as structured JSON (stored in `summaries.raw_json`):
+```
+{
+	"block": "A",
+	"key_themes": [
+		{"title": "Fuel Prices", "summary_bullets": ["- Wide frustration over rising pump costs"], "callers": 5}
+	],
+	"positions": [
+		{"actor": "Host", "stance": "=>", "claim": "Govt subsidy timing questioned"}
+	],
+	"quotes": [
+		{"t": "00:42", "speaker": "Caller 2", "text": "People can’t stretch salaries further"}
+	],
+	"entities": ["Central Bank", "Barbados Light & Power"],
+	"actions": [
+		{"who": "Minister", "what": "To review tax component", "when": "next week"}
+	]
+}
+```
+Legacy UI fields (`summary_text`, `key_points`, etc.) are auto‑mapped for backward compatibility while the full structure is shown on the block detail page.
+
+## ✅ Feature Highlights
+
+* Automated block lifecycle: scheduled capture → transcription → emergent summary → topic persistence.
+* Embedding-informed prompting: cluster titles injected as soft hints (no fixed taxonomy).
+* Early analytics: Top weighted topics (last 14 days) & completion timeline (7 days).
+* Accessible executive dashboard: central panels, high contrast tokens, raw JSON on demand.
+* Email module (optional): block summaries & end-of-day digest distribution.
+
+## 🚀 Quick Start
 
 ## 🚀 Quick Start
 
 ### 1. Prerequisites
-- Python 3.8+
-- FFmpeg installed
-- OpenAI API key
+* Python 3.12+ (other 3.9+ likely fine)
+* FFmpeg installed and on PATH
+* OpenAI API key (for chat + embeddings)
+* (Optional) Gmail app password for email dispatch
 
 ### 2. Installation
 ```bash
-# Clone repository
-git clone <your-repo-url>
-cd govradio
+git clone <repo-url>
+cd echobot
 
 # Install dependencies
 pip install -r requirements.txt
 
 # Copy environment template
-cp config.env.example .env
+cp .env.example .env
 ```
 
-### 3. Configuration
-Edit `.env` file:
-```bash
-# Required: Your OpenAI API key
-OPENAI_API_KEY=sk-proj-your-key-here
+### 3. Configuration (.env)
+Key sections (see `.env.example` for full list):
+```
+OPENAI_API_KEY=sk-your-key
+RADIO_STREAM_URL=https://ice66.securenetsystems.net/VOB929?playSessionID=DYNAMIC
+AUDIO_INPUT_DEVICE=default          # Use only if not streaming
+TZ=America/Barbados
 
-# Audio source (use Stereo Mix for browser audio) 
-AUDIO_INPUT_DEVICE=Stereo Mix (Realtek(R) Audio)
-# To use Audio from VOB92.9 FM live stream
-RADIO_STREAM_URL=RADIO_STREAM_URL=https://ice66.securenetsystems.net/VOB929
-# Make sure to only use one audio source at a time 
-
-
-# Schedule (Barbados time)
+# Block schedule (24h)
 BLOCK_A_START=10:00
 BLOCK_A_END=12:00
-# ... etc
+BLOCK_B_START=12:05
+BLOCK_B_END=12:30
+BLOCK_C_START=12:40
+BLOCK_C_END=13:30
+BLOCK_D_START=13:35
+BLOCK_D_END=14:00
+
+# Processing / clustering
+ENABLE_EMBED_CLUSTERING=true
+EMBEDDING_MODEL=text-embedding-3-small
+CLUSTER_SIM_THRESHOLD=0.78
+CLUSTER_MAX_CLUSTERS=8
+
+# Email (optional)
+ENABLE_EMAIL=true
+SMTP_HOST=smtp.gmail.com
+SMTP_USER=...@gmail.com
+SMTP_PASS=app_password
+EMAIL_FROM=...@gmail.com
+EMAIL_TO=recipient1@...,recipient2@...
 ```
 
 ### 4. Run System
@@ -64,12 +120,17 @@ http://localhost:8001
 
 ## 📋 Usage
 
-### Manual Recording (Current)
-0. Ensure VOB 92.9 FM is playing in browser ( If using Stereo Mix as audio input )
-1. Click "Record [Block]" button at appropriate time
-2. Wait for recording to complete  
-3. Click "Process [Block]" for transcription & summary
-4. View results in dashboard
+### Normal Operation
+1. Scheduler triggers block A–D recordings (or use manual buttons if testing).
+2. After recording: transcription job produces JSON (segments + text).
+3. Summarizer loads transcript, performs optional clustering, builds emergent JSON summary.
+4. Summary + raw_json + topics persisted; UI updates automatically.
+5. (Optional) Daily digest generated after final block; email dispatch if enabled.
+
+### Manual Controls (Testing)
+* Record (scheduled window) – uses configured start/end boundaries.
+* Record Now (duration) – ad hoc N-minute capture.
+* Process – force transcript→summary pipeline if a block is recorded but not processed.
 
 ### Block Schedule
 - **Block A**: 10:00-12:00 (Morning Block)
@@ -79,29 +140,24 @@ http://localhost:8001
 
 ## 📊 Output Format
 
-### Executive Summary
-Structured summaries include:
-- Key topics discussed
-- Public concerns raised
-- Policy implications
-- Notable quotes
-- Entities mentioned
-
-### Civil Service Focus
-Output formatted for:
-- Policy makers
-- Government officials
-- Public service planning
-- Community engagement insights
+Structured outputs emphasize:
+* Emergent themes (data-driven, no fixed taxonomy)
+* Caller distribution per theme (future refinement with diarization)
+* Positions / stances (host, callers, officials)
+* Validated compact quotes
+* Entities & potential follow-up actions
 
 ## 🔧 Technical Architecture
 
-- **Audio Capture**: FFmpeg + DirectShow (Windows Stereo Mix)
-- **Transcription**: OpenAI Whisper API
-- **Summarization**: OpenAI GPT-4  
-- **Web Interface**: FastAPI + Bootstrap
-- **Database**: SQLite
-- **Scheduling**: Python schedule library
+* **Audio Capture**: Stream URL (dynamic session) or local device (FFmpeg)
+* **Transcription**: Whisper (OpenAI) JSON segments
+* **Summarization**: `gpt-5-nano-2025-08-07` emergent JSON schema
+* **Embeddings**: `text-embedding-3-small` for clustering hints
+* **Clustering**: Greedy centroid grouping with similarity threshold
+* **Web Interface**: FastAPI + themed templates (dashboard, archive, analytics, block detail)
+* **Database**: SQLite (raw_json persistence + topic linkage)
+* **Scheduling**: Internal scheduler (timed blocks) + manual overrides
+* **Email**: SMTP (plaintext + HTML multipart)
 
 ## 🔒 Security Notes
 
@@ -110,21 +166,19 @@ Output formatted for:
 - Consider Azure OpenAI for enterprise deployment
 - Rotate API keys regularly
 
-## 📁 Project Structure
-
+## 📁 Key Files
 ```
-govradio/
-├── main.py              # Application entry point
-├── config.py            # Configuration management
-├── audio_recorder.py    # Audio capture logic
-├── transcription.py     # OpenAI Whisper integration
-├── summarization.py     # GPT-4 summarization
-├── web_app.py          # FastAPI web interface
-├── scheduler.py        # Recording scheduler
-├── database.py         # SQLite database
-├── .env               # Environment variables (not in git)
-├── requirements.txt   # Python dependencies
-└── templates/         # HTML templates
+audio_recorder.py        # Stream/device recording
+transcription.py         # Whisper transcription pipeline
+summarization.py         # Emergent JSON summarizer + clustering integration
+embedding_clustering.py  # Embedding + greedy clustering logic
+topic_extraction.py      # Heuristic topic keyword extraction
+database.py              # Schema + topic helpers + raw_json storage
+email_service.py         # SMTP block & digest dispatch
+scheduler.py             # Block scheduling + manual triggers
+web_app.py               # FastAPI routes (dashboard, archive, analytics, block)
+templates/               # Themed UI (orbit HUD & panels)
+static/css/theme.css     # Executive theme (red/gold, accessibility, motion)
 ```
 
 ## 🎮 Testing
@@ -154,29 +208,31 @@ BLOCK_B_END=09:18
 - Add multiple radio station support
 - Integrate with government content management systems
 
-## 📝 Recent Updates
+## 📝 Recent Notable Changes
+* Shift from fixed section narrative → emergent JSON schema.
+* Added embeddings + clustering (configurable thresholds) to improve topic precision.
+* Introduced topics + block_topics tables for analytics & trend foundations.
+* Added analytics page (top topics, completion timeline).
+* UI redesign (central orbit hub removed in detail pages in favor of clean panels; accessible tokens / reduced motion compliance).
+* Added raw_json persistence for forward-compatible analytical enrichment.
+* Email subsystem (block summaries / daily digest) with environment toggles.
 
-**Latest Version** (Working MVP):
-- ✅ Fixed Stereo Mix audio capture
-- ✅ Resolved port conflicts (now uses 8001)
-- ✅ Added 1-minute test blocks for rapid iteration
-- ✅ Implemented full transcription + summarization pipeline
-- ✅ Professional summary formatting for civil service use
+## 🔭 Roadmap (Short Term)
+1. Speaker diarization (accurate caller indexing, stance attribution).
+2. Guard-band detection for deterministic news/history inserts.
+3. Quote timestamp validation + transcript span verification.
+4. Topic drift & emerging-issue detection dashboard widgets.
+5. Alerting (threshold-based escalation on new high-salience themes).
 
 ## 🤝 Contributing
+Focus on operational reliability & analytical rigor:
+1. Keep prompts deterministic (low temperature) unless experimenting.
+2. Add tests for clustering & topic extraction edge cases.
+3. Avoid schema-breaking summary changes without UI + DB migration.
+4. Document new env vars in `.env.example`.
 
-This system was developed for urgent government radio monitoring needs. 
-
-For issues or enhancements:
-1. Test thoroughly with radio content
-2. Ensure security best practices
-3. Maintain civil service output formatting
-4. Document configuration changes
-
-## 📞 Support
-
-System captures content from VOB 92.9 FM "Down to Brass Tacks" program for government policy insights and community engagement analysis.
+## 📞 Purpose & Use
+Supports real-time understanding of public sentiment, grievances, and emergent policy concerns voiced on national call‑in radio. Output intended for civil service situational monitoring — not public redistribution.
 
 ## 🚀 Deployment
-
-This application is automatically deployed to Azure App Service via GitHub Actions.
+Azure App Service container deployment (port 8001). Environment variables set through App Service configuration. Daily digest generation scheduled post Block D completion.
