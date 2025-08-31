@@ -3,7 +3,7 @@
 import argparse
 import sys
 import logging
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 # REMOVE: from fastapi import FastAPI
@@ -16,6 +16,10 @@ from web_app import app, start_web_server
 from audio_recorder import recorder
 from transcription import transcriber
 from summarization import summarizer
+
+def get_local_date() -> date:
+    """Get today's date in the configured timezone."""
+    return datetime.now(Config.TIMEZONE).date()
 
 # Set up logging
 logging.basicConfig(
@@ -132,7 +136,7 @@ def run_manual_processing(block_code: str, show_date: str = None):
             logger.error(f"Invalid date format: {show_date}. Use YYYY-MM-DD")
             return False
     else:
-        parsed_date = date.today()
+        parsed_date = get_local_date()
     
     logger.info(f"Starting manual processing for Block {block_code} on {parsed_date}")
     success = scheduler.run_manual_processing(block_code, parsed_date)
@@ -154,7 +158,7 @@ def create_daily_digest(show_date: str = None):
             logger.error(f"Invalid date format: {show_date}. Use YYYY-MM-DD")
             return False
     else:
-        parsed_date = date.today()
+        parsed_date = get_local_date()
     
     logger.info(f"Creating daily digest for {parsed_date}")
     digest = summarizer.create_daily_digest(parsed_date)

@@ -16,6 +16,14 @@ from config import Config
 from database import db
 from scheduler import scheduler
 
+def get_local_date() -> date:
+    """Get today's date in the configured timezone."""
+    return datetime.now(Config.TIMEZONE).date()
+
+def get_local_datetime() -> datetime:
+    """Get current datetime in the configured timezone."""
+    return datetime.now(Config.TIMEZONE)
+
 # Set up logging
 logger = logging.getLogger(__name__)
 
@@ -60,9 +68,9 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
         try:
             view_date = datetime.strptime(date_param, '%Y-%m-%d').date()
         except ValueError:
-            view_date = date.today()
+            view_date = get_local_date()
     else:
-        view_date = date.today()
+        view_date = get_local_date()
     
     # Get show and blocks data
     show = db.get_show(view_date)
@@ -94,7 +102,7 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
     # Get recent dates for navigation
     recent_dates = []
     for i in range(7):
-        check_date = date.today() - timedelta(days=i)
+        check_date = get_local_date() - timedelta(days=i)
         recent_shows = db.get_blocks_by_date(check_date)
         if recent_shows:
             recent_dates.append(check_date)
@@ -112,7 +120,7 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
             "completion_rate": round(completed_blocks / total_blocks * 100) if total_blocks > 0 else 0
         },
         "recent_dates": recent_dates,
-        "is_today": view_date == date.today(),
+        "is_today": view_date == get_local_date(),
         "message": message,
         "error": error,
         "config": Config
@@ -176,7 +184,7 @@ async def archive(request: Request):
 async def api_status():
     """API endpoint for current system status."""
     
-    today = date.today()
+    today = get_local_date()
     blocks = db.get_blocks_by_date(today)
     
     status_counts = {}
@@ -284,7 +292,7 @@ async def debug_blocks():
     """Debug endpoint to check block status."""
     
     try:
-        blocks = db.get_blocks_by_date(date.today())
+        blocks = db.get_blocks_by_date(get_local_date())
         block_list = []
         for block in blocks:
             block_info = {
@@ -299,7 +307,7 @@ async def debug_blocks():
             block_list.append(block_info)
         
         return {
-            "date": str(date.today()),
+            "date": str(get_local_date()),
             "blocks": block_list
         }
     except Exception as e:
@@ -310,7 +318,7 @@ async def reset_block_status(block_code: str = Form(...)):
     """Reset block status to 'recorded' for debugging."""
     
     try:
-        blocks = db.get_blocks_by_date(date.today())
+        blocks = db.get_blocks_by_date(get_local_date())
         block = next((b for b in blocks if b['block_code'] == block_code), None)
         
         if block and block.get('audio_file_path'):

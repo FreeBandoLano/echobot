@@ -15,6 +15,14 @@ from audio_recorder import recorder
 from transcription import transcriber
 from summarization import summarizer
 
+def get_local_date() -> date:
+    """Get today's date in the configured timezone."""
+    return datetime.now(Config.TIMEZONE).date()
+
+def get_local_datetime() -> datetime:
+    """Get current datetime in the configured timezone."""
+    return datetime.now(Config.TIMEZONE)
+
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -123,7 +131,7 @@ class RadioScheduler:
     def _start_block_recording(self, block_code: str):
         """Start recording a specific block."""
         
-        today = date.today()
+        today = get_local_date()
         logger.info(f"Starting scheduled recording for Block {block_code}")
         
         try:
@@ -155,7 +163,7 @@ class RadioScheduler:
     def _process_block(self, block_code: str):
         """Process a recorded block (transcribe and summarize)."""
         
-        today = date.today()
+        today = get_local_date()
         logger.info(f"Starting scheduled processing for Block {block_code}")
         
         try:
@@ -223,7 +231,7 @@ class RadioScheduler:
     def _create_daily_digest(self):
         """Create daily digest after all blocks are processed."""
         
-        today = date.today()
+        today = get_local_date()
         logger.info(f"Creating daily digest for {today}")
         
         try:
@@ -243,7 +251,7 @@ class RadioScheduler:
         logger.info("Running daily cleanup...")
         
         try:
-            cutoff_date = date.today() - timedelta(days=30)
+            cutoff_date = get_local_date() - timedelta(days=30)
             
             # Clean up audio files
             for audio_file in Config.AUDIO_DIR.glob("*.wav"):
@@ -295,7 +303,7 @@ class RadioScheduler:
     def run_manual_recording(self, block_code: str) -> bool:
         """Manually trigger recording for a specific block."""
         
-        today = date.today()
+        today = get_local_date()
         logger.info(f"Manual recording triggered for Block {block_code}")
         
         try:
@@ -309,7 +317,7 @@ class RadioScheduler:
         """Manually trigger processing for a specific block."""
         
         if show_date is None:
-            show_date = date.today()
+            show_date = get_local_date()
         
         logger.info(f"Manual processing triggered for Block {block_code} on {show_date}")
         
