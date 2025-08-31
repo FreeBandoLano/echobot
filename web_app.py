@@ -14,15 +14,38 @@ from pathlib import Path
 
 from config import Config
 from database import db
+
+# Import version info early for logging
+try:
+    from version import COMMIT as APP_COMMIT, BUILD_TIME as APP_BUILD_TIME
+    version_available = True
+except Exception as ver_err:
+    print(f"Could not import version info: {ver_err}")
+    APP_COMMIT = "UNKNOWN"
+    APP_BUILD_TIME = "UNKNOWN"
+    version_available = False
+
+# Set up logging first - before any other imports that might use it
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Early startup diagnostics
+print("Starting echobot web_app initialization...")
+logger.info(f"Starting echobot web_app - commit: {APP_COMMIT}")
+
+# Defensive scheduler import with proper logging
+scheduler = None
 try:
     from scheduler import scheduler
+    print("Scheduler imported successfully")
     logger.info("Scheduler imported successfully")
 except Exception as sched_err:
+    print(f"Failed to import scheduler: {sched_err}")
     logger.error(f"Failed to import scheduler: {sched_err}")
     scheduler = None  # graceful fallback
+
 from rolling_summary import generate_rolling
 from summarization import summarizer
-from version import COMMIT as APP_COMMIT, BUILD_TIME as APP_BUILD_TIME
 from datetime import date as _date
 
 def get_local_date() -> date:
@@ -33,16 +56,14 @@ def get_local_datetime() -> datetime:
     """Get current datetime in the configured timezone."""
     return datetime.now(Config.TIMEZONE)
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-# Early startup diagnostics
+# Additional startup diagnostics now that version is imported
 try:
     logger.info(f"Starting echobot web_app - commit: {APP_COMMIT}")
+    logger.info(f"Build time: {APP_BUILD_TIME}")
     logger.info(f"Config.ENABLE_LLM: {getattr(Config, 'ENABLE_LLM', 'NOT_SET')}")
     logger.info(f"Config.OPENAI_API_KEY present: {bool(getattr(Config, 'OPENAI_API_KEY', None))}")
     logger.info(f"Config.TIMEZONE: {getattr(Config, 'TIMEZONE', 'NOT_SET')}")
+    logger.info(f"Scheduler status: {'Available' if scheduler else 'Not available'}")
 except Exception as startup_err:
     print(f"STARTUP ERROR: {startup_err}")  # fallback to print if logging not ready
 
