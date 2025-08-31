@@ -17,6 +17,7 @@ from database import db
 from scheduler import scheduler
 from rolling_summary import generate_rolling
 from summarization import summarizer
+from version import COMMIT as APP_COMMIT, BUILD_TIME as APP_BUILD_TIME
 from datetime import date as _date
 
 def get_local_date() -> date:
@@ -385,7 +386,29 @@ async def api_status():
         "total_blocks": len(blocks),
         "status_counts": status_counts,
         "scheduler_running": scheduler.running,
+        "commit": APP_COMMIT,
+        "build_time": APP_BUILD_TIME,
         "timestamp": datetime.now().isoformat()
+    }
+
+@app.get("/api/info")
+async def api_info():
+    """Lightweight info for deployment debugging (no secrets)."""
+    try:
+        with db.get_connection() as conn:
+            conn.execute("SELECT 1").fetchone()
+        db_ok = True
+    except Exception:
+        db_ok = False
+    return {
+        "app": "echobot",
+        "version": "1.1.0",
+        "commit": APP_COMMIT,
+        "build_time": APP_BUILD_TIME,
+        "enable_llm": Config.ENABLE_LLM,
+        "scheduler_running": scheduler.running,
+        "db": "ok" if db_ok else "error",
+        "utc": datetime.utcnow().isoformat()+"Z"
     }
 
 @app.get("/api/filler/trend")

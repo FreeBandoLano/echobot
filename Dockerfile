@@ -1,6 +1,8 @@
-# filepath: /workspaces/echobot/Dockerfile
-# Start from the official Python base image
 FROM python:3.11-slim
+
+# Build arguments (must come after FROM)
+ARG GIT_COMMIT=unknown
+ARG BUILD_TIME=unknown
 
 # Install FFmpeg using the system package manager
 RUN apt-get update && apt-get install -y ffmpeg
@@ -12,8 +14,16 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of your application code into the container
+# Copy source code
 COPY . .
+
+# Expose build metadata inside container
+ENV GIT_COMMIT_SHA=${GIT_COMMIT} \
+	BUILD_TIME=${BUILD_TIME}
+
+LABEL org.opencontainers.image.revision=${GIT_COMMIT} \
+	  org.opencontainers.image.created=${BUILD_TIME} \
+	  org.opencontainers.image.source="https://example.com/echobot"
 
 # Expose the port Gunicorn will run on
 EXPOSE 8000
