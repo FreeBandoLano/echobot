@@ -89,6 +89,14 @@ class RadioScheduler:
         self.running = True
         logger.info("Starting radio scheduler...")
         
+        # Start task manager for automated processing
+        try:
+            from task_manager import task_manager
+            task_manager.start()
+            logger.info("Task manager started for automated processing")
+        except Exception as e:
+            logger.warning(f"Failed to start task manager: {e}")
+        
         self.setup_daily_schedule()
         
         # Start scheduler thread
@@ -105,6 +113,14 @@ class RadioScheduler:
         
         logger.info("Stopping radio scheduler...")
         self.running = False
+        
+        # Stop task manager
+        try:
+            from task_manager import task_manager
+            task_manager.stop()
+            logger.info("Task manager stopped")
+        except Exception as e:
+            logger.warning(f"Failed to stop task manager: {e}")
         
         # Wait for scheduler thread to finish
         if self.scheduler_thread and self.scheduler_thread.is_alive():

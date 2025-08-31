@@ -58,6 +58,19 @@ class AudioRecorder:
                 # Update database with completed recording
                 db.update_block_status(block_id, 'recorded', audio_file_path=actual_audio_path)
                 logger.info(f"Successfully recorded Block {block_code} to {actual_audio_path}")
+                
+                # Schedule automatic transcription task
+                try:
+                    from task_manager import task_manager, TaskType
+                    task_id = task_manager.add_task(
+                        TaskType.TRANSCRIBE_BLOCK,
+                        block_id=block_id,
+                        show_date=start_time.date().isoformat()
+                    )
+                    logger.info(f"Scheduled transcription task {task_id} for block {block_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to schedule transcription task: {e}")
+                
                 return actual_audio_path
             else:
                 # Mark as failed
