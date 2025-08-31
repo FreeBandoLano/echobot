@@ -204,6 +204,9 @@ class AudioTranscriber:
                             'speaker': self._detect_speaker(segment.text)
                         }
                     transcript_data['segments'].append(segment_data)
+                
+                # Apply caller ID assignment after all segments are processed
+                transcript_data['segments'] = self._assign_caller_ids(transcript_data['segments'])
             
             # Extract caller information
             transcript_data['caller_count'] = self._count_callers(transcript_data['segments'])
@@ -214,7 +217,7 @@ class AudioTranscriber:
                        f"{transcript_data['caller_count']} callers detected")
             
             return transcript_data
-            
+        
         except Exception as e:
             logger.error(f"Whisper API error: {e}")
             return None
@@ -306,7 +309,7 @@ class AudioTranscriber:
         return chunks
     
     def _detect_speaker(self, text: str) -> str:
-        """Simple speaker detection based on text patterns."""
+        """Enhanced speaker detection with caller indexing."""
         
         text_lower = text.lower()
         
@@ -326,22 +329,37 @@ class AudioTranscriber:
         
         return "Unknown"
     
+    def _assign_caller_ids(self, segments: List[Dict]) -> List[Dict]:
+        """Assign numbered caller IDs based on speaker transitions."""
+        caller_index = 0
+        prev_was_caller = False
+        current_caller_id = None
+
+        for i, segment in enumerate(segments):
+            speaker = segment.get('speaker')
+            if speaker == 'Caller':
+                # If previous segment was not a caller, increment caller index
+                if not prev_was_caller:
+                    caller_index += 1
+                    current_caller_id = caller_index
+                # Assign current caller id
+                segment['speaker'] = f"Caller {current_caller_id}" if current_caller_id else 'Caller 1'
+                prev_was_caller = True
+            else:
+                prev_was_caller = False
+                current_caller_id = None
+        return segments
+    
     def _count_callers(self, segments: List[Dict]) -> int:
-        """Count unique callers in the transcript."""
-        
-        caller_segments = [s for s in segments if s.get('speaker') == 'Caller']
-        
-        # Simple heuristic: count speaker transitions to "Caller"
-        caller_count = 0
-        prev_speaker = None
-        
-        for segment in segments:
-            current_speaker = segment.get('speaker')
-            if current_speaker == 'Caller' and prev_speaker != 'Caller':
-                caller_count += 1
-            prev_speaker = current_speaker
-        
-        return max(caller_count, 1) if caller_segments else 0
+        """Count unique callers based on speaker transitions."""
+        # Reapply caller ID assignment defensively on a shallow copy
+        segments_with_ids = [s.copy() for s in segments]
+        self._assign_caller_ids(segments_with_ids)
+        caller_ids = {
+            s['speaker'] for s in segments_with_ids
+            if s.get('speaker', '').startswith('Caller ')
+        }
+        return len(caller_ids)
     
     def _extract_quotes(self, segments: List[Dict], max_quotes: int = 5) -> List[Dict]:
         """Extract notable quotes from segments."""

@@ -80,11 +80,26 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
     block_data = []
     for block in blocks:
         summary = db.get_summary(block['id'])
+        
+        # Extract emergent themes for preview (top 2)
+        emergent_themes = []
+        if summary and summary.get('raw_json'):
+            try:
+                if isinstance(summary['raw_json'], dict):
+                    raw_data = summary['raw_json']
+                else:
+                    raw_data = json.loads(summary['raw_json'])
+                themes = raw_data.get('key_themes', [])[:2]
+                emergent_themes = [theme.get('title', '') for theme in themes if theme.get('title')]
+            except:
+                pass
+        
         block_info = {
             **block,
             'summary': summary,
             'block_name': Config.BLOCKS[block['block_code']]['name'],
-            'duration_display': f"{block['duration_minutes']} min" if block['duration_minutes'] else "N/A"
+            'duration_display': f"{block['duration_minutes']} min" if block['duration_minutes'] else "N/A",
+            'emergent_themes': emergent_themes
         }
         block_data.append(block_info)
     
