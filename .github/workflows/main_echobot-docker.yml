@@ -1,4 +1,4 @@
-name: Build and Push Container Image (ACR + WebApp update)
+name: Build and Push to Azure Container Registry
 
 on:
   push:
