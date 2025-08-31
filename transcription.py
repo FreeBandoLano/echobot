@@ -203,14 +203,17 @@ class AudioTranscriber:
                             'text': segment.text.strip(),
                             'speaker': self._detect_speaker(segment.text)
                         }
+                    # Guard band classification (ads / jingles / promos / music)
+                    segment_data['guard_band'] = self._is_guard_band(segment_data['text'])
                     transcript_data['segments'].append(segment_data)
                 
                 # Apply caller ID assignment after all segments are processed
                 transcript_data['segments'] = self._assign_caller_ids(transcript_data['segments'])
             
             # Extract caller information
-            transcript_data['caller_count'] = self._count_callers(transcript_data['segments'])
-            transcript_data['notable_quotes'] = self._extract_quotes(transcript_data['segments'])
+            content_segments = [s for s in transcript_data['segments'] if not s.get('guard_band')]
+            transcript_data['caller_count'] = self._count_callers(content_segments)
+            transcript_data['notable_quotes'] = self._extract_quotes(content_segments)
             
             logger.info(f"Transcription successful: {len(transcript_data['text'])} characters, "
                        f"{len(transcript_data['segments'])} segments, "
@@ -328,6 +331,37 @@ class AudioTranscriber:
             return "Host"
         
         return "Unknown"
+
+    # ---------------- Guard Band Detection -----------------
+    def _is_guard_band(self, text: str) -> bool:
+        """Heuristic to detect non-content filler (ads, jingles, promos, music cues).
+        Returns True if the segment should be excluded from analytical counts."""
+        tl = text.lower()
+        if len(tl) < 12:  # very short bursts frequently part of jingles
+            return True if any(k in tl for k in ["fm", "am", "news", "live"]) else False
+
+        guard_keywords = [
+            # Advertising / sponsor cues
+            "sponsored by", "brought to you", "paid program", "advertisement", "promotion", "call now", "limited time",
+            # Station IDs / filler
+            "you're listening to", "you are listening to", "stay tuned", "right back", "after the break", "don't go away",
+            "this is the", "weather update", "traffic update", "news update",
+            # Music / jingle indicators
+            "instrumental", "music playing", "theme music"
+        ]
+        if any(k in tl for k in guard_keywords):
+            return True
+
+        # High ratio of non-alphanumeric (could be lyric fragments or sound effects transcription)
+        letters = sum(c.isalnum() for c in tl)
+        if letters and (len(tl) - letters) / len(tl) > 0.55:
+            return True
+
+        # Generic greeting without substance (avoid classifying real callers) - narrow pattern
+        if tl in {"good morning", "good afternoon", "hello", "hi"}:
+            return True
+
+        return False
     
     def _assign_caller_ids(self, segments: List[Dict]) -> List[Dict]:
         """Assign numbered caller IDs based on speaker transitions."""
