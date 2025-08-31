@@ -2,7 +2,7 @@
 Deploy test - workflow verification."""
 
 from fastapi import FastAPI, Request, HTTPException, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import uvicorn
@@ -15,6 +15,10 @@ from pathlib import Path
 from config import Config
 from database import db
 from scheduler import scheduler
+from rolling_summary import generate_rolling
+from summarization import summarizer
+from cost_estimator import cost_tracker
+from datetime import date as _date
 
 def get_local_date() -> date:
     """Get today's date in the configured timezone."""
@@ -45,7 +49,7 @@ def setup_directories():
 setup_directories()
 
 # Create the single FastAPI app instance here
-app = FastAPI(title="Radio Synopsis Dashboard", version="1.0.0")
+app = FastAPI(title="Radio Synopsis Dashboard", version="1.1.0")
 
 # Set up templates directory
 templates_dir = Path("templates")
@@ -58,6 +62,51 @@ static_dir = Path("static")
 static_dir.mkdir(exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# ---------------------- Startup Auto Backfill (idempotent) ----------------------
+@app.on_event("startup")
+def auto_backfill_segments():
+    """Automatically backfill missing segments for historical transcribed blocks.
+    Light heuristic to avoid reruns: create a marker file after success. If marker
+    present and <24h old, skip. Intentionally silent on failures (logged)."""
+    try:
+        marker = Path('.auto_backfill_marker')
+        from datetime import datetime as _dt
+        if marker.exists():
+            try:
+                ts = _dt.fromtimestamp(marker.stat().st_mtime)
+                if (_dt.utcnow() - ts).total_seconds() < 24*3600:
+                    return
+            except Exception:
+                pass
+        with db.get_connection() as conn:
+            row = conn.execute("""
+                SELECT COUNT(*) as with_tx FROM blocks 
+                WHERE transcript_file_path IS NOT NULL AND status IN ('transcribed','summarizing','completed')
+            """).fetchone()
+            blocks_with_tx = row['with_tx'] if row else 0
+            row2 = conn.execute("SELECT COUNT(DISTINCT block_id) as seg_blocks FROM segments").fetchone()
+            seg_blocks = row2['seg_blocks'] if row2 else 0
+        missing = max(0, blocks_with_tx - seg_blocks)
+        if missing == 0:
+            # still touch marker
+            marker.write_text('noop')
+            return
+        # Run backfill in background thread (non-blocking startup)
+        import threading
+        def _run():
+            try:
+                from backfill_segments import backfill
+                res = backfill(run=True, rebuild=False)
+                marker.write_text(json.dumps(res))
+            except Exception as e:  # pragma: no cover
+                try:
+                    marker.write_text(f"error: {e}")
+                except Exception:
+                    pass
+        threading.Thread(target=_run, daemon=True).start()
+    except Exception:
+        pass
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, date_param: Optional[str] = None, message: Optional[str] = None, error: Optional[str] = None):
@@ -113,6 +162,14 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
     total_blocks = len(blocks)
     completed_blocks = len([b for b in blocks if b['status'] == 'completed'])
     total_callers = sum(b['summary']['caller_count'] if b['summary'] else 0 for b in block_data)
+
+    # Filler stats (today only; safe fallback if segments absent)
+    filler_today = None
+    try:
+        if hasattr(db, 'get_filler_stats_for_date'):
+            filler_today = db.get_filler_stats_for_date(view_date)
+    except Exception:
+        filler_today = None
     
     # Get recent dates for navigation
     recent_dates = []
@@ -138,7 +195,8 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
         "is_today": view_date == get_local_date(),
         "message": message,
         "error": error,
-        "config": Config
+    "config": Config,
+    "filler_today": filler_today
     })
 
 @app.get("/block/{block_id}", response_class=HTMLResponse)
@@ -215,9 +273,44 @@ async def block_detail(request: Request, block_id: int):
     else:
         block_info['guard_band_stats'] = None
     
+    # Load persisted segments if available
+    segs = []
+    if hasattr(db, 'get_segments_for_block'):
+        try:
+            segs = db.get_segments_for_block(block_id)
+        except Exception:
+            segs = []
+
+    # Per-block filler stats using persisted segments for accuracy
+    filler_stats = None
+    if segs:
+        try:
+            total_sec = 0.0
+            filler_sec = 0.0
+            for s in segs:
+                dur = 0.0
+                try:
+                    dur = max(0.0, float(s.get('end_sec') or s.get('end') or 0) - float(s.get('start_sec') or s.get('start') or 0))
+                except Exception:
+                    pass
+                total_sec += dur
+                if s.get('guard_band') or s.get('guard_band') == 1:
+                    filler_sec += dur
+            filler_pct = (filler_sec / total_sec * 100.0) if total_sec > 0 else 0.0
+            filler_stats = {
+                'filler_seconds': round(filler_sec,1),
+                'content_seconds': round(total_sec - filler_sec,1),
+                'total_seconds': round(total_sec,1),
+                'filler_pct': round(filler_pct,1)
+            }
+        except Exception:
+            filler_stats = None
+    block_info['filler_stats'] = filler_stats
+
     return templates.TemplateResponse("block_detail.html", {
         "request": request,
-        "block": block_info
+        "block": block_info,
+        "segments": segs
     })
 
 @app.get("/archive", response_class=HTMLResponse)
@@ -269,9 +362,11 @@ async def analytics(request: Request):
     # Topic and timeline analytics
     top_topics = db.get_top_topics(days=14, limit=12)
     timeline = db.get_completion_timeline(days=7)
+    filler_stats = getattr(db, 'get_filler_content_stats', lambda days=7: {})()
+    filler_trend = getattr(db, 'get_daily_filler_trend', lambda days=14: [])()
     return templates.TemplateResponse(
         "analytics.html",
-        {"request": request, "metrics": metrics, "top_topics": top_topics, "timeline": timeline}
+        {"request": request, "metrics": metrics, "top_topics": top_topics, "timeline": timeline, "filler": filler_stats, "filler_trend": filler_trend}
     )
 
 @app.get("/api/status")
@@ -293,6 +388,197 @@ async def api_status():
         "scheduler_running": scheduler.running,
         "timestamp": datetime.now().isoformat()
     }
+
+@app.get("/api/filler/trend")
+async def api_filler_trend(days: int = 14):
+    """Return JSON daily filler trend for recent days."""
+    try:
+        days = max(1, min(int(days), 90))
+    except Exception:
+        days = 14
+    trend = getattr(db, 'get_daily_filler_trend', lambda days=14: [])(days=days)
+    return {"days": days, "trend": trend}
+
+@app.get("/api/filler/overview")
+async def api_filler_overview(days: int = 7):
+    """Aggregate filler/content overview for timeframe plus per-block latest date stats."""
+    try:
+        days = max(1, min(int(days), 30))
+    except Exception:
+        days = 7
+    agg = getattr(db, 'get_filler_content_stats', lambda days=7: {})(days=days)
+    # Latest date (today) block stats if available
+    today_stats = None
+    try:
+        today_stats = db.get_filler_stats_for_date(get_local_date())
+    except Exception:
+        today_stats = None
+    return {"range": days, "aggregate": agg, "today": today_stats}
+
+@app.get("/api/filler/block/{block_id}")
+async def api_filler_block(block_id: int):
+    """Per-block filler stats from persisted segments."""
+    if not db.get_block(block_id):
+        raise HTTPException(status_code=404, detail="Block not found")
+    stats = getattr(db, 'get_filler_stats_for_block', lambda _id: None)(block_id)
+    if not stats:
+        return JSONResponse({"block_id": block_id, "message": "No segments"}, status_code=204)
+    return stats
+
+@app.get("/api/rolling/summary")
+async def api_rolling_summary(minutes: int = 30):
+    """Rolling (recent window) summary over non-filler segments for today."""
+    try:
+        minutes = max(1, min(int(minutes), 180))
+    except Exception:
+        minutes = 30
+    result = generate_rolling(minutes=minutes)
+    return result
+
+@app.get("/api/llm/usage")
+async def api_llm_usage():
+    """Return summarization usage counters (no secrets)."""
+    return {"enable_llm": Config.ENABLE_LLM, **summarizer.usage}
+
+@app.post("/api/llm/toggle")
+async def api_llm_toggle(enable: bool):
+    """Toggle LLM usage at runtime (in-memory flag only)."""
+    # This only affects Config.ENABLE_LLM in memory; not persisted across restarts.
+    try:
+        Config.ENABLE_LLM = bool(enable)
+        return {"enable_llm": Config.ENABLE_LLM}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/llm/costs")
+async def api_llm_costs():
+    """Return current approximate cost accumulation (internal)."""
+    if not getattr(Config, 'EXPOSE_COST_ENDPOINT', True):
+        raise HTTPException(status_code=404, detail="Not found")
+    return cost_tracker.snapshot()
+
+@app.get("/api/llm/usage/history")
+async def api_llm_usage_history(days: int = 30):
+    """Internal: persisted daily LLM usage history (cost + token aggregates)."""
+    try:
+        days = max(1, min(int(days), 90))
+    except Exception:
+        days = 30
+    # Simple gate
+    if not getattr(Config, 'EXPOSE_COST_ENDPOINT', True):
+        raise HTTPException(status_code=404, detail="Not found")
+    try:
+        rows = db.get_llm_usage_history(days=days)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"days": days, "history": rows}
+
+# --------------- Internal Flush Hook ---------------
+import threading, time
+_flush_thread_started = False
+
+def _flush_usage_loop():
+    while True:
+        try:
+            _flush_llm_usage()
+        except Exception:
+            pass
+        time.sleep(1800)  # every 30 min
+
+def _flush_llm_usage():
+    today = _date.today()
+    snap = cost_tracker.snapshot()
+    # Persist per model tokens + usd (calls approximated via summarizer.usage)
+    for model, rec in snap['models'].items():
+        db.upsert_llm_daily_usage(
+            today,
+            model,
+            prompt_tokens=int(rec['prompt_tokens']),
+            completion_tokens=int(rec['completion_tokens']),
+            usd=float(rec['usd']),
+            block_calls=summarizer.usage.get('block_llm_calls', 0) if 'block' in model else 0,
+            digest_calls=summarizer.usage.get('daily_digest_llm_calls', 0),
+            failures=summarizer.usage.get('block_llm_failures', 0) + summarizer.usage.get('daily_digest_llm_failures', 0)
+        )
+
+@app.on_event("startup")
+def _start_flush_thread():
+    global _flush_thread_started
+    if _flush_thread_started:
+        return
+    _flush_thread_started = True
+    t = threading.Thread(target=_flush_usage_loop, daemon=True)
+    t.start()
+
+@app.get("/timeline", response_class=HTMLResponse)
+async def timeline_view(request: Request, days: int = 1, date: str | None = None):
+    """Continuous segment timeline across recent days or a single specified date.
+    If `date` (YYYY-MM-DD) is provided, ignore `days` and show only that date."""
+    single_date = None
+    if date:
+        try:
+            single_date = datetime.strptime(date, '%Y-%m-%d').date()
+        except Exception:
+            single_date = None
+    if not single_date:
+        try:
+            days = max(1, min(int(days), 7))
+        except Exception:
+            days = 1
+    with db.get_connection() as conn:
+        if single_date:
+            seg_rows = conn.execute(
+                """
+                SELECT s.show_date, b.block_code, b.id as block_id, seg.start_sec, seg.end_sec, seg.text, seg.speaker, seg.guard_band
+                FROM segments seg
+                JOIN blocks b ON b.id = seg.block_id
+                JOIN shows s ON s.id = b.show_id
+                WHERE s.show_date = ?
+                ORDER BY b.block_code, seg.start_sec
+                """, (single_date,)
+            ).fetchall()
+        else:
+            seg_rows = conn.execute(
+                """
+                SELECT s.show_date, b.block_code, b.id as block_id, seg.start_sec, seg.end_sec, seg.text, seg.speaker, seg.guard_band
+                FROM segments seg
+                JOIN blocks b ON b.id = seg.block_id
+                JOIN shows s ON s.id = b.show_id
+                WHERE s.show_date >= date('now', ?)
+                ORDER BY s.show_date, b.block_code, seg.start_sec
+                """, (f'-{days} days',)
+            ).fetchall()
+    segments = [dict(r) for r in seg_rows]
+    # Derived metrics
+    total_seconds = 0.0
+    filler_seconds = 0.0
+    for r in segments:
+        try:
+            dur = (r['end_sec'] or 0) - (r['start_sec'] or 0)
+        except Exception:
+            dur = 0
+        if dur > 0:
+            total_seconds += dur
+            if r['guard_band']:
+                filler_seconds += dur
+    filler_pct = round((filler_seconds/total_seconds*100.0),1) if total_seconds>0 else 0.0
+    return templates.TemplateResponse("timeline.html", {
+        "request": request,
+        "segments": segments,
+        "days": days,
+        "focus_date": single_date,
+        "stats": {"total_segments": len(segments), "total_seconds": round(total_seconds,1), "filler_seconds": round(filler_seconds,1), "filler_pct": filler_pct}
+    })
+
+@app.post("/api/backfill/segments")
+async def api_backfill_segments(run: bool = False, rebuild: bool = False, limit: int | None = None):
+    """Trigger server-side segment backfill (admin/debug)."""
+    try:
+        from backfill_segments import backfill
+        result = backfill(run=run, rebuild=rebuild, limit=limit)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Backfill failed: {e}")
 
 @app.post("/api/manual-record")
 async def manual_record(block_code: str = Form(...)):

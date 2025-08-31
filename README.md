@@ -4,7 +4,7 @@ Automated collection, transcription, emergent topic summarization, clustering in
 
 ## 🎯 Current Scope (August 2025)
 
-Operational pipeline (record → transcribe → summarize → store → analyze → optional email) with early analytics and emergent topic extraction. Focus now shifting to richer diarization and insert/guard-band detection.
+End‑to‑end autonomous pipeline (record → transcribe → segment → summarize → analyze → optional digest/email) with emergent topic intelligence, rolling window summaries, filler (guard‑band) analytics, timeline visualization, and internal LLM usage + cost telemetry (persisted daily; not exposed to end users). Focus now shifting to speaker attribution & deterministic insert detection.
 
 | Layer | Status | Notes |
 |-------|--------|-------|
@@ -12,15 +12,21 @@ Operational pipeline (record → transcribe → summarize → store → analyze 
 | Block scheduling | ✅ | Four canonical blocks (A–D) in Barbados timezone (configurable) |
 | Recording + persistence | ✅ | Audio stored per block with duration calculation |
 | Transcription | ✅ | Whisper/OpenAI text JSON with segments (speaker placeholder for now) |
-| Summarization | ✅ | Emergent JSON schema via GPT model `gpt-5-nano-2025-08-07` |
+| Summarization | ✅ | Emergent JSON schema via GPT model `gpt-5-nano-2025-08-07` (LLM toggle & fallback) |
+| Rolling summary (live window) | ✅ | 30–180 min sliding window over non‑filler segments with LLM fallback |
+| Segmentation (micro) | ✅ | Transcript segments persisted (`segments` table) with guard_band marking |
 | Embedding clustering | ✅ | Sentence embedding (`text-embedding-3-small`) + greedy centroid clustering hints in prompt |
 | Topic extraction (heuristic) | ✅ | Term frequency + capitalization weighting persisted to `topics` / `block_topics` |
-| Structured storage | ✅ | SQLite: shows, blocks, summaries (raw_json), topics, block_topics, daily_digests |
+| Structured storage | ✅ | SQLite: shows, blocks, summaries (raw_json), segments, chapters, topics, block_topics, daily_digests, llm_daily_usage |
 | Web UI (dashboard, archive, block detail, analytics) | ✅ | Themed executive HUD + emergent panel on block detail |
+| Timeline view | ✅ | Continuous multi‑day segment timeline with filler percentage stats |
 | Email delivery | ✅ (toggle) | SMTP (Gmail app password) for block & daily digest (config-driven) |
 | Daily digest synthesis | ✅ | Aggregated multi‑block policy briefing |
 | Accessibility & theming | ✅ | High contrast red/gold scheme, large type, reduced-motion respect |
-| Guard bands / insert detection | ⏳ | Planned (news/history segmentation to exclude from caller themes) |
+| Filler / guard band analytics | ✅ | Per-block + daily aggregated filler percentages & trends |
+| LLM usage toggling | ✅ | In‑memory ENABLE_LLM flag + usage counters endpoint |
+| Internal cost tracking | ✅ | Approx token → cost estimation; persistent daily aggregation (hidden from UI) |
+| Guard bands / insert detection | ⏳ | Expansion: refine automatic detection of news/history anchors |
 | Speaker diarization | ⏳ | Planned (attribute positions & quote origins) |
 | Longitudinal trend analytics | ⏳ | Future (topic drift, emergent issue alerts) |
 
@@ -48,11 +54,15 @@ Legacy UI fields (`summary_text`, `key_points`, etc.) are auto‑mapped for back
 
 ## ✅ Feature Highlights
 
-* Automated block lifecycle: scheduled capture → transcription → emergent summary → topic persistence.
-* Embedding-informed prompting: cluster titles injected as soft hints (no fixed taxonomy).
-* Early analytics: Top weighted topics (last 14 days) & completion timeline (7 days).
-* Accessible executive dashboard: central panels, high contrast tokens, raw JSON on demand.
-* Email module (optional): block summaries & end-of-day digest distribution.
+* Automated lifecycle: schedule → record → segment → summarize → analyze → rolling & daily digests.
+* Rolling window summary endpoint for situational monitoring (no full block wait).
+* Segmentation table enabling per-block filler %, timeline visualization, and future diarization.
+* Embedding-informed prompting with clustering hints (emergent themes, no fixed taxonomy).
+* Filler analytics: per-day trend, per-block guard band percentages, aggregate ratios.
+* Topic intelligence: weighted topics (14‑day window) + future drift groundwork.
+* LLM operations governance: enable/disable flag, usage counters, internal cost ledger (persisted daily).
+* Accessible executive dashboard + block detail emergent structure preview.
+* Email (optional): block summary dispatch + end‑of‑day digest.
 
 ## 🚀 Quick Start
 
@@ -121,11 +131,14 @@ http://localhost:8001
 ## 📋 Usage
 
 ### Normal Operation
-1. Scheduler triggers block A–D recordings (or use manual buttons if testing).
-2. After recording: transcription job produces JSON (segments + text).
-3. Summarizer loads transcript, performs optional clustering, builds emergent JSON summary.
-4. Summary + raw_json + topics persisted; UI updates automatically.
-5. (Optional) Daily digest generated after final block; email dispatch if enabled.
+1. Scheduler triggers block A–D recordings (or use manual controls for ad hoc tests).
+2. Recorder writes audio; transcription pipeline produces JSON (text + segments).
+3. Segments persisted; guard_band (filler) flags used for analytics & rolling summaries.
+4. Summarizer (if ENABLE_LLM True and key present) generates emergent JSON; fallback path stores minimal structure when disabled.
+5. Topics extracted & linked; summary + raw_json persisted.
+6. Rolling summary endpoint (/api/rolling/summary) available for recent live window context.
+7. Internal cost + usage snapshot periodically flushed to `llm_daily_usage` (hidden from UI).
+8. Daily digest synthesized after final block; optional email dispatch.
 
 ### Manual Controls (Testing)
 * Record (scheduled window) – uses configured start/end boundaries.
@@ -151,11 +164,14 @@ Structured outputs emphasize:
 
 * **Audio Capture**: Stream URL (dynamic session) or local device (FFmpeg)
 * **Transcription**: Whisper (OpenAI) JSON segments
-* **Summarization**: `gpt-5-nano-2025-08-07` emergent JSON schema
+* **Summarization**: `gpt-5-nano-2025-08-07` emergent JSON schema (toggle + fallback)
+* **Rolling Summary**: Sliding window summarization with cost tracking & fallback
+* **Segmentation**: Persisted micro segments (speaker placeholder) with guard_band flags
 * **Embeddings**: `text-embedding-3-small` for clustering hints
 * **Clustering**: Greedy centroid grouping with similarity threshold
 * **Web Interface**: FastAPI + themed templates (dashboard, archive, analytics, block detail)
-* **Database**: SQLite (raw_json persistence + topic linkage)
+* **Database**: SQLite (shows, blocks, segments, chapters, summaries raw_json, topics, block_topics, daily_digests, llm_daily_usage)
+* **LLM Governance**: Usage counters + approximate cost estimator (internal only)
 * **Scheduling**: Internal scheduler (timed blocks) + manual overrides
 * **Email**: SMTP (plaintext + HTML multipart)
 
@@ -209,20 +225,21 @@ BLOCK_B_END=09:18
 - Integrate with government content management systems
 
 ## 📝 Recent Notable Changes
-* Shift from fixed section narrative → emergent JSON schema.
-* Added embeddings + clustering (configurable thresholds) to improve topic precision.
-* Introduced topics + block_topics tables for analytics & trend foundations.
-* Added analytics page (top topics, completion timeline).
-* UI redesign (central orbit hub removed in detail pages in favor of clean panels; accessible tokens / reduced motion compliance).
-* Added raw_json persistence for forward-compatible analytical enrichment.
-* Email subsystem (block summaries / daily digest) with environment toggles.
+* Added segmentation table + filler (guard band) analytics & endpoints (/api/filler/*).
+* Introduced rolling window summary endpoint with fallback when LLM disabled.
+* ENABLE_LLM flag + usage counters & internal cost estimation (persisted daily).
+* Cost & usage persistence (`llm_daily_usage`) with optional endpoint gating.
+* Timeline view for continuous segment navigation + filler % metrics.
+* Topic extraction stability improvements & raw_json persistence.
+* Reorganized summarization pipeline with emergent JSON mapping to legacy UI fields.
 
 ## 🔭 Roadmap (Short Term)
-1. Speaker diarization (accurate caller indexing, stance attribution).
-2. Guard-band detection for deterministic news/history inserts.
-3. Quote timestamp validation + transcript span verification.
-4. Topic drift & emerging-issue detection dashboard widgets.
-5. Alerting (threshold-based escalation on new high-salience themes).
+1. Speaker diarization (accurate caller indexing & stance attribution).
+2. Enhanced guard-band / anchor detection (news, history, ads segmentation refinement).
+3. Quote timestamp validation + transcript span linking.
+4. Topic drift & emerging-issue alerting (threshold + rate-of-change models).
+5. Internal alerting on cost anomalies & LLM failure rates.
+6. Authentication / role-based gating for internal endpoints.
 
 ## 🤝 Contributing
 Focus on operational reliability & analytical rigor:

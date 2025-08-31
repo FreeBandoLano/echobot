@@ -10,6 +10,7 @@ from config import Config
 from database import db
 from topic_extraction import extract_topics
 from embedding_clustering import cluster_transcript
+from cost_estimator import cost_tracker, estimate_tokens_from_chars
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -19,39 +20,49 @@ class RadioSummarizer:
     """Generates summaries for radio transcripts using OpenAI GPT."""
     
     def __init__(self):
-        self.client = openai.OpenAI(api_key=Config.OPENAI_API_KEY)
+        self.client = openai.OpenAI(api_key=Config.OPENAI_API_KEY) if Config.OPENAI_API_KEY else None
+        self.usage = {  # basic counters
+            'block_requests': 0,
+            'block_llm_calls': 0,
+            'block_llm_failures': 0,
+            'daily_digest_requests': 0,
+            'daily_digest_llm_calls': 0,
+            'daily_digest_llm_failures': 0
+        }
     
     def summarize_block(self, block_id: int) -> Optional[Dict]:
         """Create summary for a transcribed block."""
-        
+        # Increment request counter
+        self.usage['block_requests'] += 1
+
         # Get block and transcript data
         block = db.get_block(block_id)
-        if not block or block['status'] != 'transcribed':
-            logger.error(f"Block {block_id} not ready for summarization")
+        if not block or block['status'] not in ('transcribed', 'summarizing'):
+            logger.error(f"Block {block_id} not ready for summarization (status={block['status'] if block else 'missing'})")
             return None
-        
+
         if not block['transcript_file_path']:
             logger.error(f"No transcript file for block {block_id}")
             return None
-        
+
         transcript_path = Path(block['transcript_file_path'])
         if not transcript_path.exists():
             logger.error(f"Transcript file not found: {transcript_path}")
             return None
-        
+
         logger.info(f"Starting summarization for block {block_id}")
-        
+
         try:
             # Load transcript data
             with open(transcript_path, 'r', encoding='utf-8') as f:
                 transcript_data = json.load(f)
-            
+
             # Update status
             db.update_block_status(block_id, 'summarizing')
-            
+
             # Generate summary
             summary_data = self._generate_summary(block, transcript_data, block_id)
-            
+
             if summary_data:
                 # Save to database
                 db.create_summary(
@@ -68,7 +79,7 @@ class RadioSummarizer:
                         with db.get_connection() as conn:
                             conn.execute("UPDATE summaries SET raw_json = ? WHERE block_id = ?", (json.dumps(summary_data['raw_json']), block_id))
                 except Exception as rje:
-                        logger.warning(f"Failed to store raw_json for block {block_id}: {rje}")
+                    logger.warning(f"Failed to store raw_json for block {block_id}: {rje}")
 
                 # Topic extraction (Phase 1): derive topics from summary + key points
                 try:
@@ -82,19 +93,21 @@ class RadioSummarizer:
                             logger.warning(f"Topic link error for '{word}': {inner_e}")
                 except Exception as te:
                     logger.warning(f"Topic extraction failed for block {block_id}: {te}")
-                
+
                 # Update block status
                 db.update_block_status(block_id, 'completed')
-                
+
                 logger.info(f"Summarization completed for block {block_id}")
                 return summary_data
             else:
-                db.update_block_status(block_id, 'failed')
+                # Reset status to transcribed so task retry can proceed
+                db.update_block_status(block_id, 'transcribed')
                 return None
-                
+
         except Exception as e:
             logger.error(f"Error summarizing block {block_id}: {e}")
-            db.update_block_status(block_id, 'failed')
+            # Reset for retry
+            db.update_block_status(block_id, 'transcribed')
             return None
     
     def _generate_summary(self, block: Dict, transcript_data: Dict, block_id: int) -> Optional[Dict]:
@@ -139,27 +152,70 @@ class RadioSummarizer:
             logger.warning(f"Clustering failed block {block_id}: {ce}")
 
         prompt = self._create_emergent_prompt(block_code, transcript_text, caller_count, clusters)
+
+        if not Config.ENABLE_LLM or not self.client:
+            logger.info("LLM disabled or missing key; skipping model call (fallback empty emergent JSON)")
+            # Minimal fallback: embed a lightweight JSON with no themes
+            parsed_data = self._map_json_to_legacy_fields({
+                "block": block_code,
+                "key_themes": [],
+                "positions": [],
+                "quotes": existing_quotes[:2],
+                "entities": [],
+                "actions": []
+            }, caller_count)
+            return parsed_data
         
         try:
             logger.info(f"Generating summary with GPT-5 Nano for {block_name}")
             
-            response = self.client.chat.completions.create(
-                model="gpt-5-nano-2025-08-07",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an expert radio content analyst creating summaries for government civil servants. Provide objective, structured summaries focused on policy implications, public concerns, and actionable information."
-                    },
-                    {
-                        "role": "user", 
-                        "content": prompt
-                    }
-                ],
-                temperature=0.3,  # Low temperature for consistency
-                max_tokens=1500
-            )
+            # Newer OpenAI models require max_completion_tokens instead of deprecated max_tokens
+            try:
+                self.usage['block_llm_calls'] += 1
+                response = self.client.chat.completions.create(
+                    model="gpt-5-nano-2025-08-07",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are an expert radio content analyst creating summaries for government civil servants. Provide objective, structured summaries focused on policy implications, public concerns, and actionable information."
+                        },
+                        {
+                            "role": "user", 
+                            "content": prompt
+                        }
+                    ],
+                    temperature=0.3,
+                    max_completion_tokens=1500
+                )
+            except Exception as param_err:
+                # Fallback: if backend still expects max_tokens (older model variant)
+                if 'max_completion_tokens' in str(param_err).lower():
+                    response = self.client.chat.completions.create(
+                        model="gpt-5-nano-2025-08-07",
+                        messages=[
+                            {"role": "system", "content": "You are an expert radio content analyst creating summaries."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.3,
+                        max_tokens=1500
+                    )
+                else:
+                    raise
             
             summary_text = response.choices[0].message.content.strip()
+            # Token estimation (fallback if API doesn't provide usage)
+            try:
+                usage = getattr(response, 'usage', None)
+                if usage and hasattr(usage, 'prompt_tokens'):
+                    p_tokens = usage.prompt_tokens
+                    c_tokens = getattr(usage, 'completion_tokens', 0)
+                else:
+                    # Approx using char lengths
+                    p_tokens = estimate_tokens_from_chars(len(prompt))
+                    c_tokens = estimate_tokens_from_chars(len(summary_text))
+                cost_tracker.add('gpt-5-nano-2025-08-07', p_tokens, c_tokens)
+            except Exception:
+                pass
 
             # Expect JSON; attempt to load
             parsed_json = None
@@ -188,6 +244,7 @@ class RadioSummarizer:
             return parsed_data
             
         except Exception as e:
+            self.usage['block_llm_failures'] += 1
             logger.error(f"GPT API error: {e}")
             return None
 
@@ -269,22 +326,24 @@ Rules:
     
     def create_daily_digest(self, show_date: datetime.date) -> Optional[str]:
         """Create a daily digest combining all blocks."""
-        
+        # Increment request counter
+        self.usage['daily_digest_requests'] += 1
+
         # Get all completed blocks for the date
         blocks = db.get_blocks_by_date(show_date)
         completed_blocks = [b for b in blocks if b['status'] == 'completed']
-        
+
         if not completed_blocks:
             logger.warning(f"No completed blocks found for {show_date}")
             return None
-        
+
         logger.info(f"Creating daily digest for {show_date} with {len(completed_blocks)} blocks")
-        
+
         # Collect all summaries
         block_summaries = []
         total_callers = 0
         all_entities = set()
-        
+
         for block in completed_blocks:
             summary = db.get_summary(block['id'])
             if summary:
@@ -346,23 +405,47 @@ Provide: Executive Summary, Key Themes, Public Sentiment, Policy Implications, N
 """
         
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-5-nano-2025-08-07",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a senior government analyst creating daily briefings."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                temperature=0.2,
-                max_tokens=2000
-            )
+            if not Config.ENABLE_LLM or not self.client:
+                logger.info("LLM disabled or missing key; skipping daily digest LLM call")
+                return None
+            try:
+                self.usage['daily_digest_llm_calls'] += 1
+                response = self.client.chat.completions.create(
+                    model="gpt-5-nano-2025-08-07",
+                    messages=[
+                        {"role": "system", "content": "You are a senior government analyst creating daily briefings."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.2,
+                    max_completion_tokens=2000
+                )
+            except Exception as param_err:
+                if 'max_completion_tokens' in str(param_err).lower():
+                    response = self.client.chat.completions.create(
+                        model="gpt-5-nano-2025-08-07",
+                        messages=[
+                            {"role": "system", "content": "You are a senior government analyst creating daily briefings."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.2,
+                        max_tokens=2000
+                    )
+                else:
+                    raise
             
             digest_text = response.choices[0].message.content
+            # Estimate cost for digest
+            try:
+                usage = getattr(response, 'usage', None)
+                if usage and hasattr(usage, 'prompt_tokens'):
+                    p_tokens = usage.prompt_tokens
+                    c_tokens = getattr(usage, 'completion_tokens', 0)
+                else:
+                    p_tokens = estimate_tokens_from_chars(len(prompt))
+                    c_tokens = estimate_tokens_from_chars(len(digest_text))
+                cost_tracker.add('gpt-5-nano-2025-08-07', p_tokens, c_tokens)
+            except Exception:
+                pass
             
             # Add header with metadata
             header = f"""
@@ -379,6 +462,7 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             return header + digest_text
             
         except Exception as e:
+            self.usage['daily_digest_llm_failures'] += 1
             logger.error(f"Error generating daily digest: {e}")
             return None
 

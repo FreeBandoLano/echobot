@@ -69,6 +69,18 @@ class Config:
     CLUSTER_SIM_THRESHOLD = float(os.getenv('CLUSTER_SIM_THRESHOLD', 0.78))
     CLUSTER_MIN_SENT_LEN = int(os.getenv('CLUSTER_MIN_SENT_LEN', 30))
     CLUSTER_MAX_CLUSTERS = int(os.getenv('CLUSTER_MAX_CLUSTERS', 8))
+    # LLM Feature Flag
+    ENABLE_LLM = os.getenv('ENABLE_LLM', 'true').lower() in ('1','true','yes','on')
+
+    # Approximate model pricing (USD per 1K tokens) – update as needed
+    # Sources: public pricing pages; keep conservative estimates.
+    COST_GPT5_NANO_PROMPT = float(os.getenv('COST_GPT5_NANO_PROMPT', 0.0005))
+    COST_GPT5_NANO_COMPLETION = float(os.getenv('COST_GPT5_NANO_COMPLETION', 0.0008))
+    COST_GPT4O_MINI_PROMPT = float(os.getenv('COST_GPT4O_MINI_PROMPT', 0.0003))
+    COST_GPT4O_MINI_COMPLETION = float(os.getenv('COST_GPT4O_MINI_COMPLETION', 0.0006))
+    
+    # Expose cost endpoint flag
+    EXPOSE_COST_ENDPOINT = True  # set False in production to hide cost endpoints
     
     @classmethod
     def validate(cls):

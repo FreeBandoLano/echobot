@@ -85,6 +85,49 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_blocks_show_date ON blocks(show_id);
                 CREATE INDEX IF NOT EXISTS idx_blocks_status ON blocks(status);
                 CREATE INDEX IF NOT EXISTS idx_summaries_block ON summaries(block_id);
+
+                /* Phase 1: conversational micro-segmentation (derived from transcripts) */
+                CREATE TABLE IF NOT EXISTS segments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    block_id INTEGER REFERENCES blocks(id) ON DELETE CASCADE,
+                    start_sec REAL NOT NULL,
+                    end_sec REAL NOT NULL,
+                    text TEXT NOT NULL,
+                    speaker TEXT,
+                    speaker_type TEXT,
+                    guard_band INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_segments_block ON segments(block_id);
+                CREATE INDEX IF NOT EXISTS idx_segments_time ON segments(block_id, start_sec);
+
+                /* Anchor chapters (scheduled breaks) */
+                CREATE TABLE IF NOT EXISTS chapters (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    show_id INTEGER REFERENCES shows(id) ON DELETE CASCADE,
+                    label TEXT NOT NULL,
+                    anchor_type TEXT,
+                    start_time TIMESTAMP NOT NULL,
+                    end_time TIMESTAMP NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(show_id, label)
+                );
+                CREATE INDEX IF NOT EXISTS idx_chapters_show ON chapters(show_id);
+
+                /* Persistent LLM daily usage (internal only) */
+                CREATE TABLE IF NOT EXISTS llm_daily_usage (
+                    date DATE NOT NULL,
+                    model TEXT NOT NULL,
+                    prompt_tokens INTEGER DEFAULT 0,
+                    completion_tokens INTEGER DEFAULT 0,
+                    usd REAL DEFAULT 0,
+                    block_calls INTEGER DEFAULT 0,
+                    digest_calls INTEGER DEFAULT 0,
+                    failures INTEGER DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (date, model)
+                );
+                CREATE INDEX IF NOT EXISTS idx_llm_daily_usage_date ON llm_daily_usage(date);
             """)
             # Lightweight migrations
             try:
@@ -273,6 +316,288 @@ class Database:
             d['completion_rate'] = round(completed / total * 100) if total else 0
             result.append(d)
         return result
+
+    def get_filler_content_stats(self, days: int = 7) -> Dict:
+        """Compute aggregate filler vs content metrics over recent days using segments table.
+        Returns dict with: total_segments, filler_segments, filler_pct, content_seconds, filler_seconds, avg_filler_pct_per_block."""
+        with self.get_connection() as conn:
+            # Join segments -> blocks -> shows for date filter
+            seg_rows = conn.execute(
+                """
+                SELECT s.show_date as date, b.id as block_id, seg.guard_band as guard, 
+                       (seg.end_sec - seg.start_sec) as dur
+                FROM segments seg
+                JOIN blocks b ON b.id = seg.block_id
+                JOIN shows s ON s.id = b.show_id
+                WHERE s.show_date >= date('now', ?)
+                """,
+                (f'-{int(days)} days',)
+            ).fetchall()
+        if not seg_rows:
+            return {
+                'days': days,
+                'total_segments': 0,
+                'filler_segments': 0,
+                'filler_pct': 0.0,
+                'content_seconds': 0.0,
+                'filler_seconds': 0.0,
+                'avg_filler_pct_per_block': 0.0
+            }
+        total_segments = len(seg_rows)
+        filler_segments = sum(1 for r in seg_rows if r['guard'])
+        filler_seconds = sum(max(0.0, r['dur'] or 0.0) for r in seg_rows if r['guard'])
+        content_seconds = sum(max(0.0, r['dur'] or 0.0) for r in seg_rows if not r['guard'])
+        filler_pct = (filler_segments / total_segments * 100.0) if total_segments else 0.0
+        # Per-block filler percentage
+        from collections import defaultdict
+        block_totals = defaultdict(float)
+        block_filler = defaultdict(float)
+        for r in seg_rows:
+            dur = max(0.0, r['dur'] or 0.0)
+            block_totals[r['block_id']] += dur
+            if r['guard']:
+                block_filler[r['block_id']] += dur
+        per_block_pcts = []
+        for bid, total in block_totals.items():
+            if total > 0:
+                per_block_pcts.append(block_filler[bid] / total * 100.0)
+        avg_filler_pct_per_block = round(sum(per_block_pcts) / len(per_block_pcts), 1) if per_block_pcts else 0.0
+        return {
+            'days': days,
+            'total_segments': total_segments,
+            'filler_segments': filler_segments,
+            'filler_pct': round(filler_pct, 1),
+            'content_seconds': round(content_seconds, 1),
+            'filler_seconds': round(filler_seconds, 1),
+            'avg_filler_pct_per_block': avg_filler_pct_per_block
+        }
+
+    def get_filler_stats_for_date(self, show_date: date) -> Dict:
+        """Compute filler/content stats for a single date using segments table."""
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT b.id as block_id, seg.guard_band as guard, (seg.end_sec - seg.start_sec) as dur
+                FROM segments seg
+                JOIN blocks b ON b.id = seg.block_id
+                JOIN shows s ON s.id = b.show_id
+                WHERE s.show_date = ?
+                """, (show_date,)
+            ).fetchall()
+        if not rows:
+            return {'date': show_date, 'content_seconds': 0.0, 'filler_seconds': 0.0, 'filler_pct': 0.0, 'blocks': []}
+        from collections import defaultdict
+        block_totals = defaultdict(float)
+        block_filler = defaultdict(float)
+        filler_seconds = 0.0
+        content_seconds = 0.0
+        for r in rows:
+            dur = max(0.0, r['dur'] or 0.0)
+            block_totals[r['block_id']] += dur
+            if r['guard']:
+                block_filler[r['block_id']] += dur
+                filler_seconds += dur
+            else:
+                content_seconds += dur
+        blocks_stats = []
+        for bid, total in block_totals.items():
+            f_sec = block_filler[bid]
+            pct = (f_sec / total * 100.0) if total > 0 else 0.0
+            blocks_stats.append({'block_id': bid, 'filler_seconds': round(f_sec,1), 'total_seconds': round(total,1), 'filler_pct': round(pct,1)})
+        blocks_stats.sort(key=lambda x: x['filler_pct'], reverse=True)
+        overall_pct = (filler_seconds / (filler_seconds + content_seconds) * 100.0) if (filler_seconds + content_seconds) > 0 else 0.0
+        return {
+            'date': show_date,
+            'content_seconds': round(content_seconds,1),
+            'filler_seconds': round(filler_seconds,1),
+            'filler_pct': round(overall_pct,1),
+            'blocks': blocks_stats
+        }
+
+    def get_daily_filler_trend(self, days: int = 14) -> List[Dict]:
+        """Return list of {date, filler_pct, filler_seconds, content_seconds} for each day with segment data in range."""
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT s.show_date as date,
+                       SUM(CASE WHEN seg.guard_band=1 THEN (seg.end_sec - seg.start_sec) ELSE 0 END) as filler_sec,
+                       SUM((seg.end_sec - seg.start_sec)) as total_sec
+                FROM segments seg
+                JOIN blocks b ON b.id = seg.block_id
+                JOIN shows s ON s.id = b.show_id
+                WHERE s.show_date >= date('now', ?)
+                GROUP BY s.show_date
+                ORDER BY s.show_date ASC
+                """,
+                (f'-{int(days)} days',)
+            ).fetchall()
+        trend = []
+        for r in rows:
+            total = r['total_sec'] or 0.0
+            filler = r['filler_sec'] or 0.0
+            pct = (filler / total * 100.0) if total > 0 else 0.0
+            trend.append({
+                'date': r['date'],
+                'filler_pct': round(pct, 1),
+                'filler_seconds': round(filler, 1),
+                'content_seconds': round(max(0.0, total - filler), 1)
+            })
+        return trend
+
+    # ---------------- Segments / Chapters (Phase 1) ----------------
+    def delete_segments_for_block(self, block_id: int):
+        with self.get_connection() as conn:
+            conn.execute("DELETE FROM segments WHERE block_id = ?", (block_id,))
+
+    def insert_segment(self, block_id: int, start_sec: float, end_sec: float, text: str,
+                       speaker: Optional[str], guard_band: bool):
+        speaker_type = None
+        if speaker:
+            if speaker.lower().startswith('caller'):
+                speaker_type = 'caller'
+            elif speaker.lower().startswith('host'):
+                speaker_type = 'host'
+        with self.get_connection() as conn:
+            conn.execute(
+                """INSERT INTO segments (block_id, start_sec, end_sec, text, speaker, speaker_type, guard_band)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (block_id, float(start_sec), float(end_sec), text.strip(), speaker, speaker_type, 1 if guard_band else 0)
+            )
+
+    def get_segments_for_block(self, block_id: int) -> List[Dict]:
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM segments WHERE block_id = ? ORDER BY start_sec", (block_id,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def count_segments_for_block(self, block_id: int) -> int:
+        """Return count of persisted segments for a block (fast)."""
+        with self.get_connection() as conn:
+            row = conn.execute("SELECT COUNT(1) as c FROM segments WHERE block_id = ?", (block_id,)).fetchone()
+            return int(row['c']) if row else 0
+
+    def get_filler_stats_for_block(self, block_id: int) -> Optional[Dict[str, Any]]:
+        """Compute filler/content stats for a single block using persisted segments.
+        Returns None if no segments present."""
+        segs = self.get_segments_for_block(block_id)
+        if not segs:
+            return None
+        total_sec = 0.0
+        filler_sec = 0.0
+        for s in segs:
+            try:
+                dur = max(0.0, float(s.get('end_sec') or s.get('end') or 0) - float(s.get('start_sec') or s.get('start') or 0))
+            except Exception:
+                dur = 0.0
+            total_sec += dur
+            if s.get('guard_band') or s.get('guard_band') == 1:
+                filler_sec += dur
+        filler_pct = (filler_sec / total_sec * 100.0) if total_sec > 0 else 0.0
+        return {
+            'block_id': block_id,
+            'filler_seconds': round(filler_sec, 1),
+            'content_seconds': round(total_sec - filler_sec, 1),
+            'total_seconds': round(total_sec, 1),
+            'filler_pct': round(filler_pct, 1)
+        }
+
+    def get_today_segments_with_block_times(self, show_date: Optional[date] = None) -> List[Dict[str, Any]]:
+        """Return all segments for a given date (default today) including block start_time for absolute time reconstruction."""
+        if show_date is None:
+            show_date = date.today()
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT seg.*, b.start_time as block_start, b.id as block_id, b.block_code, s.show_date
+                FROM segments seg
+                JOIN blocks b ON b.id = seg.block_id
+                JOIN shows s ON s.id = b.show_id
+                WHERE s.show_date = ?
+                ORDER BY b.start_time, seg.start_sec
+                """, (show_date,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def insert_segments_from_transcript(self, block_id: int, segments: List[Dict]):
+        """Idempotently (re)ingest transcript segments into segments table."""
+        self.delete_segments_for_block(block_id)
+        for seg in segments:
+            try:
+                self.insert_segment(
+                    block_id=block_id,
+                    start_sec=seg.get('start', 0),
+                    end_sec=seg.get('end', seg.get('start', 0)),
+                    text=seg.get('text', ''),
+                    speaker=seg.get('speaker'),
+                    guard_band=bool(seg.get('guard_band'))
+                )
+            except Exception:
+                continue
+
+    # Chapters anchors
+    DEFAULT_CHAPTERS = [
+        {"label": "Midday News Brief", "anchor_type": "news_brief", "start_hm": "12:00", "duration_min": 5},
+        {"label": "Major Newscast", "anchor_type": "major_news", "start_hm": "12:30", "duration_min": 10},
+        {"label": "Bajan History", "anchor_type": "history", "start_hm": "13:30", "duration_min": 5},
+    ]
+
+    def ensure_chapters_for_show(self, show_id: int, show_date: date):
+        with self.get_connection() as conn:
+            existing = {row['label'] for row in conn.execute("SELECT label FROM chapters WHERE show_id = ?", (show_id,)).fetchall()}
+        from datetime import datetime as dt
+        for ch in self.DEFAULT_CHAPTERS:
+            if ch['label'] in existing:
+                continue
+            start_dt = dt.strptime(f"{show_date} {ch['start_hm']}", "%Y-%m-%d %H:%M")
+            start_dt = Config.TIMEZONE.localize(start_dt)
+            end_dt = start_dt + __import__('datetime').timedelta(minutes=ch['duration_min'])
+            with self.get_connection() as conn:
+                conn.execute(
+                    """INSERT OR IGNORE INTO chapters (show_id, label, anchor_type, start_time, end_time)
+                        VALUES (?, ?, ?, ?, ?)""",
+                    (show_id, ch['label'], ch['anchor_type'], start_dt.isoformat(), end_dt.isoformat())
+                )
+
+    def get_chapters_for_show(self, show_id: int) -> List[Dict]:
+        with self.get_connection() as conn:
+            rows = conn.execute("SELECT * FROM chapters WHERE show_id = ? ORDER BY start_time", (show_id,)).fetchall()
+            return [dict(r) for r in rows]
+
+    # ---------------- LLM Usage Persistence ----------------
+    def upsert_llm_daily_usage(self, date_val: date, model: str, prompt_tokens: int = 0, completion_tokens: int = 0,
+                               usd: float = 0.0, block_calls: int = 0, digest_calls: int = 0, failures: int = 0):
+        """Accumulate (upsert) daily LLM usage metrics for a model."""
+        with self.get_connection() as conn:
+            row = conn.execute("SELECT prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures FROM llm_daily_usage WHERE date=? AND model=?", (date_val, model)).fetchone()
+            if row:
+                conn.execute(
+                    """UPDATE llm_daily_usage
+                        SET prompt_tokens = prompt_tokens + ?,
+                            completion_tokens = completion_tokens + ?,
+                            usd = usd + ?,
+                            block_calls = block_calls + ?,
+                            digest_calls = digest_calls + ?,
+                            failures = failures + ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE date = ? AND model = ?""",
+                    (prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures, date_val, model)
+                )
+            else:
+                conn.execute(
+                    """INSERT INTO llm_daily_usage (date, model, prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (date_val, model, prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures)
+                )
+
+    def get_llm_usage_history(self, days: int = 30) -> List[Dict]:
+        """Return recent persisted LLM usage (internal)."""
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                """SELECT * FROM llm_daily_usage WHERE date >= date('now', ?) ORDER BY date DESC, model""",
+                (f'-{int(days)} days',)
+            ).fetchall()
+            return [dict(r) for r in rows]
 
 # Global database instance
 db = Database()
