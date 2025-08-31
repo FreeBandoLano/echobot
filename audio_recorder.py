@@ -410,6 +410,22 @@ class AudioRecorder:
                 # Update database with completed recording
                 db.update_block_status(block_id, 'recorded', audio_file_path=actual_audio_path)
                 logger.info(f"Successfully recorded Block {block_code} to {actual_audio_path}")
+
+                # Attempt to schedule transcription task (mirrors record_block behavior)
+                try:
+                    from task_manager import task_manager, TaskType
+                    # Lazy start task manager if not already running (web-only context)
+                    if not task_manager.running:
+                        task_manager.start()
+                        logger.info("Task manager lazily started for manual duration recording")
+                    task_id = task_manager.add_task(
+                        TaskType.TRANSCRIBE_BLOCK,
+                        block_id=block_id,
+                        show_date=today.isoformat()
+                    )
+                    logger.info(f"Scheduled transcription task {task_id} for block {block_id} (manual duration)")
+                except Exception as e:
+                    logger.warning(f"Failed to schedule transcription task for manual duration recording: {e}")
                 return actual_audio_path
             else:
                 # Mark as failed
