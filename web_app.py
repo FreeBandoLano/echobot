@@ -14,7 +14,12 @@ from pathlib import Path
 
 from config import Config
 from database import db
-from scheduler import scheduler
+try:
+    from scheduler import scheduler
+    logger.info("Scheduler imported successfully")
+except Exception as sched_err:
+    logger.error(f"Failed to import scheduler: {sched_err}")
+    scheduler = None  # graceful fallback
 from rolling_summary import generate_rolling
 from summarization import summarizer
 from version import COMMIT as APP_COMMIT, BUILD_TIME as APP_BUILD_TIME
@@ -29,7 +34,17 @@ def get_local_datetime() -> datetime:
     return datetime.now(Config.TIMEZONE)
 
 # Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Early startup diagnostics
+try:
+    logger.info(f"Starting echobot web_app - commit: {APP_COMMIT}")
+    logger.info(f"Config.ENABLE_LLM: {getattr(Config, 'ENABLE_LLM', 'NOT_SET')}")
+    logger.info(f"Config.OPENAI_API_KEY present: {bool(getattr(Config, 'OPENAI_API_KEY', None))}")
+    logger.info(f"Config.TIMEZONE: {getattr(Config, 'TIMEZONE', 'NOT_SET')}")
+except Exception as startup_err:
+    print(f"STARTUP ERROR: {startup_err}")  # fallback to print if logging not ready
 
 # Ensure all required directories exist when the app starts.
 # This is crucial for running in a container where `main.py` is not the entry point.
@@ -385,7 +400,7 @@ async def api_status():
         "date": today.isoformat(),
         "total_blocks": len(blocks),
         "status_counts": status_counts,
-        "scheduler_running": scheduler.running,
+        "scheduler_running": scheduler.running if scheduler else False,
         "commit": APP_COMMIT,
         "build_time": APP_BUILD_TIME,
         "timestamp": datetime.now().isoformat()
@@ -406,7 +421,7 @@ async def api_info():
         "commit": APP_COMMIT,
         "build_time": APP_BUILD_TIME,
         "enable_llm": Config.ENABLE_LLM,
-        "scheduler_running": scheduler.running,
+        "scheduler_running": scheduler.running if scheduler else False,
         "db": "ok" if db_ok else "error",
         "utc": datetime.utcnow().isoformat()+"Z"
     }
@@ -552,10 +567,14 @@ async def manual_record(block_code: str = Form(...)):
         raise HTTPException(status_code=400, detail="Invalid block code")
     
     try:
+        if not scheduler:
+            raise Exception("Scheduler not available")
         success = scheduler.run_manual_recording(block_code)
+        logger.info(f"Manual recording request for {block_code}: {'success' if success else 'failed'}")
         # Redirect back to dashboard with a message
         return RedirectResponse(url=f"/?message=Recording {'started' if success else 'failed'} for Block {block_code}", status_code=303)
     except Exception as e:
+        logger.error(f"Manual recording failed for {block_code}: {e}")
         return RedirectResponse(url=f"/?error=Failed to start recording: {str(e)}", status_code=303)
 
 @app.post("/api/manual-record-duration")
@@ -605,10 +624,14 @@ async def manual_process(block_code: str = Form(...)):
         raise HTTPException(status_code=400, detail="Invalid block code")
     
     try:
+        if not scheduler:
+            raise Exception("Scheduler not available")
         success = scheduler.run_manual_processing(block_code)
+        logger.info(f"Manual processing request for {block_code}: {'success' if success else 'failed'}")
         # Redirect back to dashboard with a message
         return RedirectResponse(url=f"/?message=Processing {'started' if success else 'failed'} for Block {block_code}", status_code=303)
     except Exception as e:
+        logger.error(f"Manual processing failed for {block_code}: {e}")
         return RedirectResponse(url=f"/?error=Failed to start processing: {str(e)}", status_code=303)
 
 @app.get("/health")
@@ -627,7 +650,7 @@ async def health_check():
     return {
         "status": "healthy" if db_status == "healthy" else "unhealthy",
         "database": db_status,
-        "scheduler": "running" if scheduler.running else "stopped",
+        "scheduler": "running" if (scheduler and scheduler.running) else "stopped",
         "timestamp": datetime.now().isoformat()
     }
 
@@ -796,26 +819,6 @@ async def debug_stream_test():
         
     except Exception as e:
         return {"error": str(e)}
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    
-    try:
-        # Test database connection
-        with db.get_connection() as conn:
-            conn.execute("SELECT 1").fetchone()
-        
-        db_status = "healthy"
-    except:
-        db_status = "unhealthy"
-    
-    return {
-        "status": "healthy" if db_status == "healthy" else "unhealthy",
-        "database": db_status,
-        "scheduler": "running" if scheduler.running else "stopped",
-        "timestamp": datetime.now().isoformat()
-    }
 
 # Create HTML templates
 def create_templates():
