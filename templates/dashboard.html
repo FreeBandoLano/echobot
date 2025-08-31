@@ -4,418 +4,274 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Down to Brass Tacks - Government Briefing Dashboard</title>
+    <title>Government Radio Synopsis</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/theme.css">
     <style>
-        /* Accessibility-first design for 55+ government users */
-        :root {
-            --primary-red: #c41e3a;
-            --accent-red: #dc3545;
-            --gold-accent: #ffc107;
-            --dark-gold: #e0a800;
-            --success-green: #28a745;
-            --warning-orange: #fd7e14;
-            --danger-red: #dc3545;
-            --light-bg: #f8f9fa;
-            --text-primary: #212529;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-size: 18px;
-            line-height: 1.6;
-            color: var(--text-primary);
-            background-color: var(--light-bg);
-        }
-        
-        /* Large, high-contrast header */
-        .main-header {
-            background: linear-gradient(135deg, var(--primary-red), var(--accent-red));
-            color: white;
-            padding: 1.5rem 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        .main-header h1 {
-            font-size: 2.5rem;
-            font-weight: 600;
-            margin: 0;
-        }
-        
-        .date-banner {
-            font-size: 1.4rem;
-            margin-top: 0.5rem;
-            opacity: 0.9;
-        }
-        
-        /* Executive summary section */
-        .executive-summary {
-            background: white;
-            border-left: 6px solid var(--gold-accent);
-            padding: 2rem;
-            margin: 2rem 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            border-radius: 8px;
-        }
-        
-        .executive-summary h2 {
-            color: var(--primary-red);
-            font-size: 1.8rem;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        
-        /* Block status cards - large and clear */
-        .block-status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-            margin: 2rem 0;
-        }
-        
-        .block-card {
-            background: white;
-            border-radius: 12px;
-            padding: 2rem;
-            box-shadow: 0 3px 15px rgba(0,0,0,0.08);
-            border: 2px solid transparent;
-            transition: all 0.3s ease;
-        }
-        
-        .block-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0,0,0,0.12);
-        }
-        
-        .block-card.completed {
-            border-color: var(--success-green);
-        }
-        
-        .block-card.processing {
-            border-color: var(--warning-orange);
-        }
-        
-        .block-card.pending {
-            border-color: #6c757d;
-        }
-        
-        .block-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-        }
-        
-        .block-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: var(--primary-red);
-            margin: 0;
-        }
-        
-        .block-time {
-            font-size: 1.1rem;
-            color: #6c757d;
-            margin-top: 0.25rem;
-        }
-        
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 1.1rem;
-            font-weight: 500;
-            padding: 0.5rem 1rem;
-            border-radius: 25px;
-        }
-        
-        .status-completed {
-            background: #d4edda;
-            color: var(--success-green);
-        }
-        
-        .status-processing {
-            background: #fff3cd;
-            color: var(--warning-orange);
-        }
-        
-        .status-pending {
-            background: #e2e6ea;
-            color: #6c757d;
-        }
-        
-        /* Large, accessible buttons */
-        .btn-large {
-            font-size: 1.2rem;
-            padding: 0.8rem 2rem;
-            border-radius: 8px;
-            font-weight: 500;
-        }
-        
-        .btn-primary-custom {
-            background-color: var(--accent-red);
-            border-color: var(--accent-red);
-            color: white;
-        }
-        
-        .btn-primary-custom:hover {
-            background-color: var(--primary-red);
-            border-color: var(--primary-red);
-        }
-        
-        /* Navigation tabs */
-        .nav-tabs-large {
-            border-bottom: 3px solid #dee2e6;
-            margin-bottom: 2rem;
-        }
-        
-        .nav-tabs-large .nav-link {
-            font-size: 1.3rem;
-            padding: 1rem 2rem;
-            border: none;
-            color: var(--primary-red);
-            border-radius: 8px 8px 0 0;
-            margin-right: 0.5rem;
-        }
-        
-        .nav-tabs-large .nav-link.active {
-            background-color: var(--accent-red);
-            color: white;
-            font-weight: 600;
-        }
-        
-        /* Progress indicator */
-        .progress-large {
-            height: 15px;
-            border-radius: 8px;
-            margin: 1rem 0;
-        }
-        
-        /* Responsive text sizes */
-        @media (max-width: 768px) {
-            body { font-size: 16px; }
-            .main-header h1 { font-size: 2rem; }
-            .date-banner { font-size: 1.2rem; }
-            .block-title { font-size: 1.3rem; }
-        }
-        
-        /* Focus indicators for accessibility */
-        button:focus, .btn:focus, a:focus {
-            outline: 3px solid var(--gold-accent);
-            outline-offset: 2px;
-        }
-        
-        /* Print styles */
-        @media print {
-            .main-header { background: var(--primary-red) !important; }
-            .btn, .nav-tabs { display: none; }
-        }
-        
-        /* High contrast mode support */
-        @media (prefers-contrast: high) {
-            :root {
-                --primary-red: #8b0000;
-                --accent-red: #dc143c;
-            }
-        }
+        /* Minimal override helpers (panel print + utility spacing if needed) */
+        @media print { .hub-wrapper, .orbit-btn { display: none !important; } }
     </style>
 </head>
-<body>
-    <!-- Main Header -->
-    <header class="main-header">
-        <div class="container">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h1><i class="bi bi-broadcast"></i> Down to Brass Tacks</h1>
-                    <div class="date-banner">
-                        <i class="bi bi-calendar3"></i> 
-                        {{ view_date.strftime('%A, %B %d, %Y') }}
-                        {% if is_today %}
-                            <span class="badge ms-2" style="background-color: var(--gold-accent); color: #212529; font-weight: 600;">LIVE TODAY</span>
-                        {% endif %}
-                    </div>
-                </div>
-                <div class="col-md-4 text-end">
-                    <div class="text-white">
-                        <div style="font-size: 1.1rem;">Last Updated</div>
-                        <div style="font-size: 1.3rem; font-weight: 600;">
-                            {{ "Now" if is_today else view_date.strftime('%I:%M %p') }}
-                        </div>
-                    </div>
-                </div>
-            </div>
+<body data-is-today="{{ 1 if is_today else 0 }}" data-view-date="{{ view_date.strftime('%Y-%m-%d') }}">
+    <header class="app-header">
+        <a href="/" class="app-logo"><i class="bi bi-broadcast"></i> <span>Radio Synopsis</span></a>
+        <div class="app-date">
+            <i class="bi bi-calendar3"></i> {{ view_date.strftime('%B %d, %Y') }}
+            {% if is_today %}<span class="app-live">● LIVE</span>{% endif %}
         </div>
     </header>
+    <main>
+    <div class="hub-stage" id="hub-stage">
+    <div class="hub-wrapper">
+            <div class="hub-core" id="hub" data-state="idle" tabindex="0" aria-haspopup="true" aria-expanded="false">
+                <i class="bi bi-grid-3x3-gap hub-icon"></i>
+                <div class="hub-label">Control Hub</div>
+                <div class="hub-ring" aria-hidden="true"></div>
+            </div>
+            <svg class="hub-links" viewBox="0 0 340 340" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+            <!-- Orbit buttons (positioned via JS) -->
+            <button class="orbit-btn" data-panel="overview" aria-label="Overview">
+                <i class="bi bi-graph-up orbit-icon"></i><span>Overview</span>
+            </button>
+            <button class="orbit-btn" data-panel="blocks" aria-label="Blocks">
+                <i class="bi bi-list-ul orbit-icon"></i><span>Blocks</span>
+            </button>
+            <button class="orbit-btn" data-panel="digest" aria-label="Digest">
+                <i class="bi bi-file-text orbit-icon"></i><span>Digest</span>
+            </button>
+            <button class="orbit-btn" data-panel="archive" aria-label="Archive">
+                <i class="bi bi-archive orbit-icon"></i><span>Archive</span>
+            </button>
+    </div>
+    </div>
 
-    <main class="container">
-        <!-- Navigation Tabs -->
-        <ul class="nav nav-tabs nav-tabs-large mt-4">
-            <li class="nav-item">
-                <a class="nav-link active" href="#today" data-bs-toggle="tab">
-                    <i class="bi bi-house-door"></i> Today's Briefing
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="/archive">
-                    <i class="bi bi-archive"></i> Archive
-                </a>
-            </li>
-        </ul>
-
-        <!-- Executive Summary Section -->
-        {% if stats.completed_blocks > 0 %}
-        <section class="executive-summary">
-            <h2><i class="bi bi-clipboard-check"></i> Executive Summary</h2>
-            <div class="row">
-                <div class="col-md-8">
-                    <p style="font-size: 1.2rem; margin-bottom: 1rem;">
-                        <strong>{{ stats.completed_blocks }} of {{ stats.total_blocks }} blocks</strong> processed. 
-                        <strong>{{ stats.total_callers }} public participants</strong> engaged today.
-                    </p>
-                    {% if digest %}
-                        <p style="font-size: 1.1rem; color: #495057;">
-                            {{ digest.digest_text.split('\n')[0][:200] }}...
-                        </p>
-                    {% endif %}
+        <!-- Panels -->
+        <section class="panel" id="panel-overview" aria-labelledby="heading-overview" data-active="false">
+            <h2 id="heading-overview"><i class="bi bi-graph-up"></i> Today's Overview</h2>
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="status-icon"><i class="bi bi-check-circle"></i></div>
+                    <div class="status-value">{{ stats.completed_blocks }}</div>
+                    <div class="status-label">Completed</div>
                 </div>
-                <div class="col-md-4">
-                    <div class="progress-large">
-                        <div class="progress-bar" style="width: {{ stats.completion_rate }}%; background-color: var(--gold-accent);"></div>
-                    </div>
-                    <div class="text-center mt-2" style="font-size: 1.1rem; font-weight: 600;">
-                        {{ stats.completion_rate }}% Complete
-                    </div>
+                <div class="status-card">
+                    <div class="status-icon"><i class="bi bi-collection"></i></div>
+                    <div class="status-value">{{ stats.total_blocks }}</div>
+                    <div class="status-label">Total Blocks</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-icon"><i class="bi bi-people"></i></div>
+                    <div class="status-value">{{ stats.total_callers }}</div>
+                    <div class="status-label">Callers</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-icon"><i class="bi bi-percent"></i></div>
+                    <div class="status-value">{{ stats.completion_rate }}%</div>
+                    <div class="status-label">Progress</div>
                 </div>
             </div>
         </section>
-        {% endif %}
 
-        <!-- Block Status Grid -->
-        <section class="block-status-grid">
+        <section class="panel" id="panel-blocks" aria-labelledby="heading-blocks" data-active="false">
+            <h2 id="heading-blocks"><i class="bi bi-list-ul"></i> Program Blocks</h2>
             {% for block in blocks %}
-            <div class="block-card {{ 'completed' if block.status == 'completed' else 'processing' if block.status in ['recording', 'transcribing', 'summarizing'] else 'pending' }}">
+            <div class="block-summary">
                 <div class="block-header">
-                    <div>
-                        <h3 class="block-title">Block {{ block.block_code }}</h3>
-                        <div class="block-time">{{ block.start_time }} - {{ block.end_time }}</div>
-                        <div style="font-size: 1.1rem; color: #6c757d; margin-top: 0.5rem;">
-                            {{ block.block_name }}
-                        </div>
-                    </div>
-                    <div class="status-indicator {{ 'status-completed' if block.status == 'completed' else 'status-processing' if block.status in ['recording', 'transcribing', 'summarizing'] else 'status-pending' }}">
+                    <div class="block-title">Block {{ block.block_code }} - {{ block.block_name }}</div>
+                    <div class="block-status" data-state="{{ 'completed' if block.status == 'completed' else 'processing' if block.status in ['recording','transcribing','summarizing'] else 'pending' }}">
                         {% if block.status == 'completed' %}
-                            <i class="bi bi-check-circle-fill"></i> Complete
-                        {% elif block.status in ['recording', 'transcribing', 'summarizing'] %}
-                            <i class="bi bi-arrow-clockwise"></i> {{ block.status.title() }}
+                            <i class="bi bi-check-circle"></i>
+                        {% elif block.status in ['recording','transcribing','summarizing'] %}
+                            <i class="bi bi-arrow-clockwise"></i>
                         {% else %}
-                            <i class="bi bi-clock"></i> Pending
+                            <i class="bi bi-clock"></i>
                         {% endif %}
+                        {{ block.status.title() if block.status != 'completed' else 'Complete' }}
                     </div>
                 </div>
-
                 {% if block.summary %}
-                    <div style="margin-bottom: 1.5rem;">
-                        <p style="font-size: 1.1rem; margin-bottom: 1rem;">
-                            {{ block.summary.summary_text[:200] }}{% if block.summary.summary_text|length > 200 %}...{% endif %}
-                        </p>
-                        
-                        {% if block.summary.key_points %}
-                            <div style="background: #f8f9fa; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
-                                <strong style="font-size: 1.1rem;">Key Points:</strong>
-                                <ul style="margin-top: 0.5rem; margin-bottom: 0;">
-                                    {% for point in block.summary.key_points[:2] %}
-                                        <li style="margin-bottom: 0.25rem;">{{ point }}</li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        {% endif %}
-                        
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div style="font-size: 1.1rem; color: #6c757d;">
-                                <i class="bi bi-people"></i> {{ block.summary.caller_count }} callers
-                            </div>
-                            <a href="/block/{{ block.id }}" class="btn btn-primary-custom btn-large">
-                                <i class="bi bi-eye"></i> View Details
-                            </a>
-                        </div>
+                    <p class="block-body">{{ block.summary.summary_text[:150] }}{% if block.summary.summary_text|length > 150 %}...{% endif %}</p>
+                    <div class="block-footer">
+                        <span><i class="bi bi-people"></i> {{ block.summary.caller_count }} callers</span>
+                        <button class="block-action" data-block-id="{{ block.id }}">DETAILS</button>
                     </div>
                 {% else %}
-                    <div style="padding: 2rem; text-align: center; background: #f8f9fa; border-radius: 6px;">
-                        <p style="font-size: 1.2rem; color: #6c757d; margin-bottom: 1rem;">
-                            {% if block.status == 'pending' %}
-                                <i class="bi bi-clock-history"></i> Scheduled for {{ block.start_time }}
-                            {% else %}
-                                <i class="bi bi-hourglass-split"></i> Processing in progress...
-                            {% endif %}
-                        </p>
-                        {% if is_today and block.status == 'recorded' %}
-                            <form method="post" action="/api/manual-process" style="margin-top: 1rem;">
-                                <input type="hidden" name="block_code" value="{{ block.block_code }}">
-                                <button type="submit" class="btn btn-primary-custom btn-large">
-                                    <i class="bi bi-play-circle"></i> Process Now
-                                </button>
-                            </form>
+                    <p class="block-body">
+                        {% if block.status == 'pending' %}
+                            <i class="bi bi-clock"></i> Scheduled for {{ block.start_time }}
+                        {% else %}
+                            <i class="bi bi-hourglass-split"></i> Processing...
                         {% endif %}
-                    </div>
+                    </p>
                 {% endif %}
             </div>
             {% endfor %}
         </section>
 
-        <!-- Daily Digest -->
         {% if digest %}
-        <section style="margin-top: 3rem;">
-            <div class="card" style="border: none; box-shadow: 0 3px 15px rgba(0,0,0,0.08);">
-                <div class="card-header" style="background: var(--primary-blue); color: white; padding: 1.5rem;">
-                    <h2 style="margin: 0; font-size: 1.8rem;">
-                        <i class="bi bi-file-text"></i> Daily Digest
-                    </h2>
-                </div>
-                <div class="card-body" style="padding: 2rem;">
-                    <div style="font-family: 'Courier New', monospace; font-size: 1rem; line-height: 1.5; white-space: pre-wrap;">{{ digest.digest_text }}</div>
-                    <div class="mt-3">
-                        <button class="btn btn-primary-custom btn-large me-2" onclick="window.print()">
-                            <i class="bi bi-printer"></i> Print Digest
-                        </button>
-                        <a href="/api/digest/download" class="btn btn-outline-primary btn-large">
-                            <i class="bi bi-download"></i> Download PDF
-                        </a>
-                    </div>
-                </div>
+        <section class="panel" id="panel-digest" aria-labelledby="heading-digest" data-active="false">
+            <h2 id="heading-digest"><i class="bi bi-file-text"></i> Daily Digest</h2>
+            <div class="digest-box">{{ digest.digest_text }}</div>
+            <div style="margin-top:1rem; display:flex; gap:.75rem; justify-content:flex-end; flex-wrap:wrap;">
+                <button class="block-action" style="background:var(--grad-gold); color:var(--text-inverse);" onclick="window.print()"><i class="bi bi-printer"></i> PRINT</button>
+                <button class="block-action" onclick="downloadDigest()"><i class="bi bi-download"></i> DOWNLOAD</button>
             </div>
         </section>
         {% endif %}
 
-        <!-- Quick Date Navigation -->
-        {% if recent_dates %}
-        <section style="margin: 3rem 0; text-align: center;">
-            <h3 style="color: var(--primary-blue); margin-bottom: 1.5rem;">Recent Briefings</h3>
-            <div class="btn-group" role="group">
-                {% for recent_date in recent_dates %}
-                    <a href="/?date_param={{ recent_date }}" 
-                       class="btn btn-large {% if recent_date == view_date %}btn-primary-custom{% else %}btn-outline-primary{% endif %}">
-                        {{ recent_date.strftime('%b %d') }}
-                    </a>
+        <section class="panel" id="panel-archive" aria-labelledby="heading-archive" data-active="false">
+            <h2 id="heading-archive"><i class="bi bi-archive"></i> Recent Archive</h2>
+            <div style="display: grid; gap: .75rem;">
+                {% for recent_date in recent_dates[:5] %}
+                <div class="archive-item" onclick="location.href='/?date_param={{ recent_date }}'">
+                    <div>
+                        <div style="font-weight:600;">{{ recent_date.strftime('%A, %B %d') }}</div>
+                        <div style="font-size:.7rem; color:var(--text-tertiary);">{{ recent_date.year }}</div>
+                    </div>
+                    <i class="bi bi-chevron-right"></i>
+                </div>
                 {% endfor %}
             </div>
         </section>
-        {% endif %}
     </main>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Auto-refresh for today's page -->
-    {% if is_today %}
     <script>
-        // Auto-refresh every 2 minutes for live updates
-        setTimeout(function() {
-            window.location.reload();
-        }, 120000);
+        const hub = document.getElementById('hub');
+        const orbitButtons = Array.from(document.querySelectorAll('.orbit-btn'));
+        const panels = Array.from(document.querySelectorAll('.panel'));
+        const svg = document.querySelector('.hub-links');
+        const hubSize = () => ({ x: hub.offsetLeft + hub.offsetWidth / 2, y: hub.offsetTop + hub.offsetHeight / 2 });
+        let linkLines = [];
+        let hubOpen = false;
+
+        function buildLinkLines() {
+            svg.innerHTML = '';
+            linkLines = orbitButtons.map(btn => {
+                const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+                line.setAttribute('stroke-linecap','round');
+                line.setAttribute('pathLength','200');
+                svg.appendChild(line);
+                return { btn, line };
+            });
+        }
+
+        function positionOrbitButtons() {
+            const radius = 140; // distance from hub center
+            const { x: cx, y: cy } = hubSize();
+            orbitButtons.forEach((btn, i) => {
+                const angle = (Math.PI * 2 / orbitButtons.length) * i - Math.PI / 2; // start at top
+                const x = cx + radius * Math.cos(angle);
+                const y = cy + radius * Math.sin(angle);
+                btn.style.left = x + 'px';
+                btn.style.top = y + 'px';
+            });
+            // update lines
+            linkLines.forEach(({ btn, line }) => {
+                const bx = parseFloat(btn.style.left) + (btn.offsetWidth/2) - 0; // center
+                const by = parseFloat(btn.style.top) + (btn.offsetHeight/2) - 0;
+                line.setAttribute('x1', cx);
+                line.setAttribute('y1', cy);
+                line.setAttribute('x2', bx);
+                line.setAttribute('y2', by);
+            });
+        }
+
+        function toggleHub(forceState=null) {
+            hubOpen = forceState !== null ? forceState : !hubOpen;
+            hub.classList.toggle('expanded', hubOpen);
+            hub.setAttribute('aria-expanded', hubOpen);
+            orbitButtons.forEach((b, idx) => {
+                if (hubOpen) {
+                    b.setAttribute('data-visible','true');
+                    b.style.transitionDelay = (idx * 60) + 'ms';
+                } else {
+                    b.removeAttribute('data-visible');
+                    b.style.transitionDelay = '0ms';
+                }
+            });
+            linkLines.forEach(({ line }, idx) => {
+                if (hubOpen) {
+                    line.setAttribute('data-visible','true');
+                    line.style.transitionDelay = (idx * 60) + 'ms';
+                } else {
+                    line.removeAttribute('data-visible');
+                    line.style.transitionDelay = '0ms';
+                }
+            });
+            if (!hubOpen) clearActivePanels();
+        }
+
+        function clearActivePanels() { panels.forEach(p => p.dataset.active = 'false'); }
+
+        const hubStage = document.getElementById('hub-stage');
+
+        function collapseHero() {
+            if (hubStage && !hubStage.classList.contains('hub-stage--collapsed')) {
+                hubStage.classList.add('hub-stage--collapsed');
+            }
+        }
+
+        function showPanel(id) {
+            clearActivePanels();
+            const el = document.getElementById('panel-' + id);
+            if (el) {
+                el.dataset.active = 'true';
+                localStorage.setItem('lastPanel', id);
+                el.scrollIntoView({behavior:'smooth', block:'start'});
+                collapseHero();
+            }
+        }
+
+        orbitButtons.forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); showPanel(btn.dataset.panel); }));
+        hub.addEventListener('click', e => { e.stopPropagation(); toggleHub(); });
+
+        function restoreLastPanel() {
+            const last = localStorage.getItem('lastPanel');
+            if (last && document.getElementById('panel-' + last)) {
+                toggleHub(true);
+                showPanel(last);
+                collapseHero();
+            }
+        }
+
+        function showBlockDetail(blockId) { window.location.href = '/block/' + blockId; }
+
+        function downloadDigest() {
+            const digestEl = document.querySelector('#panel-digest .digest-box');
+            if(!digestEl) return;
+            const digestText = digestEl.textContent;
+            const blob = new Blob([digestText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const viewDate = document.body.getAttribute('data-view-date');
+            a.download = `daily-digest-${viewDate}.txt`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        }
+
+        // Outside click + esc
+        document.addEventListener('click', e => { if (hubOpen && !e.target.closest('.hub-wrapper')) toggleHub(false); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && hubOpen) toggleHub(false); });
+
+        // Auto-refresh (only when hub closed and today)
+        const isToday = document.body.getAttribute('data-is-today') === '1';
+        if (isToday) {
+            setInterval(() => { if (!hubOpen) window.location.reload(); }, 120000);
+        }
+
+        window.addEventListener('resize', positionOrbitButtons);
+        window.addEventListener('load', () => {
+            buildLinkLines();
+            positionOrbitButtons();
+            restoreLastPanel();
+            document.querySelectorAll('.block-action[data-block-id]').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    const id = parseInt(btn.getAttribute('data-block-id'));
+                    if (!isNaN(id)) showBlockDetail(id);
+                });
+            });
+        });
     </script>
-    {% endif %}
 </body>
 </html>

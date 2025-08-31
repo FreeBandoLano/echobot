@@ -823,7 +823,7 @@ def create_templates():
     (templates_dir / "archive.html").write_text(archive_template)
 
 # Create templates on startup
-create_templates()
+# create_templates()  # DISABLED - Using custom government templates
 
 def start_web_server():
     """Start the web server for local execution."""
