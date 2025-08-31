@@ -32,6 +32,10 @@
     .raw-json-wrap { display:none; margin-top:.75rem; }
     .toggle-raw { appearance:none; border:none; background:var(--grad-active); color:var(--text-inverse); font-size:.55rem; letter-spacing:.12em; font-weight:600; padding:.45rem .7rem .5rem; border-radius:var(--radius-pill); cursor:pointer; }
     pre.raw-json { max-height:300px; overflow:auto; font-size:.6rem; line-height:1.2; background:var(--color-panel-alt); border:1px solid var(--color-border); padding:.6rem .7rem; border-radius:var(--radius-sm); }
+    .seg-filler { opacity:.55; }
+    .filler-pill-ok { background: var(--color-panel-alt); }
+    .filler-pill-warn { background: linear-gradient(90deg, rgba(255,165,0,0.15), rgba(255,165,0,0.25)); border-color: rgba(255,165,0,0.6); }
+    .filler-pill-high { background: linear-gradient(90deg, rgba(220,53,69,0.15), rgba(220,53,69,0.3)); border-color: rgba(220,53,69,0.6); }
     </style>
 </head>
 <body>
@@ -48,6 +52,7 @@
             <div class="back-links">
                 <a href="/">DASHBOARD</a>
                 <a href="/archive">ARCHIVE</a>
+                <a href="/timeline?days=1#block-{{ block.id }}">TIMELINE</a>
             </div>
             <h2><i class="bi bi-list-ul"></i> Block {{ block.block_code }} – {{ block.block_name }}</h2>
             <div class="detail-meta">
@@ -56,6 +61,12 @@
                 {% if block.duration_minutes %}<span class="pill"><i class="bi bi-hourglass"></i> {{ block.duration_minutes }} min</span>{% endif %}
                 <span class="pill"><i class="bi bi-activity"></i> {{ block.status|upper }}</span>
                 {% if block.summary and block.summary.caller_count is not none %}<span class="pill"><i class="bi bi-people"></i> {{ block.summary.caller_count }} callers</span>{% endif %}
+                {% if block.filler_stats %}
+                    {% set fp = block.filler_stats.filler_pct %}
+                    {% set cls = 'ok' %}
+                    {% if fp > 50 %}{% set cls='high' %}{% elif fp > 35 %}{% set cls='warn' %}{% endif %}
+                    <span class="pill filler-pill-{{ cls }}" title="Filler share (ads, jingles, promos, inserts) of total segment duration."><i class="bi bi-music-note-beamed"></i> {{ fp }}% filler</span>
+                {% endif %}
             </div>
             {% if block.summary %}
                 <h3 class="sub-heading">Summary</h3>
@@ -149,6 +160,33 @@
                     {% else %}
                         <div class="transcript-seg">{{ block.transcript.text }}</div>
                     {% endif %}
+                </div>
+            {% endif %}
+            {% if segments %}
+                <h3 class="sub-heading" style="margin-top:2rem;">Segments (Phase 1 Stored)</h3>
+                <div style="max-height:300px; overflow:auto; border:1px solid var(--color-border); border-radius:var(--radius-sm);">
+                    <table style="width:100%; font-size:.65rem; border-collapse:collapse;">
+                        <thead style="position:sticky; top:0; background:var(--color-panel);">
+                            <tr style="text-align:left;">
+                                <th style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Start</th>
+                                <th style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">End</th>
+                                <th style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Speaker</th>
+                                <th style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Filler</th>
+                                <th style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Text</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in segments %}
+                            <tr style="border-bottom:1px solid var(--color-border);" class="{% if s.guard_band %}seg-filler{% endif %}">
+                                <td style="padding:.35rem .5rem; white-space:nowrap;">{{ '%.1f'|format(s.start_sec) }}</td>
+                                <td style="padding:.35rem .5rem; white-space:nowrap;">{{ '%.1f'|format(s.end_sec) }}</td>
+                                <td style="padding:.35rem .5rem; white-space:nowrap;">{{ s.speaker or '-' }}</td>
+                                <td style="padding:.35rem .5rem; white-space:nowrap;">{% if s.guard_band %}YES{% else %}NO{% endif %}</td>
+                                <td style="padding:.35rem .5rem;">{{ s.text }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             {% endif %}
         </section>

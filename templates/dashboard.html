@@ -70,6 +70,14 @@
                     <div class="status-value">{{ stats.completion_rate }}%</div>
                     <div class="status-label">Progress</div>
                 </div>
+                {% if filler_today and filler_today.total_seconds is not defined %}{% endif %}
+                {% if filler_today %}
+                <div class="status-card" title="Filler (ads/jingles/news inserts) share of total spoken duration">
+                    <div class="status-icon"><i class="bi bi-music-note-beamed"></i></div>
+                    <div class="status-value">{{ filler_today.filler_pct }}%</div>
+                    <div class="status-label">Filler Share</div>
+                </div>
+                {% endif %}
             </div>
         </section>
 

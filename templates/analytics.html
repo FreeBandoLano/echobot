@@ -16,6 +16,8 @@
     .roadmap { background:var(--color-panel-alt); border:1px solid var(--color-border); border-radius:var(--radius-lg); padding:1rem 1.25rem 1.4rem; }
     .roadmap h3 { font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--text-tertiary); margin:0 0 .75rem; font-weight:600; }
     .roadmap li { font-size:.75rem; color:var(--text-secondary); margin:.4rem 0; line-height:1.35; }
+  .spark-tip { position:absolute; z-index:5; background:var(--color-panel); border:1px solid var(--color-border); padding:.3rem .45rem .35rem; font-size:.55rem; letter-spacing:.06em; color:var(--text-secondary); border-radius:4px; box-shadow:0 2px 4px rgba(0,0,0,0.25); pointer-events:none; display:none; white-space:nowrap; }
+  .spark-point { cursor:pointer; }
   </style>
 </head>
 <body>
@@ -48,6 +50,105 @@
           <h3>Avg Completion %</h3>
           <div class="analytic-value">{{ metrics.avg_completion_rate }}%</div>
         </div>
+        <div class="analytic-card">
+          <h3>Filler Segments % ({{ filler.days }}d)</h3>
+          <div class="analytic-value">{{ filler.filler_pct or 0 }}%</div>
+          <div style="margin-top:.6rem; font-size:.6rem; letter-spacing:.08em; color:var(--text-tertiary);">
+            {{ filler.filler_segments or 0 }} / {{ filler.total_segments or 0 }} segments
+          </div>
+        </div>
+        <div class="analytic-card">
+            <h3>Avg Filler per Block</h3>
+            <div class="analytic-value">{{ filler.avg_filler_pct_per_block or 0 }}%</div>
+            <div style="margin-top:.6rem; font-size:.6rem; letter-spacing:.08em; color:var(--text-tertiary);">
+              Content {{ filler.content_seconds or 0 }}s | Filler {{ filler.filler_seconds or 0 }}s
+            </div>
+        </div>
+      </div>
+      <div class="analytic-card" style="grid-column:1/-1;">
+        <h3>Filler vs Content ({{ filler.days }} Days)
+          <span style="font-size:.55rem; margin-left:.4rem; cursor:help; color:var(--text-tertiary);" title="Filler = detected ads, jingles, promos, station IDs, news inserts & musical padding via heuristic (keywords + symbol density + short bursts). Lower filler% = denser substantive discourse."><i class="bi bi-info-circle"></i></span>
+        </h3>
+        {% if filler.total_segments %}
+          {% set total_sec = (filler.content_seconds + filler.filler_seconds) %}
+          {% set filler_pct = filler.filler_seconds / (total_sec or 1) * 100 %}
+          {% set filler_pct_num = (filler.filler_seconds / (total_sec or 1) * 100) %}
+          {% set content_pct_num = 100 - filler_pct_num %}
+          <div style="background:var(--color-panel); border:1px solid var(--color-border); border-radius:8px; padding:.75rem .9rem .9rem;">
+            <div style="display:flex; gap:.5rem; align-items:center; font-size:.6rem; letter-spacing:.08em; color:var(--text-tertiary); margin:0 0 .4rem;">
+              <span>CONTENT {{ filler.content_seconds }}s</span>
+              <span>FILLER {{ filler.filler_seconds }}s</span>
+              <span>TOTAL {{ total_sec }}s</span>
+            </div>
+            <div class="filler-bar" data-filler="{{ filler.filler_pct }}" style="height:26px; background:var(--color-panel-alt); border:1px solid var(--color-border); border-radius:6px; overflow:hidden; position:relative; display:flex;">
+              <div class="filler-bar__content" style="background:linear-gradient(90deg,var(--color-accent) 0%, var(--color-accent-alt) 100%);"></div>
+              <div class="filler-bar__filler" style="background:linear-gradient(90deg,#f39c12,#d35400); position:relative;">
+                <span class="filler-bar__label" style="position:absolute; right:4px; top:50%; transform:translateY(-50%); font-size:.55rem; color:#fff; font-weight:600; letter-spacing:.08em;">{{ filler.filler_pct }}%</span>
+              </div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:.5rem; letter-spacing:.08em; color:var(--text-tertiary); margin-top:.35rem;">
+              <span>Lower filler indicates tighter caller/content density.</span>
+              <span>Goal: <strong>< 25%</strong></span>
+            </div>
+          </div>
+        {% else %}
+          <div class="placeholder-chart">NO SEGMENT DATA YET</div>
+        {% endif %}
+      </div>
+  {% if filler.blocks %}
+      <div class="analytic-card" style="grid-column:1/-1;">
+        <h3>Highest Filler Blocks (Most Recent Day)</h3>
+        <div style="overflow:auto;">
+          <table style="width:100%; font-size:.65rem; border-collapse:collapse;">
+            <thead style="position:sticky; top:0; background:var(--color-panel);">
+              <tr style="text-align:left;">
+                <th style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Block ID</th>
+                <th style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Filler %</th>
+                <th style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Filler s</th>
+                <th style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Total s</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for b in filler.blocks[:6] %}
+              {% set level = 'ok' %}
+              {% if b.filler_pct > 50 %}{% set level='high' %}{% elif b.filler_pct > 35 %}{% set level='warn' %}{% endif %}
+              <tr style="border-bottom:1px solid var(--color-border);" class="filler-row-{{ level }}">
+                <td style="padding:.35rem .5rem;"><a href="/block/{{ b.block_id }}" style="text-decoration:none; color:var(--color-accent); font-weight:600;">{{ b.block_id }}</a></td>
+                <td style="padding:.35rem .5rem; font-weight:600;">{{ b.filler_pct }}%</td>
+                <td style="padding:.35rem .5rem;">{{ b.filler_seconds }}</td>
+                <td style="padding:.35rem .5rem;">{{ b.total_seconds }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+      <style>
+        .filler-row-warn td { background:rgba(255,165,0,0.12); }
+        .filler-row-high td { background:rgba(220,53,69,0.15); }
+        .filler-row-high td:first-child a { color:#dc3545 !important; }
+        .filler-row-warn td:first-child a { color:#d68910 !important; }
+      </style>
+      <div class="analytic-card" style="grid-column:1/-1;">
+        <h3>Daily Filler Trend (14d)
+          <span style="font-size:.55rem; margin-left:.4rem; cursor:help; color:var(--text-tertiary);" title="Sparkline of overall filler percentage per processed day (segment data required)."><i class="bi bi-activity"></i></span>
+        </h3>
+        {% if filler_trend %}
+          <div id="fillerSpark" style="height:90px; position:relative;">
+            <svg viewBox="0 0 200 60" preserveAspectRatio="none" style="position:absolute; inset:0; width:100%; height:100%;" id="fillerSparkSvg"></svg>
+            <div style="position:absolute; bottom:2px; left:4px; right:4px; display:flex; justify-content:space-between; font-size:.45rem; letter-spacing:.05em; color:var(--text-tertiary);">
+              <span>{{ filler_trend[0].date }}</span><span>{{ filler_trend[-1].date }}</span>
+            </div>
+          </div>
+          <div style="margin-top:.5rem; display:flex; gap:.6rem; flex-wrap:wrap; font-size:.55rem; letter-spacing:.08em; color:var(--text-tertiary);">
+            {% for d in filler_trend[-5:] %}
+              <span style="background:var(--color-panel-alt); padding:.25rem .4rem; border:1px solid var(--color-border); border-radius:4px;">{{ d.date }}: {{ d.filler_pct }}%</span>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="placeholder-chart" style="height:90px;">NO TREND DATA</div>
+        {% endif %}
       </div>
       <div class="analytic-card" style="grid-column:1/-1;">
         <h3>Top Topics (14d)</h3>
@@ -114,7 +215,102 @@
         const col = el.querySelector('.timeline-bar__col');
         if (col) col.style.height = Math.max(6, h) + '%';
       });
+      const fb = document.querySelector('.filler-bar');
+      if (fb) {
+        const fillerPct = parseFloat(fb.dataset.filler || '0');
+        const fillerDiv = fb.querySelector('.filler-bar__filler');
+        const contentDiv = fb.querySelector('.filler-bar__content');
+        if (fillerDiv && contentDiv) {
+          fillerDiv.style.width = fillerPct + '%';
+          contentDiv.style.width = (100 - fillerPct) + '%';
+        }
+      }
+      // Sparkline for filler trend
+      const sparkSvg = document.getElementById('fillerSparkSvg');
+      if (sparkSvg && window.fillerTrendData) {
+        const data = window.fillerTrendData;
+        if (data.length > 1) {
+          const maxY = Math.max(...data.map(d => d.filler_pct), 60);
+            const minY = 0;
+            const w = 200, h = 60;
+            const step = w / (data.length - 1);
+            let path = '';
+            data.forEach((d, i) => {
+              const x = i * step;
+              const y = h - ((d.filler_pct - minY) / (maxY - minY || 1) * (h - 4)) - 2;
+              path += (i === 0 ? 'M' : 'L') + x + ' ' + y + ' ';
+            });
+            const line = document.createElementNS('http://www.w3.org/2000/svg','path');
+            line.setAttribute('d', path.trim());
+            line.setAttribute('fill', 'none');
+            line.setAttribute('stroke', 'url(#gradFiller)');
+            line.setAttribute('stroke-width', '2');
+            const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+            const grad = document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
+            grad.setAttribute('id','gradFiller');
+            grad.setAttribute('x1','0'); grad.setAttribute('x2','1'); grad.setAttribute('y1','0'); grad.setAttribute('y2','0');
+            const stop1 = document.createElementNS('http://www.w3.org/2000/svg','stop'); stop1.setAttribute('offset','0%'); stop1.setAttribute('stop-color','var(--color-accent)');
+            const stop2 = document.createElementNS('http://www.w3.org/2000/svg','stop'); stop2.setAttribute('offset','100%'); stop2.setAttribute('stop-color','#d35400');
+            grad.appendChild(stop1); grad.appendChild(stop2); defs.appendChild(grad);
+            sparkSvg.appendChild(defs);
+            sparkSvg.appendChild(line);
+            // Threshold bands
+            const warnY = h - ((35 - minY)/(maxY - minY || 1) * (h - 4)) - 2;
+            const highY = h - ((50 - minY)/(maxY - minY || 1) * (h - 4)) - 2;
+            const warn = document.createElementNS('http://www.w3.org/2000/svg','line');
+            warn.setAttribute('x1','0'); warn.setAttribute('x2', String(w)); warn.setAttribute('y1', String(warnY)); warn.setAttribute('y2', String(warnY));
+            warn.setAttribute('stroke','rgba(255,165,0,.4)'); warn.setAttribute('stroke-dasharray','3,3'); warn.setAttribute('stroke-width','1');
+            const high = document.createElementNS('http://www.w3.org/2000/svg','line');
+            high.setAttribute('x1','0'); high.setAttribute('x2', String(w)); high.setAttribute('y1', String(highY)); high.setAttribute('y2', String(highY));
+            high.setAttribute('stroke','rgba(220,53,69,.4)'); high.setAttribute('stroke-dasharray','3,3'); high.setAttribute('stroke-width','1');
+            sparkSvg.appendChild(warn); sparkSvg.appendChild(high);
+
+            // Tooltip
+            const tip = document.createElement('div');
+            tip.className = 'spark-tip';
+            sparkSvg.parentElement.appendChild(tip);
+            function showTip(evt, d) {
+              tip.textContent = d.date + ' • ' + d.filler_pct + '%';
+              tip.style.display = 'block';
+              const rect = sparkSvg.getBoundingClientRect();
+              tip.style.left = (evt.clientX - rect.left + 8) + 'px';
+              tip.style.top = (evt.clientY - rect.top - 28) + 'px';
+            }
+            function moveTip(evt) {
+              if (tip.style.display === 'block') {
+                const rect = sparkSvg.getBoundingClientRect();
+                tip.style.left = (evt.clientX - rect.left + 8) + 'px';
+                tip.style.top = (evt.clientY - rect.top - 28) + 'px';
+              }
+            }
+            function hideTip() { tip.style.display = 'none'; }
+            sparkSvg.addEventListener('mousemove', moveTip);
+
+            // Points
+            data.forEach((d, i) => {
+              const x = i * step;
+              const y = h - ((d.filler_pct - minY) / (maxY - minY || 1) * (h - 4)) - 2;
+              const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+              c.setAttribute('cx', String(x));
+              c.setAttribute('cy', String(y));
+              c.setAttribute('r','3');
+              c.setAttribute('class','spark-point');
+              let col = 'var(--color-accent)';
+              if (d.filler_pct > 50) col = '#dc3545'; else if (d.filler_pct > 35) col = '#ffa500';
+              c.setAttribute('fill', col);
+              c.setAttribute('stroke','#fff');
+              c.setAttribute('stroke-width','1');
+              c.addEventListener('mouseenter', (e) => { showTip(e, d); });
+              c.addEventListener('focus', (e) => { showTip(e, d); });
+              c.addEventListener('mouseleave', hideTip);
+              c.addEventListener('blur', hideTip);
+              sparkSvg.appendChild(c);
+            });
+        }
+      }
     });
+    // Embed filler trend data for sparkline
+  window.fillerTrendData = JSON.parse('{% filter tojson %}{{ filler_trend }}{% endfilter %}'.replace(/&quot;/g,'"'));
   </script>
 </body>
 </html>

@@ -18,19 +18,6 @@ import logging
 
 from config import Config
 from database import db
-try:
-    from cost_estimator import cost_tracker, estimate_tokens_from_chars
-except ImportError:  # pragma: no cover
-    import logging as _logging
-    _logging.getLogger(__name__).warning("cost_estimator module missing; using fallback")
-    class _NoOpCostTracker:
-        def add(self, *a, **k):
-            pass
-        def snapshot(self):
-            return {"totals": {"prompt_tokens": 0, "completion_tokens": 0, "usd": 0.0}, "models": {}}
-    def estimate_tokens_from_chars(chars: int) -> int:
-        return max(1, int(chars / 4))
-    cost_tracker = _NoOpCostTracker()
 
 logger = logging.getLogger(__name__)
 
@@ -136,9 +123,9 @@ def summarize_window(window: Dict[str, Any]) -> Dict[str, Any]:
                 p_tokens = usage.prompt_tokens
                 c_tokens = getattr(usage, 'completion_tokens', 0)
             else:
-                p_tokens = estimate_tokens_from_chars(len(prompt))
-                c_tokens = estimate_tokens_from_chars(len(content))
-            cost_tracker.add('gpt-4o-mini', p_tokens, c_tokens)
+                # Removed cost tracking
+                p_tokens = max(1, len(prompt) // 4)
+                c_tokens = max(1, len(content) // 4)
         except Exception:
             pass
         # Attempt to split bullets

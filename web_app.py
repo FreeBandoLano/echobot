@@ -17,17 +17,6 @@ from database import db
 from scheduler import scheduler
 from rolling_summary import generate_rolling
 from summarization import summarizer
-try:
-    from cost_estimator import cost_tracker
-except ImportError:  # pragma: no cover
-    import logging as _logging
-    _logging.getLogger(__name__).warning("cost_estimator module missing; using no-op tracker")
-    class _NoOpCostTracker:
-        def add(self, *a, **k):
-            pass
-        def snapshot(self):
-            return {"totals": {"prompt_tokens": 0, "completion_tokens": 0, "usd": 0.0}, "models": {}}
-    cost_tracker = _NoOpCostTracker()
 from datetime import date as _date
 
 def get_local_date() -> date:
@@ -460,65 +449,7 @@ async def api_llm_toggle(enable: bool):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/llm/costs")
-async def api_llm_costs():
-    """Return current approximate cost accumulation (internal)."""
-    if not getattr(Config, 'EXPOSE_COST_ENDPOINT', True):
-        raise HTTPException(status_code=404, detail="Not found")
-    return cost_tracker.snapshot()
-
-@app.get("/api/llm/usage/history")
-async def api_llm_usage_history(days: int = 30):
-    """Internal: persisted daily LLM usage history (cost + token aggregates)."""
-    try:
-        days = max(1, min(int(days), 90))
-    except Exception:
-        days = 30
-    # Simple gate
-    if not getattr(Config, 'EXPOSE_COST_ENDPOINT', True):
-        raise HTTPException(status_code=404, detail="Not found")
-    try:
-        rows = db.get_llm_usage_history(days=days)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    return {"days": days, "history": rows}
-
-# --------------- Internal Flush Hook ---------------
-import threading, time
-_flush_thread_started = False
-
-def _flush_usage_loop():
-    while True:
-        try:
-            _flush_llm_usage()
-        except Exception:
-            pass
-        time.sleep(1800)  # every 30 min
-
-def _flush_llm_usage():
-    today = _date.today()
-    snap = cost_tracker.snapshot()
-    # Persist per model tokens + usd (calls approximated via summarizer.usage)
-    for model, rec in snap['models'].items():
-        db.upsert_llm_daily_usage(
-            today,
-            model,
-            prompt_tokens=int(rec['prompt_tokens']),
-            completion_tokens=int(rec['completion_tokens']),
-            usd=float(rec['usd']),
-            block_calls=summarizer.usage.get('block_llm_calls', 0) if 'block' in model else 0,
-            digest_calls=summarizer.usage.get('daily_digest_llm_calls', 0),
-            failures=summarizer.usage.get('block_llm_failures', 0) + summarizer.usage.get('daily_digest_llm_failures', 0)
-        )
-
-@app.on_event("startup")
-def _start_flush_thread():
-    global _flush_thread_started
-    if _flush_thread_started:
-        return
-    _flush_thread_started = True
-    t = threading.Thread(target=_flush_usage_loop, daemon=True)
-    t.start()
+# Removed cost tracking functionality
 
 @app.get("/timeline", response_class=HTMLResponse)
 async def timeline_view(request: Request, days: int = 1, date: str | None = None):

@@ -10,19 +10,6 @@ from config import Config
 from database import db
 from topic_extraction import extract_topics
 from embedding_clustering import cluster_transcript
-try:  # Defensive: allow deployment to run even if cost_estimator not packaged
-    from cost_estimator import cost_tracker, estimate_tokens_from_chars
-except ImportError:  # pragma: no cover - fallback path
-    import logging as _logging
-    _logging.getLogger(__name__).warning("cost_estimator module missing; using no-op cost tracking fallback")
-    class _NoOpCostTracker:
-        def add(self, *a, **k):
-            pass
-        def snapshot(self):
-            return {"totals": {"prompt_tokens": 0, "completion_tokens": 0, "usd": 0.0}, "models": {}}
-    def estimate_tokens_from_chars(chars: int) -> int:
-        return max(1, int(chars / 4))
-    cost_tracker = _NoOpCostTracker()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -222,10 +209,9 @@ class RadioSummarizer:
                     p_tokens = usage.prompt_tokens
                     c_tokens = getattr(usage, 'completion_tokens', 0)
                 else:
-                    # Approx using char lengths
-                    p_tokens = estimate_tokens_from_chars(len(prompt))
-                    c_tokens = estimate_tokens_from_chars(len(summary_text))
-                cost_tracker.add('gpt-5-nano-2025-08-07', p_tokens, c_tokens)
+                    # Approx using char lengths - removed cost tracking
+                    p_tokens = max(1, len(prompt) // 4)
+                    c_tokens = max(1, len(summary_text) // 4)
             except Exception:
                 pass
 
@@ -453,9 +439,9 @@ Provide: Executive Summary, Key Themes, Public Sentiment, Policy Implications, N
                     p_tokens = usage.prompt_tokens
                     c_tokens = getattr(usage, 'completion_tokens', 0)
                 else:
-                    p_tokens = estimate_tokens_from_chars(len(prompt))
-                    c_tokens = estimate_tokens_from_chars(len(digest_text))
-                cost_tracker.add('gpt-5-nano-2025-08-07', p_tokens, c_tokens)
+                    # Removed cost tracking
+                    p_tokens = max(1, len(prompt) // 4)
+                    c_tokens = max(1, len(digest_text) // 4)
             except Exception:
                 pass
             

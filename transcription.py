@@ -83,6 +83,33 @@ class AudioTranscriber:
                 
                 # Update database
                 db.update_block_status(block_id, 'transcribed', transcript_file_path=transcript_path)
+
+                # Phase 1: persist fine-grained segments
+                try:
+                    if transcript_data.get('segments'):
+                        db.insert_segments_from_transcript(block_id, transcript_data['segments'])
+                except Exception as seg_err:
+                    logger.warning(f"Segment persistence failed for block {block_id}: {seg_err}")
+
+                # Ensure chapter anchors for the parent show (one-time)
+                try:
+                    show_id = block['show_id']
+                    from datetime import datetime as dt
+                    show = db.get_show(block['show_id']) if hasattr(db, 'get_show') else None
+                    # Fallback: derive show_date from block start_time
+                    if show:
+                        show_date = show['show_date']
+                    else:
+                        start_ts = block['start_time']
+                        if isinstance(start_ts, str):
+                            show_date = start_ts.split('T')[0]
+                        else:
+                            show_date = dt.fromtimestamp(start_ts.timestamp()).date()
+                    # ensure chapters (idempotent)
+                    if hasattr(db, 'ensure_chapters_for_show'):
+                        db.ensure_chapters_for_show(show_id, show_date)
+                except Exception as ch_err:
+                    logger.warning(f"Chapter ensure failed for block {block_id}: {ch_err}")
                 
                 logger.info(f"Transcription completed for block {block_id}")
                 return transcript_data
