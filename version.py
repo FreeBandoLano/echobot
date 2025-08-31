@@ -1,8 +1,12 @@
-"""Build/version metadata injected at build time (lightweight)."""
+"""Build/version metadata fallback (used only when Docker env vars unavailable).
 
-# These defaults can be overridden at build time by passing --build-arg GIT_COMMIT
-# and setting an environment variable, but we also hard-code the current short
-# commit for traceability when running outside Docker.
+The application prioritizes environment variables GIT_COMMIT_SHA and BUILD_TIME
+that are set during Docker build via --build-arg. These values are only used
+as fallbacks for local development when not running in a Docker container.
 
-COMMIT = "5758c7b"  # updated manually; Docker image will expose GIT_COMMIT env
-BUILD_TIME = "2025-08-31T00:00:00Z"  # update if needed; optional
+In production (Docker), version info comes from build args automatically.
+"""
+
+# Fallback values for local development (Docker will override with build args)
+COMMIT = "dev-local"  # Will be overridden by GIT_COMMIT_SHA env var in Docker
+BUILD_TIME = "dev-build"  # Will be overridden by BUILD_TIME env var in Docker

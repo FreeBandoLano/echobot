@@ -17,17 +17,24 @@ from config import Config
 from database import db
 
 # Import version info early for logging
-try:
-    from version import COMMIT as APP_COMMIT, BUILD_TIME as APP_BUILD_TIME
-    # Override with environment variables if available (from Docker build args)
-    APP_COMMIT = os.environ.get('GIT_COMMIT_SHA', APP_COMMIT)
-    APP_BUILD_TIME = os.environ.get('BUILD_TIME', APP_BUILD_TIME)
+# Prioritize environment variables (from Docker build) over hardcoded version.py
+APP_COMMIT = os.environ.get('GIT_COMMIT_SHA')
+APP_BUILD_TIME = os.environ.get('BUILD_TIME')
+
+# Fallback to version.py only if env vars not available
+if not APP_COMMIT or not APP_BUILD_TIME:
+    try:
+        from version import COMMIT as FALLBACK_COMMIT, BUILD_TIME as FALLBACK_BUILD_TIME
+        APP_COMMIT = APP_COMMIT or FALLBACK_COMMIT
+        APP_BUILD_TIME = APP_BUILD_TIME or FALLBACK_BUILD_TIME
+        version_available = True
+    except Exception as ver_err:
+        print(f"Could not import version info: {ver_err}")
+        APP_COMMIT = APP_COMMIT or "UNKNOWN"
+        APP_BUILD_TIME = APP_BUILD_TIME or "UNKNOWN"
+        version_available = False
+else:
     version_available = True
-except Exception as ver_err:
-    print(f"Could not import version info: {ver_err}")
-    APP_COMMIT = os.environ.get('GIT_COMMIT_SHA', "UNKNOWN")
-    APP_BUILD_TIME = os.environ.get('BUILD_TIME', "UNKNOWN")
-    version_available = False
 
 # Set up logging first - before any other imports that might use it
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
