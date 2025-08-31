@@ -116,7 +116,7 @@ class RadioSummarizer:
             logger.info(f"Generating summary with GPT-4 for {block_name}")
             
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-5-nano",
                 messages=[
                     {
                         "role": "system",
@@ -379,7 +379,7 @@ Format: Professional government briefing style. Focus on actionable intelligence
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-5-nano",
                 messages=[
                     {
                         "role": "system",

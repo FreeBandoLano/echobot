@@ -4,164 +4,416 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radio Synopsis Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Down to Brass Tacks - Government Briefing Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        .status-badge {
-            font-size: 0.75em;
+        /* Accessibility-first design for 55+ government users */
+        :root {
+            --primary-blue: #1b365d;
+            --accent-blue: #2856a3;
+            --success-green: #28a745;
+            --warning-orange: #fd7e14;
+            --danger-red: #dc3545;
+            --light-bg: #f8f9fa;
+            --text-primary: #212529;
         }
-        .block-card {
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 18px;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background-color: var(--light-bg);
+        }
+        
+        /* Large, high-contrast header */
+        .main-header {
+            background: linear-gradient(135deg, var(--primary-blue), var(--accent-blue));
+            color: white;
+            padding: 1.5rem 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .main-header h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .date-banner {
+            font-size: 1.4rem;
+            margin-top: 0.5rem;
+            opacity: 0.9;
+        }
+        
+        /* Executive summary section */
+        .executive-summary {
+            background: white;
+            border-left: 6px solid var(--accent-blue);
+            padding: 2rem;
+            margin: 2rem 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-radius: 8px;
+        }
+        
+        .executive-summary h2 {
+            color: var(--primary-blue);
+            font-size: 1.8rem;
             margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
-        .quote-text {
-            font-style: italic;
-            border-left: 3px solid #007bff;
-            padding-left: 10px;
+        
+        /* Block status cards - large and clear */
+        .block-status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        
+        .block-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .block-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.12);
+        }
+        
+        .block-card.completed {
+            border-color: var(--success-green);
+        }
+        
+        .block-card.processing {
+            border-color: var(--warning-orange);
+        }
+        
+        .block-card.pending {
+            border-color: #6c757d;
+        }
+        
+        .block-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .block-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary-blue);
+            margin: 0;
+        }
+        
+        .block-time {
+            font-size: 1.1rem;
+            color: #6c757d;
+            margin-top: 0.25rem;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.1rem;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+        }
+        
+        .status-completed {
+            background: #d4edda;
+            color: var(--success-green);
+        }
+        
+        .status-processing {
+            background: #fff3cd;
+            color: var(--warning-orange);
+        }
+        
+        .status-pending {
+            background: #e2e6ea;
+            color: #6c757d;
+        }
+        
+        /* Large, accessible buttons */
+        .btn-large {
+            font-size: 1.2rem;
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        
+        .btn-primary-custom {
+            background-color: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: white;
+        }
+        
+        .btn-primary-custom:hover {
+            background-color: var(--primary-blue);
+            border-color: var(--primary-blue);
+        }
+        
+        /* Navigation tabs */
+        .nav-tabs-large {
+            border-bottom: 3px solid #dee2e6;
+            margin-bottom: 2rem;
+        }
+        
+        .nav-tabs-large .nav-link {
+            font-size: 1.3rem;
+            padding: 1rem 2rem;
+            border: none;
+            color: var(--primary-blue);
+            border-radius: 8px 8px 0 0;
+            margin-right: 0.5rem;
+        }
+        
+        .nav-tabs-large .nav-link.active {
+            background-color: var(--accent-blue);
+            color: white;
+            font-weight: 600;
+        }
+        
+        /* Progress indicator */
+        .progress-large {
+            height: 15px;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+        
+        /* Responsive text sizes */
+        @media (max-width: 768px) {
+            body { font-size: 16px; }
+            .main-header h1 { font-size: 2rem; }
+            .date-banner { font-size: 1.2rem; }
+            .block-title { font-size: 1.3rem; }
+        }
+        
+        /* Focus indicators for accessibility */
+        button:focus, .btn:focus, a:focus {
+            outline: 3px solid var(--accent-blue);
+            outline-offset: 2px;
+        }
+        
+        /* Print styles */
+        @media print {
+            .main-header { background: var(--primary-blue) !important; }
+            .btn, .nav-tabs { display: none; }
+        }
+        
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            :root {
+                --primary-blue: #000080;
+                --accent-blue: #0000ff;
+            }
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <!-- Main Header -->
+    <header class="main-header">
         <div class="container">
-            <a class="navbar-brand" href="/">Radio Synopsis Dashboard</a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link" href="/archive">Archive</a>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container mt-4">
-        <div class="row">
-            <div class="col-md-8">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h2>{{ view_date.strftime('%B %d, %Y') }}</h2>
-                    {% if is_today %}
-                        <span class="badge bg-success">Today</span>
-                    {% endif %}
-                </div>
-
-                <!-- Date Navigation -->
-                <div class="mb-4">
-                    <div class="btn-group" role="group">
-                        {% for recent_date in recent_dates %}
-                            <a href="/?date_param={{ recent_date }}" 
-                               class="btn btn-sm {% if recent_date == view_date %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                                {{ recent_date.strftime('%m/%d') }}
-                            </a>
-                        {% endfor %}
-                    </div>
-                </div>
-
-                <!-- Blocks -->
-                {% for block in blocks %}
-                <div class="card block-card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Block {{ block.block_code }} - {{ block.block_name }}</h5>
-                        <span class="badge status-badge 
-                            {% if block.status == 'completed' %}bg-success
-                            {% elif block.status == 'failed' %}bg-danger
-                            {% elif block.status in ['recording', 'transcribing', 'summarizing'] %}bg-warning
-                            {% else %}bg-secondary{% endif %}">
-                            {{ block.status.title() }}
-                        </span>
-                    </div>
-                    <div class="card-body">
-                        {% if block.summary %}
-                            <p class="card-text">{{ block.summary.summary_text[:300] }}{% if block.summary.summary_text|length > 300 %}...{% endif %}</p>
-                            
-                            {% if block.summary.key_points %}
-                                <h6>Key Points:</h6>
-                                <ul>
-                                    {% for point in block.summary.key_points[:3] %}
-                                        <li>{{ point }}</li>
-                                    {% endfor %}
-                                </ul>
-                            {% endif %}
-                            
-                            <div class="d-flex justify-content-between">
-                                <small class="text-muted">
-                                    {{ block.duration_display }} | {{ block.summary.caller_count }} callers
-                                </small>
-                                <a href="/block/{{ block.id }}" class="btn btn-sm btn-outline-primary">View Details</a>
-                            </div>
-                        {% else %}
-                            <p class="text-muted">No summary available yet.</p>
-                            {% if is_today and block.status == 'recorded' %}
-                                <form method="post" action="/api/manual-process" class="d-inline">
-                                    <input type="hidden" name="block_code" value="{{ block.block_code }}">
-                                    <button type="submit" class="btn btn-sm btn-primary">Process Now</button>
-                                </form>
-                            {% endif %}
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1><i class="bi bi-broadcast"></i> Down to Brass Tacks</h1>
+                    <div class="date-banner">
+                        <i class="bi bi-calendar3"></i> 
+                        {{ view_date.strftime('%A, %B %d, %Y') }}
+                        {% if is_today %}
+                            <span class="badge bg-success ms-2">LIVE TODAY</span>
                         {% endif %}
                     </div>
                 </div>
-                {% endfor %}
-
-                <!-- Daily Digest -->
-                {% if digest %}
-                <div class="card mt-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">Daily Digest</h5>
-                    </div>
-                    <div class="card-body">
-                        <pre>{{ digest.digest_text }}</pre>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-
-            <div class="col-md-4">
-                <!-- Statistics -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h6 class="mb-0">Statistics</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-6">
-                                <div class="h4">{{ stats.completed_blocks }}/{{ stats.total_blocks }}</div>
-                                <small class="text-muted">Blocks Completed</small>
-                            </div>
-                            <div class="col-6">
-                                <div class="h4">{{ stats.total_callers }}</div>
-                                <small class="text-muted">Total Callers</small>
-                            </div>
-                        </div>
-                        <div class="progress mt-3">
-                            <div class="progress-bar" style="width: {{ stats.completion_rate }}%"></div>
-                        </div>
-                        <small class="text-muted">{{ stats.completion_rate }}% Complete</small>
-                    </div>
-                </div>
-
-                <!-- Manual Controls -->
-                {% if is_today %}
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0">Manual Controls</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-grid gap-2">
-                            {% for code in ['A', 'B', 'C', 'D'] %}
-                                <div class="btn-group" role="group">
-                                    <form method="post" action="/api/manual-record" class="d-inline">
-                                        <input type="hidden" name="block_code" value="{{ code }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">Record {{ code }}</button>
-                                    </form>
-                                    <form method="post" action="/api/manual-process" class="d-inline">
-                                        <input type="hidden" name="block_code" value="{{ code }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-primary">Process {{ code }}</button>
-                                    </form>
-                                </div>
-                            {% endfor %}
+                <div class="col-md-4 text-end">
+                    <div class="text-white">
+                        <div style="font-size: 1.1rem;">Last Updated</div>
+                        <div style="font-size: 1.3rem; font-weight: 600;">
+                            {{ "Now" if is_today else view_date.strftime('%I:%M %p') }}
                         </div>
                     </div>
                 </div>
-                {% endif %}
             </div>
         </div>
-    </div>
+    </header>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <main class="container">
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-tabs nav-tabs-large mt-4">
+            <li class="nav-item">
+                <a class="nav-link active" href="#today" data-bs-toggle="tab">
+                    <i class="bi bi-house-door"></i> Today's Briefing
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/archive">
+                    <i class="bi bi-archive"></i> Archive
+                </a>
+            </li>
+        </ul>
+
+        <!-- Executive Summary Section -->
+        {% if stats.completed_blocks > 0 %}
+        <section class="executive-summary">
+            <h2><i class="bi bi-clipboard-check"></i> Executive Summary</h2>
+            <div class="row">
+                <div class="col-md-8">
+                    <p style="font-size: 1.2rem; margin-bottom: 1rem;">
+                        <strong>{{ stats.completed_blocks }} of {{ stats.total_blocks }} blocks</strong> processed. 
+                        <strong>{{ stats.total_callers }} public participants</strong> engaged today.
+                    </p>
+                    {% if digest %}
+                        <p style="font-size: 1.1rem; color: #495057;">
+                            {{ digest.digest_text.split('\n')[0][:200] }}...
+                        </p>
+                    {% endif %}
+                </div>
+                <div class="col-md-4">
+                    <div class="progress-large">
+                        <div class="progress-bar bg-success" style="width: {{ stats.completion_rate }}%"></div>
+                    </div>
+                    <div class="text-center mt-2" style="font-size: 1.1rem; font-weight: 600;">
+                        {{ stats.completion_rate }}% Complete
+                    </div>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Block Status Grid -->
+        <section class="block-status-grid">
+            {% for block in blocks %}
+            <div class="block-card {{ 'completed' if block.status == 'completed' else 'processing' if block.status in ['recording', 'transcribing', 'summarizing'] else 'pending' }}">
+                <div class="block-header">
+                    <div>
+                        <h3 class="block-title">Block {{ block.block_code }}</h3>
+                        <div class="block-time">{{ block.start_time }} - {{ block.end_time }}</div>
+                        <div style="font-size: 1.1rem; color: #6c757d; margin-top: 0.5rem;">
+                            {{ block.block_name }}
+                        </div>
+                    </div>
+                    <div class="status-indicator {{ 'status-completed' if block.status == 'completed' else 'status-processing' if block.status in ['recording', 'transcribing', 'summarizing'] else 'status-pending' }}">
+                        {% if block.status == 'completed' %}
+                            <i class="bi bi-check-circle-fill"></i> Complete
+                        {% elif block.status in ['recording', 'transcribing', 'summarizing'] %}
+                            <i class="bi bi-arrow-clockwise"></i> {{ block.status.title() }}
+                        {% else %}
+                            <i class="bi bi-clock"></i> Pending
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if block.summary %}
+                    <div style="margin-bottom: 1.5rem;">
+                        <p style="font-size: 1.1rem; margin-bottom: 1rem;">
+                            {{ block.summary.summary_text[:200] }}{% if block.summary.summary_text|length > 200 %}...{% endif %}
+                        </p>
+                        
+                        {% if block.summary.key_points %}
+                            <div style="background: #f8f9fa; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                                <strong style="font-size: 1.1rem;">Key Points:</strong>
+                                <ul style="margin-top: 0.5rem; margin-bottom: 0;">
+                                    {% for point in block.summary.key_points[:2] %}
+                                        <li style="margin-bottom: 0.25rem;">{{ point }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="font-size: 1.1rem; color: #6c757d;">
+                                <i class="bi bi-people"></i> {{ block.summary.caller_count }} callers
+                            </div>
+                            <a href="/block/{{ block.id }}" class="btn btn-primary-custom btn-large">
+                                <i class="bi bi-eye"></i> View Details
+                            </a>
+                        </div>
+                    </div>
+                {% else %}
+                    <div style="padding: 2rem; text-align: center; background: #f8f9fa; border-radius: 6px;">
+                        <p style="font-size: 1.2rem; color: #6c757d; margin-bottom: 1rem;">
+                            {% if block.status == 'pending' %}
+                                <i class="bi bi-clock-history"></i> Scheduled for {{ block.start_time }}
+                            {% else %}
+                                <i class="bi bi-hourglass-split"></i> Processing in progress...
+                            {% endif %}
+                        </p>
+                        {% if is_today and block.status == 'recorded' %}
+                            <form method="post" action="/api/manual-process" style="margin-top: 1rem;">
+                                <input type="hidden" name="block_code" value="{{ block.block_code }}">
+                                <button type="submit" class="btn btn-primary-custom btn-large">
+                                    <i class="bi bi-play-circle"></i> Process Now
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </section>
+
+        <!-- Daily Digest -->
+        {% if digest %}
+        <section style="margin-top: 3rem;">
+            <div class="card" style="border: none; box-shadow: 0 3px 15px rgba(0,0,0,0.08);">
+                <div class="card-header" style="background: var(--primary-blue); color: white; padding: 1.5rem;">
+                    <h2 style="margin: 0; font-size: 1.8rem;">
+                        <i class="bi bi-file-text"></i> Daily Digest
+                    </h2>
+                </div>
+                <div class="card-body" style="padding: 2rem;">
+                    <div style="font-family: 'Courier New', monospace; font-size: 1rem; line-height: 1.5; white-space: pre-wrap;">{{ digest.digest_text }}</div>
+                    <div class="mt-3">
+                        <button class="btn btn-primary-custom btn-large me-2" onclick="window.print()">
+                            <i class="bi bi-printer"></i> Print Digest
+                        </button>
+                        <a href="/api/digest/download" class="btn btn-outline-primary btn-large">
+                            <i class="bi bi-download"></i> Download PDF
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Quick Date Navigation -->
+        {% if recent_dates %}
+        <section style="margin: 3rem 0; text-align: center;">
+            <h3 style="color: var(--primary-blue); margin-bottom: 1.5rem;">Recent Briefings</h3>
+            <div class="btn-group" role="group">
+                {% for recent_date in recent_dates %}
+                    <a href="/?date_param={{ recent_date }}" 
+                       class="btn btn-large {% if recent_date == view_date %}btn-primary-custom{% else %}btn-outline-primary{% endif %}">
+                        {{ recent_date.strftime('%b %d') }}
+                    </a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+    </main>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Auto-refresh for today's page -->
+    {% if is_today %}
+    <script>
+        // Auto-refresh every 2 minutes for live updates
+        setTimeout(function() {
+            window.location.reload();
+        }, 120000);
+    </script>
+    {% endif %}
 </body>
 </html>
