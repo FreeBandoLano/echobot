@@ -56,10 +56,11 @@
   --orbit-size: 78px;
   --orbit-gap: 14px;
 
-  /* Gradients (subtle) */
-  --grad-bg: radial-gradient(circle at 20% 25%, rgba(255,255,255,0.05), transparent 55%),
-             radial-gradient(circle at 80% 70%, rgba(255,255,255,0.04), transparent 60%),
-             linear-gradient(145deg,#121823,#18202c 60%,#1d2733);
+  /* Gradients (silky smooth Van Gogh flow) */
+  --grad-bg: radial-gradient(ellipse 120% 80% at 20% 25%, rgba(245,195,66,0.03), transparent 70%),
+             radial-gradient(ellipse 100% 60% at 80% 75%, rgba(181,18,39,0.02), transparent 65%),
+             radial-gradient(circle at 50% 100%, rgba(255,255,255,0.015), transparent 50%),
+             linear-gradient(160deg, #0f1419 0%, #121823 25%, #141a25 50%, #161c27 75%, #181e29 100%);
   --grad-active: linear-gradient(145deg,#b51227,#d92632 55%,#f5c342);
   --grad-gold: linear-gradient(145deg,#d9aa34,#f5c342);
   --grad-panel: linear-gradient(165deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
@@ -92,9 +93,11 @@
 html, body {
   height: 100%;
   background: var(--grad-bg);
+  background-attachment: fixed;
   color: var(--text-primary);
   font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Hero centering container for hub (collapses after first interaction) */
@@ -148,7 +151,8 @@ body::after {
 }
 .hub-core {
   position: absolute;
-  inset: 50% auto auto 50%;
+  left: 50%;
+  top: 50%;
   transform: translate(-50%, -50%);
   width: var(--hub-size);
   height: var(--hub-size);
@@ -223,11 +227,11 @@ body::after {
   color: var(--text-secondary);
   cursor: pointer;
   opacity: 0;
-  transform: translate(-50%, -50%) scale(.35) translateY(8px);
+  transform: scale(.35) translateY(8px);
   transition: var(--dur-panel) var(--ease-standard);
   backdrop-filter: blur(12px);
 }
-.orbit-btn[data-visible='true'] { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.orbit-btn[data-visible='true'] { opacity: 1; transform: scale(1); }
 
 .orbit-btn:hover { color: var(--text-primary); border-color: var(--color-gold); box-shadow: var(--elev-2); }
 .orbit-btn:active { transform: translate(-50%, -50%) scale(.95); }
