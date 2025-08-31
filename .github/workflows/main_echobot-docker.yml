@@ -20,7 +20,7 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
-  - name: Build (single multi-tag) and push images
+      - name: Build (single multi-tag) and push images
         run: |
           BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           docker build . \
