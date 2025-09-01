@@ -122,12 +122,46 @@ class EmailService:
             block_config = Config.BLOCKS.get(block['block_code'], {})
             block_name = block_config.get('name', f"Block {block['block_code']}")
             
-            # Format date and times
-            show_date = block['show_date'].strftime('%B %d, %Y') if block.get('show_date') else datetime.now().strftime('%B %d, %Y')
+            # Format date and times with proper type checking
+            from datetime import datetime
             
-            # Format start and end times
-            start_time_str = block['start_time'].strftime('%H:%M') if block.get('start_time') else 'N/A'
-            end_time_str = block['end_time'].strftime('%H:%M') if block.get('end_time') else 'N/A'
+            # Handle show_date (could be datetime object or string)
+            if block.get('show_date'):
+                if isinstance(block['show_date'], str):
+                    try:
+                        show_date_obj = datetime.fromisoformat(block['show_date'].replace('Z', '+00:00'))
+                        show_date = show_date_obj.strftime('%B %d, %Y')
+                    except:
+                        show_date = block['show_date']  # Use as-is if parsing fails
+                else:
+                    show_date = block['show_date'].strftime('%B %d, %Y')
+            else:
+                show_date = datetime.now().strftime('%B %d, %Y')
+            
+            # Handle start_time and end_time (could be datetime objects or strings)
+            if block.get('start_time'):
+                if isinstance(block['start_time'], str):
+                    try:
+                        start_time_obj = datetime.fromisoformat(block['start_time'].replace('Z', '+00:00'))
+                        start_time_str = start_time_obj.strftime('%H:%M')
+                    except:
+                        start_time_str = block['start_time']  # Use as-is if parsing fails
+                else:
+                    start_time_str = block['start_time'].strftime('%H:%M')
+            else:
+                start_time_str = 'N/A'
+                
+            if block.get('end_time'):
+                if isinstance(block['end_time'], str):
+                    try:
+                        end_time_obj = datetime.fromisoformat(block['end_time'].replace('Z', '+00:00'))
+                        end_time_str = end_time_obj.strftime('%H:%M')
+                    except:
+                        end_time_str = block['end_time']  # Use as-is if parsing fails
+                else:
+                    end_time_str = block['end_time'].strftime('%H:%M')
+            else:
+                end_time_str = 'N/A'
             
             # Format duration
             duration_str = f"{block['duration_minutes']} min" if block.get('duration_minutes') else 'N/A'
