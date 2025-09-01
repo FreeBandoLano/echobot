@@ -10,6 +10,7 @@ from config import Config
 from database import db
 from topic_extraction import extract_topics
 from embedding_clustering import cluster_transcript
+import httpx
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -175,65 +176,98 @@ class RadioSummarizer:
             target_model = getattr(Config, 'SUMMARIZATION_MODEL', 'gpt-5-nano-2025-08-07')
             fallback_models = [
                 target_model,
+                'gpt-4.1-mini',  # prefer 4.1-mini before 4o-mini per new request
                 'gpt-4o-mini',
-                'gpt-4.1-mini',
             ]
-            response = None
-            last_err = None
-            for m in fallback_models:
-                for param_style in ('max_completion_tokens', 'max_tokens', None):
+
+            def _attempt_model(model_name: str) -> Optional[str]:
+                """Attempt to call a model returning content text or None."""
+                base_messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are an expert radio content analyst creating summaries for government civil servants. "
+                            "Provide an accessible, well-structured narrative followed by concise bullet key points. Focus on: public concerns, policy implications, actions, notable entities."
+                        )
+                    },
+                    {"role": "user", "content": prompt}
+                ]
+                # Special handling for experimental gpt-5 nano style models (server wants max_completion_tokens, no temperature overrides)
+                if model_name.startswith('gpt-5-nano'):
+                    # Try direct HTTP to include max_completion_tokens (unsupported by current SDK method)
+                    url = 'https://api.openai.com/v1/chat/completions'
+                    headers = {
+                        'Authorization': f'Bearer {Config.OPENAI_API_KEY}',
+                        'Content-Type': 'application/json'
+                    }
+                    payload_variants = [
+                        {"model": model_name, "messages": base_messages, "max_completion_tokens": 1500},  # primary
+                        {"model": model_name, "messages": base_messages},  # no length hint
+                    ]
+                    for p in payload_variants:
+                        try:
+                            self.usage['block_llm_calls'] += 1
+                            r = httpx.post(url, headers=headers, json=p, timeout=60)
+                            if r.status_code == 200:
+                                data = r.json()
+                                content = data['choices'][0]['message']['content']
+                                logger.info(f"Summarization model success: model={model_name} direct_http variant={'with_tokens' if 'max_completion_tokens' in p else 'no_tokens'}")
+                                return content
+                            else:
+                                err_body = r.text
+                                # Temperature unsupported error may appear if implicitly set; just log
+                                logger.warning(f"Nano HTTP attempt failed ({r.status_code}) variant={'with_tokens' if 'max_completion_tokens' in p else 'no_tokens'}: {err_body[:300]}")
+                                # Continue to next variant
+                        except Exception as he:
+                            logger.warning(f"Nano direct HTTP exception: {he}")
+                    return None
+                # Standard models path
+                # Try with max_tokens then without, adjust temperature; if temperature unsupported, retry without
+                attempts = [
+                    {"max_tokens": 1500, "temperature": 0.3},
+                    {"max_tokens": 1500},
+                    {"temperature": 0.3},
+                    {},
+                ]
+                for a in attempts:
                     try:
                         self.usage['block_llm_calls'] += 1
-                        kwargs = dict(
-                            model=m,
-                            messages=[
-                                {
-                                    "role": "system",
-                                    "content": "You are an expert radio content analyst creating summaries for government civil servants. Provide objective, structured summaries focused on policy implications, public concerns, and actionable information."
-                                },
-                                {"role": "user", "content": prompt}
-                            ],
-                            temperature=0.3,
-                        )
-                        if param_style == 'max_completion_tokens':
-                            kwargs['max_completion_tokens'] = 1500
-                        elif param_style == 'max_tokens':
-                            kwargs['max_tokens'] = 1500
-                        # Attempt request
-                        response = self.client.chat.completions.create(**kwargs)
-                        logger.info(f"Summarization model success: model={m} param_style={param_style}")
-                        break
+                        kwargs = dict(model=model_name, messages=base_messages, **a)
+                        resp = self.client.chat.completions.create(**kwargs)
+                        content = resp.choices[0].message.content
+                        logger.info(f"Summarization model success: model={model_name} attempt={a}")
+                        return content
                     except Exception as e:
                         err_txt = str(e).lower()
-                        last_err = e
-                        # Decide if we should try next param style or model
-                        retry_param = any(k in err_txt for k in [
-                            'max_tokens', 'max_completion_tokens', 'unexpected keyword', 'unsupported parameter'
-                        ])
-                        if retry_param and param_style is not None:
-                            logger.warning(f"Param style failed (model={m}, style={param_style}): {e}")
-                            continue  # try next param style
-                        logger.warning(f"Model attempt failed (model={m}, style={param_style}): {e}")
-                        break  # move to next model
-                if response:
-                    break
-            if not response:
+                        # If parameter style issue, continue; else abort further attempts for this model
+                        if any(k in err_txt for k in ['unsupported parameter', 'unexpected keyword', 'temperature']):
+                            logger.warning(f"Param/model option failed (model={model_name}, attempt={a}): {e}")
+                            continue
+                        logger.warning(f"Model attempt failed (model={model_name}, aborting attempts for this model): {e}")
+                        return None
+                return None
+
+            response_content = None
+            last_err = None
+            for m in fallback_models:
+                try:
+                    response_content = _attempt_model(m)
+                    if response_content:
+                        break
+                except Exception as e:
+                    last_err = e
+                    logger.warning(f"Model {m} raised exception: {e}")
+            if not response_content:
                 logger.error(f"All summarization model attempts failed: {last_err}")
-                raise last_err
+                raise last_err or RuntimeError("No model produced a response")
             
-            summary_text = response.choices[0].message.content.strip()
-            # Token estimation (fallback if API doesn't provide usage)
+            summary_text = response_content.strip()
+            # Rough token estimation (no API usage stats available via mixed paths)
             try:
-                usage = getattr(response, 'usage', None)
-                if usage and hasattr(usage, 'prompt_tokens'):
-                    p_tokens = usage.prompt_tokens
-                    c_tokens = getattr(usage, 'completion_tokens', 0)
-                else:
-                    # Approx using char lengths - removed cost tracking
-                    p_tokens = max(1, len(prompt) // 4)
-                    c_tokens = max(1, len(summary_text) // 4)
+                p_tokens = max(1, len(prompt) // 4)
+                c_tokens = max(1, len(summary_text) // 4)
             except Exception:
-                pass
+                p_tokens = c_tokens = 0
 
             # Expect JSON; attempt to load
             parsed_json = None
@@ -332,9 +366,41 @@ Rules:
                 'speaker': q.get('speaker','Unknown'),
                 'timestamp': q.get('t','00:00')
             })
-        summary_text = json.dumps(data, ensure_ascii=False)
+        # Build human-readable narrative summary instead of raw JSON blob
+        lines = []
+        themes = data.get('key_themes', [])
+        if themes:
+            lines.append("Key Themes:")
+            for t in themes[:8]:
+                title = t.get('title', 'Theme')
+                bullets = t.get('summary_bullets', [])
+                first = bullets[0].lstrip('- ').strip() if bullets else ''
+                callers = t.get('callers')
+                callers_part = f" (callers: {callers})" if callers is not None else ''
+                lines.append(f"- {title}{callers_part}: {first}")
+        if quotes:
+            lines.append("")
+            lines.append("Notable Quotes:")
+            for q in quotes:
+                lines.append(f"- [{q['timestamp']}] {q['speaker']}: \"{q['text']}\"")
+        if entities:
+            lines.append("")
+            lines.append("Entities Mentioned: " + ", ".join(entities[:25]))
+        actions = data.get('actions', [])
+        if actions:
+            lines.append("")
+            lines.append("Actions / Follow-ups:")
+            for a in actions[:10]:
+                who = a.get('who', 'Someone')
+                what = a.get('what', '...')
+                when = a.get('when', '')
+                when_part = f" (when: {when})" if when else ''
+                lines.append(f"- {who}: {what}{when_part}")
+        if not lines:
+            lines.append("No substantive caller-driven content detected during this block.")
+        narrative = "\n".join(lines)
         return {
-            'summary': summary_text,
+            'summary': narrative,
             'key_points': key_points,
             'entities': entities,
             'caller_count': caller_count,
@@ -427,7 +493,7 @@ Provide: Executive Summary, Key Themes, Public Sentiment, Policy Implications, N
                 logger.info("LLM disabled or missing key; skipping daily digest LLM call")
                 return None
             # Adaptive daily digest generation (reuse fallback logic)
-            dd_models = [getattr(Config, 'SUMMARIZATION_MODEL', 'gpt-5-nano-2025-08-07'), 'gpt-4o-mini', 'gpt-4.1-mini']
+            dd_models = [getattr(Config, 'SUMMARIZATION_MODEL', 'gpt-5-nano-2025-08-07'), 'gpt-4.1-mini', 'gpt-4o-mini']
             response = None
             last_err = None
             for m in dd_models:
