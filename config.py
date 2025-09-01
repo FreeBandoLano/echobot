@@ -72,6 +72,8 @@ class Config:
     CLUSTER_MAX_CLUSTERS = int(os.getenv('CLUSTER_MAX_CLUSTERS', 8))
     # LLM Feature Flag
     ENABLE_LLM = os.getenv('ENABLE_LLM', 'true').lower() in ('1','true','yes','on')
+    # Summarization model (adaptive fallback handled in code if incompatible)
+    SUMMARIZATION_MODEL = os.getenv('SUMMARIZATION_MODEL', 'gpt-5-nano-2025-08-07')
 
     # Approximate model pricing (USD per 1K tokens) – update as needed
     # Sources: public pricing pages; keep conservative estimates.

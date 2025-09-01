@@ -171,39 +171,55 @@ class RadioSummarizer:
         try:
             logger.info(f"Generating summary with GPT-5 Nano for {block_name}")
             
-            # Newer OpenAI models require max_completion_tokens instead of deprecated max_tokens
-            try:
-                self.usage['block_llm_calls'] += 1
-                response = self.client.chat.completions.create(
-                    model="gpt-5-nano-2025-08-07",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are an expert radio content analyst creating summaries for government civil servants. Provide objective, structured summaries focused on policy implications, public concerns, and actionable information."
-                        },
-                        {
-                            "role": "user", 
-                            "content": prompt
-                        }
-                    ],
-                    temperature=0.3,
-                    max_completion_tokens=1500
-                )
-            except Exception as param_err:
-                # Fallback: if backend still expects max_tokens (older model variant) or other parameter issues
-                if 'max_tokens' in str(param_err).lower() or 'max_completion_tokens' in str(param_err).lower():
-                    logger.warning(f"Parameter error, trying fallback: {param_err}")
-                    response = self.client.chat.completions.create(
-                        model="gpt-5-nano-2025-08-07",
-                        messages=[
-                            {"role": "system", "content": "You are an expert radio content analyst creating summaries."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        temperature=0.3,
-                        max_tokens=1500
-                    )
-                else:
-                    raise
+            # Adaptive parameter + model handling
+            target_model = getattr(Config, 'SUMMARIZATION_MODEL', 'gpt-5-nano-2025-08-07')
+            fallback_models = [
+                target_model,
+                'gpt-4o-mini',
+                'gpt-4.1-mini',
+            ]
+            response = None
+            last_err = None
+            for m in fallback_models:
+                for param_style in ('max_completion_tokens', 'max_tokens', None):
+                    try:
+                        self.usage['block_llm_calls'] += 1
+                        kwargs = dict(
+                            model=m,
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": "You are an expert radio content analyst creating summaries for government civil servants. Provide objective, structured summaries focused on policy implications, public concerns, and actionable information."
+                                },
+                                {"role": "user", "content": prompt}
+                            ],
+                            temperature=0.3,
+                        )
+                        if param_style == 'max_completion_tokens':
+                            kwargs['max_completion_tokens'] = 1500
+                        elif param_style == 'max_tokens':
+                            kwargs['max_tokens'] = 1500
+                        # Attempt request
+                        response = self.client.chat.completions.create(**kwargs)
+                        logger.info(f"Summarization model success: model={m} param_style={param_style}")
+                        break
+                    except Exception as e:
+                        err_txt = str(e).lower()
+                        last_err = e
+                        # Decide if we should try next param style or model
+                        retry_param = any(k in err_txt for k in [
+                            'max_tokens', 'max_completion_tokens', 'unexpected keyword', 'unsupported parameter'
+                        ])
+                        if retry_param and param_style is not None:
+                            logger.warning(f"Param style failed (model={m}, style={param_style}): {e}")
+                            continue  # try next param style
+                        logger.warning(f"Model attempt failed (model={m}, style={param_style}): {e}")
+                        break  # move to next model
+                if response:
+                    break
+            if not response:
+                logger.error(f"All summarization model attempts failed: {last_err}")
+                raise last_err
             
             summary_text = response.choices[0].message.content.strip()
             # Token estimation (fallback if API doesn't provide usage)
@@ -410,31 +426,45 @@ Provide: Executive Summary, Key Themes, Public Sentiment, Policy Implications, N
             if not Config.ENABLE_LLM or not self.client:
                 logger.info("LLM disabled or missing key; skipping daily digest LLM call")
                 return None
-            try:
-                self.usage['daily_digest_llm_calls'] += 1
-                response = self.client.chat.completions.create(
-                    model="gpt-5-nano-2025-08-07",
-                    messages=[
-                        {"role": "system", "content": "You are a senior government analyst creating daily briefings."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.2,
-                    max_completion_tokens=2000
-                )
-            except Exception as param_err:
-                if 'max_tokens' in str(param_err).lower() or 'max_completion_tokens' in str(param_err).lower():
-                    logger.warning(f"Parameter error in daily digest, trying fallback: {param_err}")
-                    response = self.client.chat.completions.create(
-                        model="gpt-5-nano-2025-08-07",
-                        messages=[
-                            {"role": "system", "content": "You are a senior government analyst creating daily briefings."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        temperature=0.2,
-                        max_tokens=2000
-                    )
-                else:
-                    raise
+            # Adaptive daily digest generation (reuse fallback logic)
+            dd_models = [getattr(Config, 'SUMMARIZATION_MODEL', 'gpt-5-nano-2025-08-07'), 'gpt-4o-mini', 'gpt-4.1-mini']
+            response = None
+            last_err = None
+            for m in dd_models:
+                for param_style in ('max_completion_tokens', 'max_tokens', None):
+                    try:
+                        self.usage['daily_digest_llm_calls'] += 1
+                        kwargs = dict(
+                            model=m,
+                            messages=[
+                                {"role": "system", "content": "You are a senior government analyst creating daily briefings."},
+                                {"role": "user", "content": prompt}
+                            ],
+                            temperature=0.2,
+                        )
+                        if param_style == 'max_completion_tokens':
+                            kwargs['max_completion_tokens'] = 2000
+                        elif param_style == 'max_tokens':
+                            kwargs['max_tokens'] = 2000
+                        response = self.client.chat.completions.create(**kwargs)
+                        logger.info(f"Daily digest model success: model={m} style={param_style}")
+                        break
+                    except Exception as e:
+                        last_err = e
+                        err_txt = str(e).lower()
+                        retry_param = any(k in err_txt for k in [
+                            'max_tokens', 'max_completion_tokens', 'unexpected keyword', 'unsupported parameter'
+                        ])
+                        if retry_param and param_style is not None:
+                            logger.warning(f"Digest param style failed (model={m}, style={param_style}): {e}")
+                            continue
+                        logger.warning(f"Digest model attempt failed (model={m}, style={param_style}): {e}")
+                        break
+                if response:
+                    break
+            if not response:
+                logger.error(f"All daily digest model attempts failed: {last_err}")
+                return None
             
             digest_text = response.choices[0].message.content
             # Estimate cost for digest
