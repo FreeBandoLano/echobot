@@ -159,18 +159,20 @@ class AudioTranscriber:
                 for segment in response.segments:
                     # Handle both dict and object formats for API compatibility
                     if isinstance(segment, dict):
+                        duration = segment['end'] - segment['start']
                         segment_data = {
                             'start': segment['start'],
                             'end': segment['end'],
                             'text': segment['text'].strip(),
-                            'speaker': self._detect_speaker(segment['text'])
+                            'speaker': self._detect_speaker(segment['text'], duration, len(transcript_data['segments']))
                         }
                     else:
+                        duration = segment.end - segment.start
                         segment_data = {
                             'start': segment.start,
                             'end': segment.end,
                             'text': segment.text.strip(),
-                            'speaker': self._detect_speaker(segment.text)
+                            'speaker': self._detect_speaker(segment.text, duration, len(transcript_data['segments']))
                         }
                     transcript_data['segments'].append(segment_data)
             
@@ -224,18 +226,20 @@ class AudioTranscriber:
                 for segment in response.segments:
                     # Handle both dict and object formats for API compatibility
                     if isinstance(segment, dict):
+                        duration = segment['end'] - segment['start']
                         segment_data = {
                             'start': segment['start'],
                             'end': segment['end'],
                             'text': segment['text'].strip(),
-                            'speaker': self._detect_speaker(segment['text'])
+                            'speaker': self._detect_speaker(segment['text'], duration, len(transcript_data['segments']))
                         }
                     else:
+                        duration = segment.end - segment.start
                         segment_data = {
                             'start': segment.start,
                             'end': segment.end,
                             'text': segment.text.strip(),
-                            'speaker': self._detect_speaker(segment.text)
+                            'speaker': self._detect_speaker(segment.text, duration, len(transcript_data['segments']))
                         }
                     # Guard band classification (ads / jingles / promos / music)
                     segment_data['guard_band'] = self._is_guard_band(segment_data['text'])
@@ -345,25 +349,59 @@ class AudioTranscriber:
         
         return chunks
     
-    def _detect_speaker(self, text: str) -> str:
-        """Enhanced speaker detection with caller indexing."""
+    def _detect_speaker(self, text: str, segment_duration: float = 0, position_in_block: int = 0) -> str:
+        """Enhanced pattern-based speaker detection for Host vs Caller classification."""
         
-        text_lower = text.lower()
+        text_lower = text.lower().strip()
         
-        # Look for caller indicators
-        if any(phrase in text_lower for phrase in [
-            "good morning", "good afternoon", "hello", "hi there",
-            "my name is", "this is", "i'm calling", "caller"
-        ]):
-            return "Caller"
-        
-        # Look for host indicators  
-        if any(phrase in text_lower for phrase in [
-            "welcome back", "you're listening", "our next caller",
-            "thank you for calling", "let's hear from", "moving on"
-        ]):
+        # Station content/announcements (clearly host/station)
+        station_patterns = [
+            "starcom network", "voice of barbados", "vob", "hot 95.3", "life 97.5", "beat 104.1",
+            "win big", "90 years", "anniversary", "celebration", "prizes", "rotoplastics",
+            "listen to", "stay tuned", "right back", "you're listening", "visit starcomnetwork",
+            "blockchain business", "financial literacy", "bitcoin"
+        ]
+        if any(pattern in text_lower for pattern in station_patterns):
             return "Host"
         
+        # Host conversation patterns (traffic, introductions, transitions)
+        host_patterns = [
+            "good evening", "let's say", "thank you", "sir", "brother", 
+            "traffic", "police service", "sergeant", "minutes after", "highway",
+            "heavy traffic", "climbing", "heading to", "final one", "outbound",
+            "music from", "come on home", "beautiful", "escorts"
+        ]
+        if any(pattern in text_lower for pattern in host_patterns):
+            return "Host"
+        
+        # Caller-specific patterns (personal pronouns, problems, questions)
+        caller_patterns = [
+            "i have", "my problem", "i want to", "i need", "can you help", 
+            "what about", "i think", "i believe", "my situation", "my concern",
+            "i'm calling", "my name is", "this is", "i would like", "could you",
+            "why don't", "why can't", "when will", "how can", "i don't understand"
+        ]
+        if any(pattern in text_lower for pattern in caller_patterns):
+            return "Caller"
+        
+        # Length-based heuristics
+        if segment_duration > 15:  # Very long segments usually host
+            return "Host"
+        elif segment_duration > 0 and segment_duration < 3:  # Very short bursts often interjections
+            return "Unknown"
+        
+        # Context-based: Traffic reports are always host
+        if any(word in text_lower for word in ["traffic", "road", "highway", "junction", "climbing"]):
+            return "Host"
+        
+        # Music/song lyrics detection (not callers or host discussion)
+        music_indicators = [
+            "i'll be", "tonight", "when you're", "hold you", "closely", "true", "lonely"
+        ]
+        if any(indicator in text_lower for indicator in music_indicators) and len(text_lower) < 50:
+            return "Music"
+        
+        # Default for unclassified content
         return "Unknown"
 
     # ---------------- Guard Band Detection -----------------
@@ -413,16 +451,21 @@ class AudioTranscriber:
                 # Assign current caller id
                 segment['speaker'] = f"Caller {current_caller_id}" if current_caller_id else 'Caller 1'
                 prev_was_caller = True
-            else:
+            elif speaker in ['Host', 'Music']:
                 prev_was_caller = False
                 current_caller_id = None
+            # Keep 'Unknown' speakers as-is for now
         return segments
     
     def _count_callers(self, segments: List[Dict]) -> int:
-        """Count unique callers based on speaker transitions."""
+        """Count unique callers based on speaker transitions, excluding host/music/station content."""
+        # Filter out non-caller segments first
+        caller_segments = [s for s in segments if s.get('speaker', '').startswith('Caller')]
+        
         # Reapply caller ID assignment defensively on a shallow copy
-        segments_with_ids = [s.copy() for s in segments]
+        segments_with_ids = [s.copy() for s in caller_segments]
         self._assign_caller_ids(segments_with_ids)
+        
         caller_ids = {
             s['speaker'] for s in segments_with_ids
             if s.get('speaker', '').startswith('Caller ')
@@ -430,29 +473,51 @@ class AudioTranscriber:
         return len(caller_ids)
     
     def _extract_quotes(self, segments: List[Dict], max_quotes: int = 5) -> List[Dict]:
-        """Extract notable quotes from segments."""
+        """Extract notable quotes from segments, prioritizing caller quotes."""
         
         quotes = []
         
         for segment in segments:
             text = segment['text'].strip()
+            speaker = segment.get('speaker', 'Unknown')
+            
+            # Skip music and very short segments
+            if speaker == 'Music' or len(text) < 20:
+                continue
             
             # Look for interesting quotes (questions, strong statements, etc.)
-            if (len(text) > 20 and len(text) < 150 and 
-                any(indicator in text.lower() for indicator in [
-                    '?', 'important', 'problem', 'issue', 'concern',
-                    'government', 'minister', 'policy', 'community'
-                ])):
-                
+            # Prioritize caller quotes over host quotes
+            relevance_score = 0
+            
+            # Content relevance
+            if any(indicator in text.lower() for indicator in [
+                '?', 'important', 'problem', 'issue', 'concern',
+                'government', 'minister', 'policy', 'community', 'why', 'how'
+            ]):
+                relevance_score += 2
+            
+            # Speaker type bonus (prefer caller quotes)
+            if speaker.startswith('Caller'):
+                relevance_score += 3
+            elif speaker == 'Host':
+                relevance_score += 1
+            
+            # Length preference (not too short, not too long)
+            if 30 <= len(text) <= 120:
+                relevance_score += 1
+            
+            if relevance_score >= 2 and len(text) <= 150:
                 quote = {
                     'start_time': segment['start'],
-                    'speaker': segment.get('speaker', 'Unknown'),
+                    'speaker': speaker,
                     'text': text,
-                    'timestamp': self._format_timestamp(segment['start'])
+                    'timestamp': self._format_timestamp(segment['start']),
+                    'relevance_score': relevance_score
                 }
                 quotes.append(quote)
         
-        # Return top quotes by relevance (for now, just limit count)
+        # Sort by relevance score (higher first) then return top quotes
+        quotes.sort(key=lambda q: q['relevance_score'], reverse=True)
         return quotes[:max_quotes]
     
     def _format_timestamp(self, seconds: float) -> str:
