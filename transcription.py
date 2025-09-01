@@ -394,11 +394,42 @@ class AudioTranscriber:
         if any(word in text_lower for word in ["traffic", "road", "highway", "junction", "climbing"]):
             return "Host"
         
-        # Music/song lyrics detection (not callers or host discussion)
+        # Music/song lyrics detection (comprehensive patterns)
         music_indicators = [
+            # Love song patterns
+            "love will grow", "forever it will be", "you and me", "ooh", "your love", "my love",
+            "i will love you", "forever", "eternity", "break us", "chain of stars", "hold us",
+            
+            # Common song structures
+            "turn me up", "say mommy", "judgment day", "world war", "destruction and poverty",
+            "homeless on the street", "grand central station", "sleeping with me",
+            "as the years pass", "stay young", "each other's eyes", "as long as i got you",
+            
+            # Musical expressions
+            "ooh", "hey", "baby", "girl", "mommy", "is that right",
+            
+            # Repetitive patterns typical of songs
+            "ooh, ooh", "turn me up, turn me up",
+            
+            # Previous patterns (keep existing)
             "i'll be", "tonight", "when you're", "hold you", "closely", "true", "lonely"
         ]
-        if any(indicator in text_lower for indicator in music_indicators) and len(text_lower) < 50:
+        
+        # Enhanced detection logic
+        if any(indicator in text_lower for indicator in music_indicators):
+            return "Music"
+        
+        # Repetitive phrase detection (songs often repeat)
+        words = text_lower.split()
+        if len(words) >= 4:
+            # Check for word repetition patterns
+            for i in range(len(words) - 1):
+                if words[i] == words[i + 1] and len(words[i]) > 2:  # Repeated words
+                    return "Music"
+        
+        # Romantic/emotional content patterns (common in love songs)
+        romantic_patterns = ["our love", "your love", "my love", "forever", "eternity", "you and me"]
+        if any(pattern in text_lower for pattern in romantic_patterns):
             return "Music"
         
         # Default for unclassified content
@@ -415,13 +446,33 @@ class AudioTranscriber:
         guard_keywords = [
             # Advertising / sponsor cues
             "sponsored by", "brought to you", "paid program", "advertisement", "promotion", "call now", "limited time",
+            # Retail/shopping advertisements
+            "shop for", "shopping", "affordable prices", "duty free", "broad street", "bookstore", 
+            "school shoes", "school bags", "textbooks", "stationery", "back to school",
+            "puma", "nike", "everlast", "herschel", "hush puppies", "total sport",
+            "pick up your", "art supplies", "middle floor", "top floor",
             # Station IDs / filler
             "you're listening to", "you are listening to", "stay tuned", "right back", "after the break", "don't go away",
             "this is the", "weather update", "traffic update", "news update",
             # Music / jingle indicators
-            "instrumental", "music playing", "theme music"
+            "instrumental", "music playing", "theme music",
+            # Song lyrics patterns (common in music segments)
+            "ooh, ooh", "turn me up", "love will grow", "forever it will be", "your love", "my love"
         ]
         if any(k in tl for k in guard_keywords):
+            return True
+
+        # Commercial/retail language patterns
+        commercial_patterns = [
+            "make your", "easier", "at affordable prices", "shop for", "stop in at",
+            "pick up your", "for every age", "now you can", "all at"
+        ]
+        if any(pattern in tl for pattern in commercial_patterns):
+            return True
+
+        # Brand/store name detection (if segment mentions multiple brand names, likely an ad)
+        brands_mentioned = sum(1 for brand in ["puma", "nike", "adidas", "herschel", "duty free"] if brand in tl)
+        if brands_mentioned >= 2:
             return True
 
         # High ratio of non-alphanumeric (could be lyric fragments or sound effects transcription)
