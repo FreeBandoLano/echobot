@@ -139,8 +139,7 @@ http://localhost:8001
 4. Summarizer (if ENABLE_LLM True and key present) generates emergent JSON; fallback path stores minimal structure when disabled.
 5. Topics extracted & linked; summary + raw_json persisted.
 6. Rolling summary endpoint (/api/rolling/summary) available for recent live window context.
-7. Internal cost + usage snapshot periodically flushed to `llm_daily_usage` (hidden from UI).
-8. Daily digest synthesized after final block; optional email dispatch.
+7. Daily digest synthesized after final block; optional email dispatch.
 
 ### Manual Controls (Testing)
 * Record (scheduled window) – uses configured start/end boundaries.
@@ -167,13 +166,13 @@ Structured outputs emphasize:
 * **Audio Capture**: Stream URL (dynamic session) or local device (FFmpeg)
 * **Transcription**: Whisper (OpenAI) JSON segments
 * **Summarization**: `gpt-5-nano-2025-08-07` emergent JSON schema (toggle + fallback)
-* **Rolling Summary**: Sliding window summarization with cost tracking & fallback
+* **Rolling Summary**: Sliding window summarization with fallback
 * **Segmentation**: Persisted micro segments (speaker placeholder) with guard_band flags
 * **Embeddings**: `text-embedding-3-small` for clustering hints
 * **Clustering**: Greedy centroid grouping with similarity threshold
 * **Web Interface**: FastAPI + themed templates (dashboard, archive, analytics, block detail)
 * **Database**: SQLite (shows, blocks, segments, chapters, summaries raw_json, topics, block_topics, daily_digests, llm_daily_usage)
-* **LLM Governance**: Usage counters + approximate cost estimator (internal only)
+* **LLM Governance**: Usage counters (internal only)
 * **Scheduling**: Internal scheduler (timed blocks) + manual overrides
 * **Email**: SMTP (plaintext + HTML multipart)
 
@@ -217,8 +216,7 @@ static/css/theme.css     # Executive theme (red/gold, accessibility, motion)
 ## 📝 Recent Notable Changes
 * Added segmentation table + filler (guard band) analytics & endpoints (/api/filler/*).
 * Introduced rolling window summary endpoint with fallback when LLM disabled.
-* ENABLE_LLM flag + usage counters & internal cost estimation (persisted daily).
-* Cost & usage persistence (`llm_daily_usage`) with optional endpoint gating.
+* usage persistence (`llm_daily_usage`) with optional endpoint gating.
 * Timeline view for continuous segment navigation + filler % metrics.
 * Topic extraction stability improvements & raw_json persistence.
 * Reorganized summarization pipeline with emergent JSON mapping to legacy UI fields.
@@ -228,7 +226,7 @@ static/css/theme.css     # Executive theme (red/gold, accessibility, motion)
 2. Enhanced guard-band / anchor detection (news, history, ads segmentation refinement).
 3. Quote timestamp validation + transcript span linking.
 4. Topic drift & emerging-issue alerting (threshold + rate-of-change models).
-5. Internal alerting on cost anomalies & LLM failure rates.
+5. Internal alerting on LLM failure rates.
 6. Authentication / role-based gating for internal endpoints.
 
 ## 🤝 Contributing
