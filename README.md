@@ -197,19 +197,7 @@ scheduler.py             # Block scheduling + manual triggers
 web_app.py               # FastAPI routes (dashboard, archive, analytics, block)
 templates/               # Themed UI (orbit HUD & panels)
 static/css/theme.css     # Executive theme (red/gold, accessibility, motion)
-```
 
-## 🎮 Testing
-
-For rapid testing, use shorter block durations:
-```bash
-# 1-minute test blocks
-BLOCK_A_START=09:15
-BLOCK_A_END=09:16
-BLOCK_B_START=09:17  
-BLOCK_B_END=09:18
-# etc...
-```
 
 ## 🚀 Deployment Considerations
 
