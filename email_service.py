@@ -184,7 +184,9 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S AST')}
 System: Radio Synopsis Automated Briefing
 Contact: Technical Support for questions
 
-View full details online: [Dashboard Link]
+📊 For deeper analytics and detailed insights:
+View caller segments, timeline analysis & dashboard at:
+https://echobot-docker-app.azurewebsites.net/
 """
         
         return text
@@ -299,6 +301,16 @@ View full details online: [Dashboard Link]
             <p><strong>Generated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S AST')}</p>
             <p>Radio Synopsis Automated Briefing System</p>
             <p>📧 Contact technical support for questions</p>
+            <hr style="border: none; border-top: 1px solid #dee2e6; margin: 20px 0;">
+            <p style="font-size: 16px; color: {primary_red}; font-weight: 600;">
+                📊 For deeper analytics and detailed insights:
+            </p>
+            <p>
+                <a href="https://echobot-docker-app.azurewebsites.net/" 
+                   style="color: {primary_red}; text-decoration: none; font-weight: 600;">
+                    View caller segments, timeline analysis & full dashboard →
+                </a>
+            </p>
         </div>
     </div>
 </body>
@@ -359,7 +371,9 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S AST')}
 System: Radio Synopsis Automated Briefing
 Contact: Technical Support for questions
 
-View full archive online: [Dashboard Link]
+📊 For deeper analytics and detailed insights:
+View full archive, caller segments & dashboard at:
+https://echobot-docker-app.azurewebsites.net/
 """
         
         return text
@@ -426,6 +440,16 @@ View full archive online: [Dashboard Link]
             <p><strong>Generated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S AST')}</p>
             <p>Radio Synopsis Automated Briefing System</p>
             <p>📧 Contact technical support for questions</p>
+            <hr style="border: none; border-top: 1px solid #dee2e6; margin: 20px 0;">
+            <p style="font-size: 16px; color: {primary_red}; font-weight: 600;">
+                📊 For deeper analytics and detailed insights:
+            </p>
+            <p>
+                <a href="https://echobot-docker-app.azurewebsites.net/" 
+                   style="color: {primary_red}; text-decoration: none; font-weight: 600;">
+                    View full archive, caller segments & dashboard →
+                </a>
+            </p>
         </div>
     </div>
 </body>
