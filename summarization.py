@@ -50,6 +50,7 @@ class RadioSummarizer:
             return None
 
         logger.info(f"Starting summarization for block {block_id}")
+        print(f"🧠 SUMMARIZATION STARTED: Block {block_id}")
 
         try:
             # Load transcript data
@@ -58,6 +59,7 @@ class RadioSummarizer:
 
             # Update status
             db.update_block_status(block_id, 'summarizing')
+            print(f"🔄 Generating AI summary using GPT-5 Nano...")
 
             # Generate summary
             summary_data = self._generate_summary(block, transcript_data, block_id)
@@ -96,6 +98,7 @@ class RadioSummarizer:
                 # Update block status
                 db.update_block_status(block_id, 'completed')
 
+                print(f"✅ Summarization completed for block {block_id}")
                 logger.info(f"Summarization completed for block {block_id}")
                 return summary_data
             else:
@@ -187,8 +190,9 @@ class RadioSummarizer:
                     max_completion_tokens=1500
                 )
             except Exception as param_err:
-                # Fallback: if backend still expects max_tokens (older model variant)
-                if 'max_completion_tokens' in str(param_err).lower():
+                # Fallback: if backend still expects max_tokens (older model variant) or other parameter issues
+                if 'max_tokens' in str(param_err).lower() or 'max_completion_tokens' in str(param_err).lower():
+                    logger.warning(f"Parameter error, trying fallback: {param_err}")
                     response = self.client.chat.completions.create(
                         model="gpt-5-nano-2025-08-07",
                         messages=[
@@ -418,7 +422,8 @@ Provide: Executive Summary, Key Themes, Public Sentiment, Policy Implications, N
                     max_completion_tokens=2000
                 )
             except Exception as param_err:
-                if 'max_completion_tokens' in str(param_err).lower():
+                if 'max_tokens' in str(param_err).lower() or 'max_completion_tokens' in str(param_err).lower():
+                    logger.warning(f"Parameter error in daily digest, trying fallback: {param_err}")
                     response = self.client.chat.completions.create(
                         model="gpt-5-nano-2025-08-07",
                         messages=[

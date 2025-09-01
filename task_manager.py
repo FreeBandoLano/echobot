@@ -211,6 +211,7 @@ class TaskManager:
     def _execute_task(self, task: Task):
         """Execute a single task."""
         logger.info(f"Executing task {task.id}: {task.task_type.value}")
+        print(f"🔄 Processing Task #{task.id}: {task.task_type.value}")
         
         # Mark task as running
         self._update_task_status(task.id, TaskStatus.RUNNING, started_at=datetime.now())
@@ -228,16 +229,19 @@ class TaskManager:
                 # Task completed successfully
                 self._update_task_status(task.id, TaskStatus.COMPLETED, 
                                        completed_at=datetime.now())
+                print(f"✅ Task #{task.id} completed successfully")
                 logger.info(f"Task {task.id} completed successfully")
                 
                 # Schedule next task in pipeline if applicable
                 self._schedule_next_pipeline_task(task)
             else:
                 # Task failed
+                print(f"❌ Task #{task.id} failed")
                 self._handle_task_failure(task, "Task handler returned False")
                 
         except Exception as e:
             error_msg = str(e)
+            print(f"❌ Task #{task.id} failed with error: {error_msg}")
             logger.error(f"Task {task.id} failed: {error_msg}")
             self._handle_task_failure(task, error_msg)
     

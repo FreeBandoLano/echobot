@@ -38,10 +38,13 @@ class AudioTranscriber:
             return None
         
         logger.info(f"Starting transcription for block {block_id}: {audio_path}")
+        print(f"🎤 TRANSCRIPTION STARTED: Block {block_id}")
+        print(f"📁 Audio file: {audio_path.name}")
         
         # Check if this is a silence-only file (fallback recording)
         if "_silence" in str(audio_path):
             logger.info(f"Detected silence file, creating empty transcript: {audio_path}")
+            print(f"🔇 Silence file detected - creating minimal transcript")
             # Create a minimal transcript for silence
             transcript_data = {
                 'text': "",
@@ -63,12 +66,14 @@ class AudioTranscriber:
             # Update database
             db.update_block_status(block_id, 'transcribed', transcript_file_path=transcript_path)
             
+            print(f"✅ Silence transcription completed for block {block_id}")
             logger.info(f"Silence transcription completed for block {block_id}")
             return transcript_data
         
         try:
             # Update status
             db.update_block_status(block_id, 'transcribing')
+            print(f"🔄 Transcribing audio with OpenAI Whisper...")
             
             # Transcribe audio
             transcript_data = self._transcribe_audio(audio_path)
@@ -88,6 +93,7 @@ class AudioTranscriber:
                 try:
                     if transcript_data.get('segments'):
                         db.insert_segments_from_transcript(block_id, transcript_data['segments'])
+                        print(f"📊 Persisted {len(transcript_data['segments'])} segments to database")
                 except Exception as seg_err:
                     logger.warning(f"Segment persistence failed for block {block_id}: {seg_err}")
 
@@ -111,6 +117,7 @@ class AudioTranscriber:
                 except Exception as ch_err:
                     logger.warning(f"Chapter ensure failed for block {block_id}: {ch_err}")
                 
+                print(f"✅ Transcription completed: {len(transcript_data['text'])} characters, {transcript_data['caller_count']} callers")
                 logger.info(f"Transcription completed for block {block_id}")
                 return transcript_data
             else:

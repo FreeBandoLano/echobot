@@ -390,12 +390,18 @@ class AudioRecorder:
         block_id = db.create_block(show_id, block_code, start_time, end_time)
         
         logger.info(f"Starting live recording for Block {block_code}: {audio_filename}")
+        print(f"🎙️  RECORDING INITIATED: Block {block_code} for {duration_minutes} minutes")
+        print(f"📁 Output file: {audio_filename}")
+        print(f"⏰ Start: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"⏰ End: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
         
         try:
             # Update status to recording
             db.update_block_status(block_id, 'recording')
+            print(f"📊 Database status updated: RECORDING")
             
             # Record audio for the specified duration
+            print(f"🔴 Starting audio capture...")
             success = self._record_audio(audio_path, duration_seconds)
             
             # Check if the actual output file exists (might have _silence suffix)
@@ -405,10 +411,13 @@ class AudioRecorder:
                 silence_path = audio_path.parent / f"{audio_path.stem}_silence.wav"
                 if silence_path.exists():
                     actual_audio_path = silence_path
+                    print(f"⚠️  Silence recording detected: {silence_path.name}")
             
             if success and actual_audio_path.exists():
                 # Update database with completed recording
                 db.update_block_status(block_id, 'recorded', audio_file_path=actual_audio_path)
+                print(f"✅ Recording completed successfully: {actual_audio_path.name}")
+                print(f"📊 Database status updated: RECORDED")
                 logger.info(f"Successfully recorded Block {block_code} to {actual_audio_path}")
 
                 # Attempt to schedule transcription task (mirrors record_block behavior)
@@ -417,19 +426,23 @@ class AudioRecorder:
                     # Lazy start task manager if not already running (web-only context)
                     if not task_manager.running:
                         task_manager.start()
+                        print(f"🔧 Task manager started for automated processing")
                         logger.info("Task manager lazily started for manual duration recording")
                     task_id = task_manager.add_task(
                         TaskType.TRANSCRIBE_BLOCK,
                         block_id=block_id,
                         show_date=today.isoformat()
                     )
+                    print(f"📋 Transcription task scheduled: #{task_id}")
                     logger.info(f"Scheduled transcription task {task_id} for block {block_id} (manual duration)")
                 except Exception as e:
+                    print(f"⚠️  Failed to schedule transcription task: {e}")
                     logger.warning(f"Failed to schedule transcription task for manual duration recording: {e}")
                 return actual_audio_path
             else:
                 # Mark as failed
                 db.update_block_status(block_id, 'failed')
+                print(f"❌ Recording failed for Block {block_code}")
                 logger.error(f"Failed to record Block {block_code}")
                 return None
                 

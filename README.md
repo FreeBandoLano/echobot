@@ -2,9 +2,11 @@
 
 Automated collection, transcription, emergent topic summarization, clustering intelligence, and daily briefing generation for the Barbados call‑in program "Down to Brass Tacks" — optimized for civil service situational awareness.
 
-## 🎯 Current Scope (August 2025)
+## 🎯 Current Scope (September 2025)
 
-End‑to‑end autonomous pipeline (record → transcribe → segment → summarize → analyze → optional digest/email) with emergent topic intelligence, rolling window summaries, filler (guard‑band) analytics, timeline visualization, and internal LLM usage + cost telemetry (persisted daily; not exposed to end users). Focus now shifting to speaker attribution & deterministic insert detection.
+End‑to‑end autonomous pipeline (record → transcribe → segment → summarize → analyze → digest/email) with emergent topic intelligence, rolling window summaries, filler analytics, timeline visualization, and comprehensive monitoring. **Production-ready system** currently deployed on Azure with automatic version tracking and continuous deployment.
+
+**⚠️ Current Priority**: Enhancing recording process visibility in Azure log streams for real-time operational monitoring.
 
 | Layer | Status | Notes |
 |-------|--------|-------|
