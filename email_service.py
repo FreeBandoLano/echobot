@@ -122,15 +122,22 @@ class EmailService:
             block_config = Config.BLOCKS.get(block['block_code'], {})
             block_name = block_config.get('name', f"Block {block['block_code']}")
             
-            # Format date
-            show_date = block['show_date'].strftime('%B %d, %Y') if block.get('show_date') else 'Unknown Date'
+            # Format date and times
+            show_date = block['show_date'].strftime('%B %d, %Y') if block.get('show_date') else datetime.now().strftime('%B %d, %Y')
+            
+            # Format start and end times
+            start_time_str = block['start_time'].strftime('%H:%M') if block.get('start_time') else 'N/A'
+            end_time_str = block['end_time'].strftime('%H:%M') if block.get('end_time') else 'N/A'
+            
+            # Format duration
+            duration_str = f"{block['duration_minutes']} min" if block.get('duration_minutes') else 'N/A'
             
             # Create subject
             subject = f"[Brass Tacks] Block {block['block_code']} Summary – {show_date}"
             
             # Create email body
-            body_text = self._create_block_summary_text(block, summary, block_name, show_date)
-            body_html = self._create_block_summary_html(block, summary, block_name, show_date)
+            body_text = self._create_block_summary_text(block, summary, block_name, show_date, start_time_str, end_time_str, duration_str)
+            body_html = self._create_block_summary_html(block, summary, block_name, show_date, duration_str)
             
             # Send email
             return self._send_email(subject, body_text, body_html)
@@ -140,7 +147,7 @@ class EmailService:
             return False
     
     def _create_block_summary_text(self, block: Dict, summary: Dict, 
-                                  block_name: str, show_date: str) -> str:
+                                  block_name: str, show_date: str, start_time_str: str, end_time_str: str, duration_str: str) -> str:
         """Create plain text email body for block summary."""
         
         text = f"""DOWN TO BRASS TACKS - BLOCK SUMMARY
@@ -148,7 +155,8 @@ class EmailService:
 
 Date: {show_date}
 Block: {block['block_code']} - {block_name}
-Time: {block.get('start_time', 'N/A')} - {block.get('end_time', 'N/A')}
+Time: {start_time_str} - {end_time_str}
+Duration: {duration_str}
 Callers: {summary.get('caller_count', 0)}
 
 EXECUTIVE SUMMARY
@@ -192,7 +200,7 @@ https://echobot-docker-app.azurewebsites.net/
         return text
     
     def _create_block_summary_html(self, block: Dict, summary: Dict, 
-                                  block_name: str, show_date: str) -> str:
+                                  block_name: str, show_date: str, duration_str: str) -> str:
         """Create HTML email body for block summary."""
         
         # Color scheme matching the dashboard
@@ -242,7 +250,7 @@ https://echobot-docker-app.azurewebsites.net/
                     <div class="stat-label">Callers</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-number">{block.get('duration', 'N/A')}</div>
+                    <div class="stat-number">{duration_str}</div>
                     <div class="stat-label">Duration</div>
                 </div>
             </div>
