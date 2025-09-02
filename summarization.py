@@ -11,6 +11,7 @@ from database import db
 from topic_extraction import extract_topics
 from embedding_clustering import cluster_transcript
 import httpx
+import os
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -114,191 +115,196 @@ class RadioSummarizer:
             return None
     
     def _generate_summary(self, block: Dict, transcript_data: Dict, block_id: int) -> Optional[Dict]:
-        """Generate summary using OpenAI GPT."""
-        
+        """Generate summary using improved structured prompt and adaptive model fallback."""
         block_code = block['block_code']
         block_name = Config.BLOCKS[block_code]['name']
-        
-        # Prepare context
+
         transcript_text = transcript_data.get('text', '')
         caller_count = transcript_data.get('caller_count', 0)
         existing_quotes = transcript_data.get('notable_quotes', [])
-        
+
         if not transcript_text.strip():
             logger.warning("Empty transcript text")
-            # Handle empty/silence transcript gracefully
             summary_data = self._create_empty_summary(block_code, block_name, transcript_data)
-            
-            # Save summary
             audio_file = block.get('audio_file_path', 'unknown')
             if audio_file and audio_file != 'unknown':
                 summary_filename = f"{Path(audio_file).stem}_summary.json"
             else:
                 summary_filename = f"block_{block_code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_summary.json"
             summary_path = Config.SUMMARIES_DIR / summary_filename
-            
             with open(summary_path, 'w', encoding='utf-8') as f:
                 json.dump(summary_data, f, indent=2, ensure_ascii=False)
-            
-            # Update database
             db.update_block_status(block_id, 'completed')
             db.save_summary(block_id, summary_data, summary_path)
-            
             logger.info(f"Empty summary completed for block {block_id}")
             return summary_data
-        
-        # Optional embedding clustering for emergent hints
-        clusters = []
-        try:
-            clusters = cluster_transcript(transcript_text)
-        except Exception as ce:
-            logger.warning(f"Clustering failed block {block_id}: {ce}")
 
-        prompt = self._create_emergent_prompt(block_code, transcript_text, caller_count, clusters)
+        # Build improved prompt (basic segmentation not yet persisted; use whole text for now)
+        stats = {
+            'caller_count': caller_count,
+            'caller_seconds': transcript_data.get('caller_seconds', 0),
+            'filler_seconds': transcript_data.get('filler_seconds', 0),
+            'ad_count': transcript_data.get('ad_count', 0),
+            'music_count': transcript_data.get('music_count', 0),
+            'total_seconds': transcript_data.get('duration', 0)
+        }
+
+        def build_structured_prompt():
+            return f"""
+You are producing a policy-intelligence briefing from a Barbados public affairs call-in radio program.
+
+INSTRUCTIONS:
+1. Public concerns: ONLY caller-origin issues (skip ads, music, promos).
+2. Official / Host announcements separate.
+3. Commercial/promotional content: list briefly; never elevate to public concerns.
+4. Music/filler acknowledged only as metrics.
+5. Provide actionable follow-ups (who, what, urgency: low|medium|high) where grounded.
+6. Categorize entities: government, private_sector, civil_society, individuals.
+7. Provide metrics (caller_count, caller_talk_ratio, filler_ratio, ads_count, music_count).
+8. Output first a concise narrative (<=120 words), then STRICT JSON object (schema below). No extra prose after JSON.
+
+BLOCK META:
+Block: {block_code} ({block_name})
+Approx Caller Count: {caller_count}
+Raw Duration Seconds: {stats.get('total_seconds')}
+Ad Segments (estimated): {stats.get('ad_count')} | Music Segments: {stats.get('music_count')}
+
+TRANSCRIPT (raw – may include music/ads/promos):
+{transcript_text[:12000]}
+
+JSON SCHEMA:
+{{
+  "public_concerns": [{{"topic": str, "summary": str, "callers_involved": int}}],
+  "official_announcements": [{{"topic": str, "summary": str}}],
+  "commercial_items": [str],
+  "actions": [{{"who": str, "what": str, "urgency": "low|medium|high"}}],
+  "entities": {{
+      "government": [str], "private_sector": [str], "civil_society": [str], "individuals": [str]
+  }},
+  "metrics": {{
+      "caller_count": int,
+      "caller_talk_ratio": float,
+      "filler_ratio": float,
+      "ads_count": int,
+      "music_count": int
+  }}
+}}
+
+RULES:
+- Empty arrays instead of fabrication.
+- No duplicate topics.
+- Keep commercial_items short phrases.
+- caller_talk_ratio + filler_ratio between 0 and 1 (approx ok).
+"""
+
+        prompt = build_structured_prompt()
 
         if not Config.ENABLE_LLM or not self.client:
-            logger.info("LLM disabled or missing key; skipping model call (fallback empty emergent JSON)")
-            # Minimal fallback: embed a lightweight JSON with no themes
+            logger.info("LLM disabled; returning minimal placeholder summary")
             parsed_data = self._map_json_to_legacy_fields({
-                "block": block_code,
-                "key_themes": [],
-                "positions": [],
-                "quotes": existing_quotes[:2],
-                "entities": [],
-                "actions": []
+                "public_concerns": [],
+                "official_announcements": [],
+                "commercial_items": [],
+                "actions": [],
+                "entities": {"government": [], "private_sector": [], "civil_society": [], "individuals": []},
+                "metrics": {"caller_count": caller_count}
             }, caller_count)
             return parsed_data
-        
-        try:
-            logger.info(f"Generating summary with GPT-5 Nano for {block_name}")
-            
-            # Adaptive parameter + model handling
-            target_model = getattr(Config, 'SUMMARIZATION_MODEL', 'gpt-5-nano-2025-08-07')
-            fallback_models = [
-                target_model,
-                'gpt-4.1-mini',  # prefer 4.1-mini before 4o-mini per new request
-                'gpt-4o-mini',
-            ]
 
-            def _attempt_model(model_name: str) -> Optional[str]:
-                """Attempt to call a model returning content text or None."""
-                base_messages = [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an expert radio content analyst creating summaries for government civil servants. "
-                            "Provide an accessible, well-structured narrative followed by concise bullet key points. Focus on: public concerns, policy implications, actions, notable entities."
-                        )
-                    },
-                    {"role": "user", "content": prompt}
-                ]
-                # Special handling for experimental gpt-5 nano style models (server wants max_completion_tokens, no temperature overrides)
-                if model_name.startswith('gpt-5-nano'):
-                    # Try direct HTTP to include max_completion_tokens (unsupported by current SDK method)
-                    url = 'https://api.openai.com/v1/chat/completions'
-                    headers = {
-                        'Authorization': f'Bearer {Config.OPENAI_API_KEY}',
-                        'Content-Type': 'application/json'
-                    }
-                    payload_variants = [
-                        {"model": model_name, "messages": base_messages, "max_completion_tokens": 1500},  # primary
-                        {"model": model_name, "messages": base_messages},  # no length hint
-                    ]
-                    for p in payload_variants:
-                        try:
-                            self.usage['block_llm_calls'] += 1
-                            r = httpx.post(url, headers=headers, json=p, timeout=60)
-                            if r.status_code == 200:
-                                data = r.json()
-                                content = data['choices'][0]['message']['content']
-                                logger.info(f"Summarization model success: model={model_name} direct_http variant={'with_tokens' if 'max_completion_tokens' in p else 'no_tokens'}")
-                                return content
-                            else:
-                                err_body = r.text
-                                # Temperature unsupported error may appear if implicitly set; just log
-                                logger.warning(f"Nano HTTP attempt failed ({r.status_code}) variant={'with_tokens' if 'max_completion_tokens' in p else 'no_tokens'}: {err_body[:300]}")
-                                # Continue to next variant
-                        except Exception as he:
-                            logger.warning(f"Nano direct HTTP exception: {he}")
-                    return None
-                # Standard models path
-                # Try with max_tokens then without, adjust temperature; if temperature unsupported, retry without
-                attempts = [
-                    {"max_tokens": 1500, "temperature": 0.3},
-                    {"max_tokens": 1500},
-                    {"temperature": 0.3},
-                    {},
-                ]
-                for a in attempts:
+        system_prompt = "You are a precise policy briefing generator. Follow instructions exactly."
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ]
+
+        def attempt_nano_minimal(model_name: str):
+            try:
+                resp = self.client.chat.completions.create(model=model_name, messages=messages)
+                return resp.choices[0].message.content, None
+            except Exception as e:
+                return None, e
+
+        model_order = [getattr(Config, 'SUMMARIZATION_MODEL', 'gpt-5-nano-2025-08-07'), 'gpt-4.1-mini', 'gpt-4o-mini']
+        attempt_log: List[str] = []
+        content = None
+        model_used = None
+
+        # If primary is nano attempt minimal first
+        primary = model_order[0]
+        if primary.startswith('gpt-5-nano'):
+            txt, err = attempt_nano_minimal(primary)
+            if txt:
+                content = txt
+                model_used = primary
+                attempt_log.append(f"SUCCESS {primary} minimal")
+            else:
+                attempt_log.append(f"FAIL {primary} minimal: {err}")
+
+        # Fallback loop
+        if not content:
+            for m in model_order:
+                if m == primary and model_used == primary:
+                    continue
+                for style in ('max_tokens', 'none'):
                     try:
-                        self.usage['block_llm_calls'] += 1
-                        kwargs = dict(model=model_name, messages=base_messages, **a)
+                        kwargs = {"model": m, "messages": messages}
+                        if style == 'max_tokens' and not m.startswith('gpt-5-nano'):
+                            kwargs['max_tokens'] = 900
+                            kwargs['temperature'] = 0.7
                         resp = self.client.chat.completions.create(**kwargs)
                         content = resp.choices[0].message.content
-                        logger.info(f"Summarization model success: model={model_name} attempt={a}")
-                        return content
-                    except Exception as e:
-                        err_txt = str(e).lower()
-                        # If parameter style issue, continue; else abort further attempts for this model
-                        if any(k in err_txt for k in ['unsupported parameter', 'unexpected keyword', 'temperature']):
-                            logger.warning(f"Param/model option failed (model={model_name}, attempt={a}): {e}")
-                            continue
-                        logger.warning(f"Model attempt failed (model={model_name}, aborting attempts for this model): {e}")
-                        return None
-                return None
-
-            response_content = None
-            last_err = None
-            for m in fallback_models:
-                try:
-                    response_content = _attempt_model(m)
-                    if response_content:
+                        model_used = m
+                        attempt_log.append(f"SUCCESS {m} style={style}")
                         break
-                except Exception as e:
-                    last_err = e
-                    logger.warning(f"Model {m} raised exception: {e}")
-            if not response_content:
-                logger.error(f"All summarization model attempts failed: {last_err}")
-                raise last_err or RuntimeError("No model produced a response")
-            
-            summary_text = response_content.strip()
-            # Rough token estimation (no API usage stats available via mixed paths)
-            try:
-                p_tokens = max(1, len(prompt) // 4)
-                c_tokens = max(1, len(summary_text) // 4)
-            except Exception:
-                p_tokens = c_tokens = 0
+                    except Exception as e:
+                        attempt_log.append(f"FAIL {m} style={style}: {e}")
+                if content:
+                    break
 
-            # Expect JSON; attempt to load
-            parsed_json = None
-            try:
-                json_start = summary_text.find('{')
-                json_end = summary_text.rfind('}')
-                if json_start != -1 and json_end != -1:
-                    parsed_json = json.loads(summary_text[json_start:json_end+1])
-            except Exception as je:
-                logger.warning(f"JSON parse failed for block {block_id}: {je}")
-
-            # Fallback minimal structure if JSON missing
-            if not parsed_json:
-                parsed_json = {
-                    "block": block_code,
-                    "key_themes": [],
-                    "positions": [],
-                    "quotes": existing_quotes[:2],
-                    "entities": [],
-                    "actions": []
-                }
-
-            parsed_data = self._map_json_to_legacy_fields(parsed_json, caller_count)
-            
-            logger.info(f"Summary generated: {len(summary_text)} characters")
-            return parsed_data
-            
-        except Exception as e:
+        if not content:
             self.usage['block_llm_failures'] += 1
-            logger.error(f"GPT API error: {e}")
+            logger.error(f"All summarization attempts failed: {' | '.join(attempt_log)}")
             return None
+
+        raw_text = content.strip()
+        # Split narrative and JSON (find last '{')
+        json_part = {}
+        narrative = raw_text
+        idx = raw_text.rfind('{')
+        if idx != -1:
+            narrative = raw_text[:idx].strip()
+            candidate = raw_text[idx:].strip()
+            try:
+                json_part = json.loads(candidate)
+            except Exception as je:
+                attempt_log.append(f"JSON_PARSE_FAIL: {je}")
+                json_part = {}
+
+        # Build mapped legacy fields using derived structure
+        legacy_wrapper = {
+            "key_themes": [
+                {"title": pc.get('topic','Public Concern'), "summary_bullets": [pc.get('summary','')], "callers": pc.get('callers_involved',0)}
+                for pc in json_part.get('public_concerns', [])
+            ],
+            "quotes": existing_quotes[:2],
+            "entities": list({
+                *json_part.get('entities', {}).get('government', []),
+                *json_part.get('entities', {}).get('private_sector', []),
+                *json_part.get('entities', {}).get('civil_society', []),
+                *json_part.get('entities', {}).get('individuals', []),
+            }),
+            "actions": [
+                {"who": a.get('who',''), "what": a.get('what',''), "when": a.get('urgency','')} for a in json_part.get('actions', [])
+            ]
+        }
+        mapped = self._map_json_to_legacy_fields(legacy_wrapper, caller_count)
+        # Prepend narrative to summary
+        mapped['summary'] = (narrative + "\n\n" + mapped['summary']).strip()
+        mapped['raw_json'] = json_part
+        mapped['model_used'] = model_used
+        mapped['model_attempt_log'] = attempt_log
+        logger.info(f"Summary generated model={model_used} size={len(raw_text)} chars attempts={len(attempt_log)}")
+        return mapped
 
     def _create_emergent_prompt(self, block_code: str, transcript: str, caller_count: int, clusters: List[Dict]) -> str:
         cluster_hint = "\nCLUSTER HINTS (candidate emergent themes – refine, rename, merge if needed):\n" + \
