@@ -143,7 +143,7 @@ http://localhost:8001
 
 ### Manual Controls (Testing)
 * Record (scheduled window) – uses configured start/end boundaries.
-* Record Now (duration) – ad hoc N-minute capture.
+* Record Now (duration) – ad hoc N-minute capture (1, 2, 5, 30, 60 min quick picks).
 * Process – force transcript→summary pipeline if a block is recorded but not processed.
 
 ### Block Schedule
