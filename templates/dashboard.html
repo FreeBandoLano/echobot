@@ -173,6 +173,15 @@
         </section>
     </main>
 
+        <!-- Mobile Action Bar -->
+        <nav class="mobile-action-bar" aria-label="Quick actions">
+            <button data-nav="overview"><i class="bi bi-graph-up"></i><span>Overview</span></button>
+            <button data-nav="blocks"><i class="bi bi-list-ul"></i><span>Blocks</span></button>
+            {% if digest %}<button data-nav="digest"><i class="bi bi-file-text"></i><span>Digest</span></button>{% endif %}
+            <button data-nav="archive"><i class="bi bi-archive"></i><span>Archive</span></button>
+            <button data-refresh><i class="bi bi-arrow-repeat"></i><span>Refresh</span></button>
+        </nav>
+
     <script>
         const hub = document.getElementById('hub');
         const orbitButtons = Array.from(document.querySelectorAll('.orbit-btn'));
@@ -312,7 +321,32 @@
                     if (!isNaN(id)) showBlockDetail(id);
                 });
             });
+            // Mobile action bar wiring
+            const mbar = document.querySelector('.mobile-action-bar');
+            if(mbar){
+                mbar.querySelectorAll('button[data-nav]').forEach(btn=>{
+                    btn.addEventListener('click', ()=>{
+                        const panel = btn.getAttribute('data-nav');
+                        showPanel(panel);
+                        if(hubOpen) toggleHub(false);
+                        window.scrollTo({top:0,behavior:'smooth'});
+                    });
+                });
+                const rb = mbar.querySelector('button[data-refresh]');
+                if(rb) rb.addEventListener('click', ()=>window.location.reload());
+            }
         });
     </script>
+    <style>
+    /* Mobile Action Bar */
+    .mobile-action-bar{display:none;}
+    @media (max-width:700px){
+        .mobile-action-bar{position:fixed; bottom:0; left:0; right:0; z-index:40; background:rgba(18,24,35,0.92); backdrop-filter:blur(10px); border-top:1px solid var(--color-border); display:flex; justify-content:space-around; padding:.35rem .25rem;}
+        .mobile-action-bar button{background:none; border:none; color:var(--text-tertiary); font-size:.55rem; display:flex; flex-direction:column; align-items:center; gap:.15rem; letter-spacing:.08em; font-weight:600; padding:.3rem .5rem; border-radius:var(--radius-sm);}
+        .mobile-action-bar button i{font-size:1.15rem;}
+        .mobile-action-bar button:active, .mobile-action-bar button:hover{color:var(--text-primary); background:var(--color-panel-alt);}    
+        body{padding-bottom:70px;} /* reserve space */
+    }
+    </style>
 </body>
 </html>
