@@ -106,24 +106,28 @@
             </div>
             {% endif %}
             {% for block in blocks %}
-            <div class="block-summary">
+            <div class="block-summary" data-collapsed="true">
                 <div class="block-header">
                     <div class="block-title">Block {{ block.block_code }} - {{ block.block_name }}</div>
-                    <div class="block-status" data-state="{{ 'completed' if block.status == 'completed' else 'processing' if block.status in ['recording','transcribing','summarizing'] else 'pending' }}">
-                        {% if block.status == 'completed' %}
-                            <i class="bi bi-check-circle"></i>
-                        {% elif block.status in ['recording','transcribing','summarizing'] %}
-                            <i class="bi bi-arrow-clockwise"></i>
-                        {% else %}
-                            <i class="bi bi-clock"></i>
-                        {% endif %}
-                        {{ block.status.title() if block.status != 'completed' else 'Complete' }}
+                    <div style="display:flex; align-items:center; gap:.4rem;">
+                        <div class="block-status" data-state="{{ 'completed' if block.status == 'completed' else 'processing' if block.status in ['recording','transcribing','summarizing'] else 'pending' }}">
+                            {% if block.status == 'completed' %}
+                                <i class="bi bi-check-circle"></i>
+                            {% elif block.status in ['recording','transcribing','summarizing'] %}
+                                <i class="bi bi-arrow-clockwise"></i>
+                            {% else %}
+                                <i class="bi bi-clock"></i>
+                            {% endif %}
+                            {{ block.status.title() if block.status != 'completed' else 'Complete' }}
+                        </div>
+                        <button class="block-toggle" type="button" aria-label="Toggle details" tabindex="0"><i class="bi bi-chevron-down"></i></button>
                     </div>
                 </div>
+                <div class="block-collapsible">
                 {% if block.summary %}
                     <p class="block-body">{{ block.summary.summary_text[:150] }}{% if block.summary.summary_text|length > 150 %}...{% endif %}</p>
                     {% if block.emergent_themes %}
-                        <div style="margin:.5rem 0; display:flex; gap:.4rem; flex-wrap:wrap;">
+                        <div class="block-themes" style="margin:.5rem 0; display:flex; gap:.4rem; flex-wrap:wrap;">
                             {% for theme in block.emergent_themes %}
                                 <span style="background:var(--color-overlay); border:1px solid var(--color-border); padding:.25rem .5rem; border-radius:var(--radius-pill); font-size:.6rem; letter-spacing:.08em; color:var(--text-tertiary);">{{ theme }}</span>
                             {% endfor %}
@@ -142,6 +146,7 @@
                         {% endif %}
                     </p>
                 {% endif %}
+                </div>
             </div>
             {% endfor %}
         </section>
@@ -335,8 +340,45 @@
                 const rb = mbar.querySelector('button[data-refresh]');
                 if(rb) rb.addEventListener('click', ()=>window.location.reload());
             }
+            // Collapsible block summaries (mobile first)
+            const mq = window.matchMedia('(max-width:760px)');
+            function applyBlockCollapse(){
+               const small = mq.matches;
+               document.querySelectorAll('.block-summary').forEach(card=>{
+                   const coll = card.querySelector('.block-collapsible');
+                   const toggle = card.querySelector('.block-toggle i');
+                   if(!coll) return;
+                   if(small){
+                       const collapsed = card.getAttribute('data-collapsed') === 'true';
+                       coll.style.display = collapsed ? 'none':'block';
+                       toggle.className = collapsed ? 'bi bi-chevron-down':'bi bi-chevron-up';
+                   } else {
+                       coll.style.display = 'block';
+                       toggle.className = 'bi bi-chevron-up';
+                   }
+               });
+            }
+            document.querySelectorAll('.block-summary .block-toggle').forEach(btn=>{
+               btn.addEventListener('click', () => {
+                   const card = btn.closest('.block-summary');
+                   const state = card.getAttribute('data-collapsed') === 'true';
+                   card.setAttribute('data-collapsed', state ? 'false':'true');
+                   applyBlockCollapse();
+               });
+            });
+            mq.addEventListener('change', applyBlockCollapse);
+            applyBlockCollapse();
         });
     </script>
+    <style>
+    /* Collapsible block summaries */
+    @media (max-width:760px){
+      .block-summary{padding:1rem .9rem 1rem;}
+      .block-summary .block-toggle{background:var(--color-panel-alt); border:1px solid var(--color-border); color:var(--text-tertiary); width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:var(--radius-pill); cursor:pointer; font-size:.9rem; }
+      .block-summary .block-toggle:hover{color:var(--text-primary); border-color:var(--color-border-strong);}  
+    }
+    @media (min-width:761px){ .block-summary .block-toggle{ display:none; } }
+    </style>
     <style>
     /* Mobile Action Bar */
     .mobile-action-bar{display:none;}
