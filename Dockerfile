@@ -25,8 +25,8 @@ LABEL org.opencontainers.image.revision=${GIT_COMMIT} \
 	  org.opencontainers.image.created=${BUILD_TIME} \
 	  org.opencontainers.image.source="https://example.com/echobot"
 
-# Expose the port Gunicorn will run on
+# Expose the port the application will run on
 EXPOSE 8000
 
-# Define the command to run your app with increased timeout
-CMD ["sh", "-c", "gunicorn -w 2 -k uvicorn.workers.UvicornWorker --timeout 600 --bind 0.0.0.0:${PORT:-8000} web_app:app"]
+# Define the command to run the full system (automation + web dashboard)
+CMD ["python", "main.py", "run"]
