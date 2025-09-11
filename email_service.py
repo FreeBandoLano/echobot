@@ -171,7 +171,7 @@ class EmailService:
             
             # Create email body
             body_text = self._create_block_summary_text(block, summary, block_name, show_date, start_time_str, end_time_str, duration_str)
-            body_html = self._create_block_summary_html(block, summary, block_name, show_date, duration_str)
+            body_htmlam = self._create_block_summary_html(block, summary, block_name, show_date, duration_str)
             
             # Send email
             return self._send_email(subject, body_text, body_html)
