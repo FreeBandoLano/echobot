@@ -4,6 +4,7 @@ import schedule
 import time
 import threading
 import logging
+import pytz
 from datetime import datetime, date, timedelta
 from typing import Optional
 import signal
@@ -47,37 +48,61 @@ class RadioScheduler:
         # Clear any existing schedule
         schedule.clear()
         
-        # Schedule each block
+        # Schedule each block (convert Barbados time to UTC for the schedule library)
         for block_code, block_config in Config.BLOCKS.items():
             start_time = block_config['start_time']
             end_time = block_config['end_time']
             
-            # Schedule recording start
-            schedule.every().day.at(start_time).do(
+            # Convert Barbados times to UTC for scheduling
+            utc_start_time = self._convert_barbados_to_utc_time(start_time)
+            
+            # Schedule recording start (in UTC)
+            schedule.every().day.at(utc_start_time).do(
                 self._start_block_recording, block_code
             ).tag(f'record_{block_code}')
             
             # Schedule processing after recording ends (2 minutes after end time)
             end_datetime = datetime.strptime(end_time, '%H:%M')
             process_time = (end_datetime + timedelta(minutes=2)).strftime('%H:%M')
+            utc_process_time = self._convert_barbados_to_utc_time(process_time)
             
-            schedule.every().day.at(process_time).do(
+            schedule.every().day.at(utc_process_time).do(
                 self._process_block, block_code
             ).tag(f'process_{block_code}')
             
-            logger.info(f"Block {block_code}: Record at {start_time}, Process at {process_time}")
+            logger.info(f"Block {block_code}: Record at {start_time} Barbados ({utc_start_time} UTC), Process at {process_time} Barbados ({utc_process_time} UTC)")
         
-        # Schedule daily digest creation (15 minutes after show ends)
-        schedule.every().day.at("14:15").do(
+        # Schedule daily digest creation (15 minutes after show ends) - convert to UTC
+        utc_digest_time = self._convert_barbados_to_utc_time("14:15")
+        schedule.every().day.at(utc_digest_time).do(
             self._create_daily_digest
         ).tag('daily_digest')
         
-        # Schedule cleanup (remove old files, keep 30 days)
-        schedule.every().day.at("23:00").do(
+        # Schedule cleanup (remove old files, keep 30 days) - convert to UTC
+        utc_cleanup_time = self._convert_barbados_to_utc_time("23:00")
+        schedule.every().day.at(utc_cleanup_time).do(
             self._cleanup_old_files
         ).tag('cleanup')
         
         logger.info("Daily schedule configured successfully")
+    
+    def _convert_barbados_to_utc_time(self, barbados_time_str: str) -> str:
+        """Convert a Barbados time (HH:MM) to UTC time (HH:MM) for scheduling."""
+        try:
+            # Create a datetime object for today in Barbados timezone
+            today = get_local_date()
+            barbados_time = datetime.strptime(barbados_time_str, '%H:%M').time()
+            barbados_datetime = Config.TIMEZONE.localize(
+                datetime.combine(today, barbados_time)
+            )
+            
+            # Convert to UTC
+            utc_datetime = barbados_datetime.astimezone(pytz.UTC)
+            return utc_datetime.strftime('%H:%M')
+            
+        except Exception as e:
+            logger.error(f"Error converting time {barbados_time_str}: {e}")
+            return barbados_time_str  # Fallback to original time
     
     def start(self):
         """Start the scheduler."""
