@@ -267,39 +267,69 @@ RULES:
             return None
 
         raw_text = content.strip()
-        # Split narrative and JSON (find last '{')
+        
+        # Try to parse as JSON first (check if it's pure JSON response)
         json_part = {}
-        narrative = raw_text
+        narrative = ""
+        
+        # Look for JSON content
         idx = raw_text.rfind('{')
         if idx != -1:
-            narrative = raw_text[:idx].strip()
             candidate = raw_text[idx:].strip()
             try:
                 json_part = json.loads(candidate)
+                # If we successfully parsed JSON, check if there's narrative before it
+                potential_narrative = raw_text[:idx].strip()
+                # Only use narrative if it's substantial (not just formatting)
+                if len(potential_narrative) > 20 and not potential_narrative.startswith('{'):
+                    narrative = potential_narrative
+                attempt_log.append("JSON_PARSE_SUCCESS")
             except Exception as je:
                 attempt_log.append(f"JSON_PARSE_FAIL: {je}")
+                # If JSON parsing fails, treat the whole response as narrative
+                narrative = raw_text
                 json_part = {}
+        else:
+            # No JSON structure found, treat as pure narrative
+            narrative = raw_text
+            json_part = {}
 
         # Build mapped legacy fields using derived structure
-        legacy_wrapper = {
-            "key_themes": [
-                {"title": pc.get('topic','Public Concern'), "summary_bullets": [pc.get('summary','')], "callers": pc.get('callers_involved',0)}
-                for pc in json_part.get('public_concerns', [])
-            ],
-            "quotes": existing_quotes[:2],
-            "entities": list({
-                *json_part.get('entities', {}).get('government', []),
-                *json_part.get('entities', {}).get('private_sector', []),
-                *json_part.get('entities', {}).get('civil_society', []),
-                *json_part.get('entities', {}).get('individuals', []),
-            }),
-            "actions": [
-                {"who": a.get('who',''), "what": a.get('what',''), "when": a.get('urgency','')} for a in json_part.get('actions', [])
-            ]
-        }
-        mapped = self._map_json_to_legacy_fields(legacy_wrapper, caller_count)
-        # Prepend narrative to summary
-        mapped['summary'] = (narrative + "\n\n" + mapped['summary']).strip()
+        if json_part:
+            # Convert structured JSON to legacy format
+            legacy_wrapper = {
+                "key_themes": [
+                    {"title": pc.get('topic','Public Concern'), "summary_bullets": [pc.get('summary','')], "callers": pc.get('callers_involved',0)}
+                    for pc in json_part.get('public_concerns', [])
+                ],
+                "quotes": existing_quotes[:2],
+                "entities": list({
+                    *json_part.get('entities', {}).get('government', []),
+                    *json_part.get('entities', {}).get('private_sector', []),
+                    *json_part.get('entities', {}).get('civil_society', []),
+                    *json_part.get('entities', {}).get('individuals', []),
+                }),
+                "actions": [
+                    {"who": a.get('who',''), "what": a.get('what',''), "when": a.get('urgency','')} for a in json_part.get('actions', [])
+                ]
+            }
+            mapped = self._map_json_to_legacy_fields(legacy_wrapper, caller_count)
+            
+            # If we have a clean narrative, use it; otherwise use the generated readable summary
+            if narrative:
+                mapped['summary'] = narrative
+            # Keep the structured summary as backup in case narrative is empty
+            
+        else:
+            # No structured JSON, create a simple summary from the narrative
+            mapped = {
+                'summary': narrative if narrative else "No substantive content detected during this block.",
+                'key_points': [],
+                'entities': [],
+                'caller_count': caller_count,
+                'quotes': existing_quotes[:2]
+            }
+        
         mapped['raw_json'] = json_part
         mapped['model_used'] = model_used
         mapped['model_attempt_log'] = attempt_log
