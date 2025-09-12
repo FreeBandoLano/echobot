@@ -185,6 +185,7 @@ def main():
     
     # Web server command
     web_parser = subparsers.add_parser('web', help='Run the web server')
+    web_parser.add_argument('--with-scheduler', action='store_true', help='Start scheduler along with web server')
     
     # Manual recording command
     record_parser = subparsers.add_parser('record', help='Manually record a block')
@@ -230,6 +231,19 @@ def main():
         run_scheduler()
     
     elif args.command == 'web':
+        # Check if user wants scheduler with web server
+        if hasattr(args, 'with_scheduler') and args.with_scheduler:
+            import threading
+            import time
+            
+            # Start scheduler in background
+            scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+            scheduler_thread.start()
+            
+            # Give scheduler time to start
+            time.sleep(2)
+            logger.info("Web server starting with scheduler enabled")
+        
         run_web_server()
     
     elif args.command == 'record':

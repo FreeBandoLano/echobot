@@ -852,13 +852,14 @@ async def debug_stream_test():
     except Exception as e:
         return {"error": str(e)}
 
-# Create HTML templates
+# Create HTML templates - DEPRECATED: Using external template files now
 def create_templates():
-    """Create HTML template files."""
+    """Create HTML template files - DEPRECATED in favor of external template files."""
+    logger.info("Skipping template creation - using external template files")
+    return
     
-    # Main dashboard template
-    dashboard_template = """
-<!DOCTYPE html>
+    # DEPRECATED: Main dashboard template
+    dashboard_template = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
