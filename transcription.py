@@ -17,7 +17,14 @@ class AudioTranscriber:
     """Handles audio transcription using OpenAI Whisper API."""
     
     def __init__(self):
-        self.client = openai.OpenAI(api_key=Config.OPENAI_API_KEY)
+        if not Config.OPENAI_API_KEY:
+            logger.error("OPENAI_API_KEY not configured!")
+            print("❌ OPENAI_API_KEY environment variable is missing!")
+            self.client = None
+        else:
+            logger.info("OpenAI client initialized successfully")
+            print(f"🔑 OpenAI API key configured (ends with: ...{Config.OPENAI_API_KEY[-4:]})")
+            self.client = openai.OpenAI(api_key=Config.OPENAI_API_KEY)
     
     def transcribe_block(self, block_id: int) -> Optional[Dict]:
         """Transcribe audio for a specific block."""
@@ -192,6 +199,11 @@ class AudioTranscriber:
     def _transcribe_audio(self, audio_path: Path) -> Optional[Dict]:
         """Transcribe audio file using OpenAI Whisper API."""
         
+        if not self.client:
+            logger.error("OpenAI client not initialized - check OPENAI_API_KEY")
+            print("❌ Cannot transcribe: OpenAI client not initialized")
+            return None
+        
         try:
             # Check file size (OpenAI has 25MB limit)
             file_size = audio_path.stat().st_size
@@ -260,7 +272,15 @@ class AudioTranscriber:
             return transcript_data
         
         except Exception as e:
-            logger.error(f"Whisper API error: {e}")
+            logger.error(f"Whisper API error: {e}", exc_info=True)
+            print(f"❌ TRANSCRIPTION FAILED: {e}")
+            # Check if it's an API key issue
+            if "authentication" in str(e).lower() or "api_key" in str(e).lower():
+                print(f"🔑 API Key issue detected - check OPENAI_API_KEY configuration")
+            elif "quota" in str(e).lower() or "billing" in str(e).lower():
+                print(f"💳 Billing/quota issue detected - check OpenAI account")
+            elif "file" in str(e).lower() or "format" in str(e).lower():
+                print(f"📁 File format issue detected - check audio file")
             return None
     
     def _transcribe_large_file(self, audio_path: Path) -> Optional[Dict]:
