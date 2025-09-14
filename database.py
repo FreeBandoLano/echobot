@@ -23,6 +23,13 @@ class Database:
     def init_database(self):
         """Initialize database tables."""
         with self.get_connection() as conn:
+            # Add raw_json column to existing summaries table if it doesn't exist
+            try:
+                conn.execute("ALTER TABLE summaries ADD COLUMN raw_json TEXT")
+            except sqlite3.OperationalError:
+                # Column already exists, ignore
+                pass
+            
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS shows (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,6 +61,7 @@ class Database:
                     entities TEXT,   -- JSON array of mentioned entities
                     caller_count INTEGER DEFAULT 0,
                     quotes TEXT,     -- JSON array of notable quotes
+                    raw_json TEXT,   -- Full structured JSON data for emergent analysis
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 
@@ -202,19 +210,20 @@ class Database:
             return [dict(row) for row in rows]
     
     def create_summary(self, block_id: int, summary_text: str, key_points: List[str], 
-                      entities: List[str], caller_count: int = 0, quotes: List[Dict] = None) -> int:
+                      entities: List[str], caller_count: int = 0, quotes: List[Dict] = None, raw_json: Dict = None) -> int:
         """Create a summary record."""
         quotes = quotes or []
+        raw_json = raw_json or {}
         
         with self.get_connection() as conn:
             cursor = conn.execute("""
                 INSERT OR REPLACE INTO summaries 
-                (block_id, summary_text, key_points, entities, caller_count, quotes)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (block_id, summary_text, key_points, entities, caller_count, quotes, raw_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
                 block_id, summary_text, 
                 json.dumps(key_points), json.dumps(entities), 
-                caller_count, json.dumps(quotes)
+                caller_count, json.dumps(quotes), json.dumps(raw_json)
             ))
             return cursor.lastrowid
     
@@ -228,9 +237,17 @@ class Database:
             if row:
                 summary = dict(row)
                 # Parse JSON fields
-                summary['key_points'] = json.loads(summary['key_points'])
-                summary['entities'] = json.loads(summary['entities'])
-                summary['quotes'] = json.loads(summary['quotes'])
+                summary['key_points'] = json.loads(summary['key_points'] or '[]')
+                summary['entities'] = json.loads(summary['entities'] or '[]')
+                summary['quotes'] = json.loads(summary['quotes'] or '[]')
+                # Parse raw_json field if present
+                if summary.get('raw_json'):
+                    try:
+                        summary['raw_json'] = json.loads(summary['raw_json'])
+                    except (json.JSONDecodeError, TypeError):
+                        summary['raw_json'] = {}
+                else:
+                    summary['raw_json'] = {}
                 return summary
             return None
     

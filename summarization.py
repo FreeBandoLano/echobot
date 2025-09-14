@@ -67,22 +67,16 @@ class RadioSummarizer:
             summary_data = self._generate_summary(block, transcript_data, block_id)
 
             if summary_data:
-                # Save to database
+                # Save to database (including raw_json if available)
                 db.create_summary(
                     block_id=block_id,
                     summary_text=summary_data['summary'],
                     key_points=summary_data['key_points'],
                     entities=summary_data['entities'],
                     caller_count=summary_data['caller_count'],
-                    quotes=summary_data['quotes']
+                    quotes=summary_data['quotes'],
+                    raw_json=summary_data.get('raw_json', {})
                 )
-                # Persist raw_json if available
-                try:
-                    if 'raw_json' in summary_data:
-                        with db.get_connection() as conn:
-                            conn.execute("UPDATE summaries SET raw_json = ? WHERE block_id = ?", (json.dumps(summary_data['raw_json']), block_id))
-                except Exception as rje:
-                    logger.warning(f"Failed to store raw_json for block {block_id}: {rje}")
 
                 # Topic extraction (Phase 1): derive topics from summary + key points
                 try:

@@ -88,17 +88,24 @@ def run_scheduler():
     logger.info("Starting scheduler service...")
     
     try:
+        logger.info("Calling scheduler.start()...")
         scheduler.start()
-        logger.info("Scheduler started successfully")
+        logger.info(f"Scheduler started successfully. Running: {scheduler.running}")
         
         # Keep running
         import time
         while scheduler.running:
+            logger.debug("Scheduler still running, sleeping 60s...")
             time.sleep(60)
             
+        logger.warning("Scheduler loop ended - scheduler.running is False")
+            
+    except Exception as e:
+        logger.error(f"Scheduler error: {e}", exc_info=True)
     except KeyboardInterrupt:
         logger.info("Scheduler interrupted by user")
     finally:
+        logger.info("Stopping scheduler...")
         scheduler.stop()
 
 def run_web_server():

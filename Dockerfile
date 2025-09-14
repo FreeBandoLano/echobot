@@ -19,7 +19,8 @@ COPY . .
 
 # Expose build metadata inside container
 ENV GIT_COMMIT_SHA=${GIT_COMMIT} \
-	BUILD_TIME=${BUILD_TIME}
+	BUILD_TIME=${BUILD_TIME} \
+	TZ=America/Barbados
 
 LABEL org.opencontainers.image.revision=${GIT_COMMIT} \
 	  org.opencontainers.image.created=${BUILD_TIME} \
