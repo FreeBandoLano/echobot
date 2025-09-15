@@ -70,7 +70,7 @@
             </div>
             {% if block.summary %}
                 <h3 class="sub-heading">Summary</h3>
-                <div class="summary-text">{{ block.summary.summary_text }}</div>
+                <div class="summary-text">{{ block.summary.summary_text.split('{')[0].strip() if '{' in block.summary.summary_text else block.summary.summary_text }}</div>
                 {% if block.summary.key_points %}
                     <h3 class="sub-heading">Key Points</h3>
                     <ul style="font-size:.8rem; color:var(--text-secondary); line-height:1.45; margin:0 0 1rem; padding-left:1.1rem;">

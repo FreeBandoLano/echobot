@@ -125,7 +125,8 @@
                 </div>
                 <div class="block-collapsible">
                 {% if block.summary %}
-                    <p class="block-body">{{ block.summary.summary_text[:200] }}{% if block.summary.summary_text|length > 200 %}...{% endif %}</p>
+                    {% set clean_summary = block.summary.summary_text.split('{')[0].strip() if '{' in block.summary.summary_text else block.summary.summary_text %}
+                    <p class="block-body">{{ clean_summary[:200] }}{% if clean_summary|length > 200 %}...{% endif %}</p>
                     
                     <!-- Quick highlights from emergent data -->
                     {% if block.summary.raw_json %}

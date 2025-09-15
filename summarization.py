@@ -262,31 +262,54 @@ RULES:
 
         raw_text = content.strip()
         
-        # Try to parse as JSON first (check if it's pure JSON response)
+        # Robust JSON extraction using regex and multiple fallback strategies
         json_part = {}
         narrative = ""
         
-        # Look for JSON content
-        idx = raw_text.rfind('{')
-        if idx != -1:
-            candidate = raw_text[idx:].strip()
+        # Strategy 1: Regex-based JSON extraction (most robust)
+        import re
+        json_match = re.search(r'\{[\s\S]*\}', raw_text)
+        if json_match:
+            candidate = json_match.group(0).strip()
             try:
                 json_part = json.loads(candidate)
-                # If we successfully parsed JSON, check if there's narrative before it
-                potential_narrative = raw_text[:idx].strip()
-                # Only use narrative if it's substantial (not just formatting)
+                # Extract narrative before JSON (if any)
+                json_start = json_match.start()
+                potential_narrative = raw_text[:json_start].strip()
                 if len(potential_narrative) > 20 and not potential_narrative.startswith('{'):
                     narrative = potential_narrative
-                attempt_log.append("JSON_PARSE_SUCCESS")
+                attempt_log.append("REGEX_JSON_PARSE_SUCCESS")
             except Exception as je:
-                attempt_log.append(f"JSON_PARSE_FAIL: {je}")
-                # If JSON parsing fails, treat the whole response as narrative
-                narrative = raw_text
-                json_part = {}
+                attempt_log.append(f"REGEX_JSON_PARSE_FAIL: {je}")
+                # Strategy 2: Fallback to rfind method
+                idx = raw_text.rfind('{')
+                if idx != -1:
+                    candidate = raw_text[idx:].strip()
+                    try:
+                        json_part = json.loads(candidate)
+                        potential_narrative = raw_text[:idx].strip()
+                        if len(potential_narrative) > 20 and not potential_narrative.startswith('{'):
+                            narrative = potential_narrative
+                        attempt_log.append("FALLBACK_JSON_PARSE_SUCCESS")
+                    except Exception as je2:
+                        attempt_log.append(f"FALLBACK_JSON_PARSE_FAIL: {je2}")
+                        # Strategy 3: Pure narrative fallback
+                        narrative = raw_text
+                        json_part = {}
+                else:
+                    # No JSON found, treat as pure narrative
+                    narrative = raw_text
+                    json_part = {}
         else:
-            # No JSON structure found, treat as pure narrative
+            # No JSON pattern found, treat as pure narrative
             narrative = raw_text
             json_part = {}
+        
+        # Ensure narrative is clean (no JSON contamination)
+        if narrative and '{' in narrative:
+            # Additional safety: strip everything after first JSON-like pattern
+            narrative = narrative.split('{')[0].strip()
+            attempt_log.append("NARRATIVE_CLEANED")
 
         # Build mapped legacy fields using derived structure
         if json_part:

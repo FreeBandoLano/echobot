@@ -666,6 +666,80 @@ async def manual_process(block_code: str = Form(...)):
         logger.error(f"Manual processing failed for {block_code}: {e}")
         return RedirectResponse(url=f"/?error=Failed to start processing: {str(e)}", status_code=303)
 
+@app.post("/api/reprocess-date")
+async def reprocess_date(date: str = Form(...)):
+    """Reprocess all blocks for a specific date with improved summarization."""
+    
+    try:
+        # Parse and validate date
+        from datetime import datetime, timedelta
+        try:
+            target_date = datetime.strptime(date, '%Y-%m-%d').date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+        
+        # Limit to recent dates (last 30 days) to control costs
+        today = datetime.now(Config.TIMEZONE).date()
+        if target_date > today:
+            raise HTTPException(status_code=400, detail="Cannot reprocess future dates")
+        if (today - target_date).days > 30:
+            raise HTTPException(status_code=400, detail="Can only reprocess dates within last 30 days")
+        
+        # Get blocks for the date
+        blocks = db.get_blocks_by_date(target_date)
+        if not blocks:
+            raise HTTPException(status_code=404, detail=f"No blocks found for {target_date}")
+        
+        reprocessed = []
+        errors = []
+        
+        # Reprocess each block
+        for block in blocks:
+            block_id = block['id']
+            try:
+                # Check if transcript exists
+                if not block['transcript_file_path'] or not Path(block['transcript_file_path']).exists():
+                    errors.append(f"Block {block['block_code']}: No transcript file")
+                    continue
+                
+                # Reset status to allow reprocessing
+                db.update_block_status(block_id, 'transcribed')
+                
+                # Re-run summarization with improved code
+                from summarization import summarizer
+                result = summarizer.summarize_block(block_id)
+                
+                if result:
+                    reprocessed.append(block['block_code'])
+                    logger.info(f"Reprocessed block {block['block_code']} for {target_date}")
+                else:
+                    errors.append(f"Block {block['block_code']}: Summarization failed")
+                    
+            except Exception as e:
+                errors.append(f"Block {block['block_code']}: {str(e)}")
+                logger.error(f"Error reprocessing block {block_id}: {e}")
+        
+        # Return results
+        result_msg = f"Reprocessed {len(reprocessed)} blocks for {target_date}"
+        if reprocessed:
+            result_msg += f" (Blocks: {', '.join(reprocessed)})"
+        if errors:
+            result_msg += f". Errors: {'; '.join(errors)}"
+        
+        return {
+            "success": True,
+            "date": str(target_date),
+            "reprocessed_blocks": reprocessed,
+            "errors": errors,
+            "message": result_msg
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Reprocessing failed for {date}: {e}")
+        raise HTTPException(status_code=500, detail=f"Reprocessing failed: {str(e)}")
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
