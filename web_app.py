@@ -740,6 +740,78 @@ async def reprocess_date(date: str = Form(...)):
         logger.error(f"Reprocessing failed for {date}: {e}")
         raise HTTPException(status_code=500, detail=f"Reprocessing failed: {str(e)}")
 
+@app.post("/api/cleanup-legacy-data")
+async def cleanup_legacy_data():
+    """Clean JSON contamination from old summary_text where raw_json is missing."""
+    
+    try:
+        # Find summaries with JSON contamination but no raw_json
+        if db.use_azure_sql:
+            query = """
+                SELECT id, summary_text 
+                FROM summaries 
+                WHERE (raw_json IS NULL OR raw_json = '') 
+                AND summary_text LIKE '%{%'
+            """
+        else:
+            query = """
+                SELECT id, summary_text 
+                FROM summaries 
+                WHERE (raw_json IS NULL OR raw_json = '') 
+                AND summary_text LIKE '%{%'
+            """
+        
+        contaminated = db.execute_sql(query, fetch=True)
+        
+        if not contaminated:
+            return {
+                "success": True,
+                "message": "No contaminated legacy data found",
+                "cleaned_count": 0
+            }
+        
+        cleaned_count = 0
+        errors = []
+        
+        for record in contaminated:
+            try:
+                record_id = record['id']
+                original_text = record['summary_text']
+                
+                # Clean the text by removing everything from first '{' onwards
+                clean_text = original_text.split('{')[0].strip()
+                
+                # Only update if cleaning actually changed something
+                if clean_text != original_text and len(clean_text) > 10:
+                    if db.use_azure_sql:
+                        update_query = "UPDATE summaries SET summary_text = ? WHERE id = ?"
+                    else:
+                        update_query = "UPDATE summaries SET summary_text = ? WHERE id = ?"
+                    
+                    db.execute_sql(update_query, (clean_text, record_id))
+                    cleaned_count += 1
+                    logger.info(f"Cleaned summary {record_id}: {len(original_text)} -> {len(clean_text)} chars")
+                    
+            except Exception as e:
+                errors.append(f"Record {record.get('id', 'unknown')}: {str(e)}")
+                logger.error(f"Error cleaning record {record.get('id')}: {e}")
+        
+        result_msg = f"Cleaned {cleaned_count} contaminated summaries"
+        if errors:
+            result_msg += f". Errors: {len(errors)}"
+        
+        return {
+            "success": True,
+            "cleaned_count": cleaned_count,
+            "total_contaminated": len(contaminated),
+            "errors": errors,
+            "message": result_msg
+        }
+        
+    except Exception as e:
+        logger.error(f"Legacy data cleanup failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""

@@ -27,5 +27,6 @@ pytz==2023.3
 
 # Database
 sqlalchemy==2.0.23
+pyodbc==5.0.1
 
 # Note: sqlite3, threading, logging, subprocess, pathlib, json are built into Python

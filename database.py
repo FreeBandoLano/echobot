@@ -1,27 +1,97 @@
 """Database models and operations for the radio synopsis application."""
 
 import sqlite3
+import os
 from datetime import datetime, date
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import json
+import logging
 from config import Config
 
+# Optional SQLAlchemy imports (fallback to SQLite if not available)
+try:
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.pool import QueuePool
+    SQLALCHEMY_AVAILABLE = True
+except ImportError:
+    SQLALCHEMY_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
+
 class Database:
-    """Simple SQLite database manager."""
+    """Database manager supporting both SQLite (local) and Azure SQL (production)."""
     
     def __init__(self, db_path: Path = Config.DB_PATH):
         self.db_path = db_path
+        self.use_azure_sql = False
+        self.engine = None
+        
+        # Check for Azure SQL connection string
+        azure_connection_string = os.getenv('AZURE_SQL_CONNECTION_STRING')
+        
+        if azure_connection_string and SQLALCHEMY_AVAILABLE:
+            try:
+                # Use Azure SQL Database
+                self.engine = create_engine(
+                    azure_connection_string,
+                    poolclass=QueuePool,
+                    pool_size=5,
+                    max_overflow=10,
+                    pool_timeout=30,
+                    pool_recycle=3600
+                )
+                # Test connection
+                with self.engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                self.use_azure_sql = True
+                logger.info("✅ Using Azure SQL Database for persistent storage")
+            except Exception as e:
+                logger.warning(f"Azure SQL connection failed, falling back to SQLite: {e}")
+                self.use_azure_sql = False
+        else:
+            if azure_connection_string and not SQLALCHEMY_AVAILABLE:
+                logger.warning("Azure SQL connection string found but SQLAlchemy not available. Install with: pip install sqlalchemy pyodbc")
+            logger.info("📁 Using local SQLite database")
+        
         self.init_database()
     
     def get_connection(self):
-        """Get database connection."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row  # Enable dict-like access
-        return conn
+        """Get database connection (Azure SQL or SQLite)."""
+        if self.use_azure_sql:
+            return self.engine.connect()
+        else:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row  # Enable dict-like access
+            return conn
+    
+    def execute_sql(self, query: str, params: tuple = (), fetch: bool = False):
+        """Execute SQL with appropriate method based on database type."""
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                if fetch:
+                    result = conn.execute(text(query), params)
+                    return [dict(row._mapping) for row in result.fetchall()]
+                else:
+                    conn.execute(text(query), params)
+                    conn.commit()
+        else:
+            with self.get_connection() as conn:
+                if fetch:
+                    return [dict(row) for row in conn.execute(query, params).fetchall()]
+                else:
+                    conn.execute(query, params)
+                    conn.commit()
     
     def init_database(self):
         """Initialize database tables."""
+        if self.use_azure_sql:
+            self._init_azure_sql_tables()
+        else:
+            self._init_sqlite_tables()
+    
+    def _init_sqlite_tables(self):
+        """Initialize SQLite tables."""
         with self.get_connection() as conn:
             # Add raw_json column to existing summaries table if it doesn't exist
             try:
@@ -138,6 +208,96 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_llm_daily_usage_date ON llm_daily_usage(date);
             """)
             # Lightweight migrations
+    
+    def _init_azure_sql_tables(self):
+        """Initialize Azure SQL tables with proper SQL Server syntax."""
+        with self.get_connection() as conn:
+            # Check if raw_json column exists in summaries table
+            check_column = """
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'summaries' AND COLUMN_NAME = 'raw_json'
+            """
+            result = conn.execute(text(check_column)).fetchall()
+            if not result:
+                try:
+                    conn.execute(text("ALTER TABLE summaries ADD raw_json NVARCHAR(MAX)"))
+                    conn.commit()
+                except Exception as e:
+                    logger.info(f"Raw_json column might already exist: {e}")
+            
+            # Create tables with SQL Server syntax
+            conn.execute(text("""
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[shows]') AND type in (N'U'))
+                CREATE TABLE shows (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    show_date DATE NOT NULL UNIQUE,
+                    created_at DATETIME2 DEFAULT GETDATE()
+                );
+
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[blocks]') AND type in (N'U'))
+                CREATE TABLE blocks (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    show_id INT REFERENCES shows(id) ON DELETE CASCADE,
+                    block_code NVARCHAR(10) NOT NULL,
+                    status NVARCHAR(20) DEFAULT 'pending',
+                    audio_file_path NVARCHAR(500),
+                    transcript_file_path NVARCHAR(500),
+                    created_at DATETIME2 DEFAULT GETDATE(),
+                    start_time DATETIME2,
+                    end_time DATETIME2
+                );
+
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[summaries]') AND type in (N'U'))
+                CREATE TABLE summaries (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    block_id INT REFERENCES blocks(id),
+                    summary_text NVARCHAR(MAX),
+                    key_points NVARCHAR(MAX),
+                    entities NVARCHAR(MAX),
+                    caller_count INT DEFAULT 0,
+                    quotes NVARCHAR(MAX),
+                    created_at DATETIME2 DEFAULT GETDATE(),
+                    raw_json NVARCHAR(MAX)
+                );
+
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[daily_digests]') AND type in (N'U'))
+                CREATE TABLE daily_digests (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    show_date DATE NOT NULL UNIQUE,
+                    digest_text NVARCHAR(MAX),
+                    total_blocks INT,
+                    total_callers INT,
+                    created_at DATETIME2 DEFAULT GETDATE()
+                );
+
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[topics]') AND type in (N'U'))
+                CREATE TABLE topics (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    word NVARCHAR(100) NOT NULL UNIQUE,
+                    created_at DATETIME2 DEFAULT GETDATE()
+                );
+
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[block_topics]') AND type in (N'U'))
+                CREATE TABLE block_topics (
+                    block_id INT NOT NULL REFERENCES blocks(id) ON DELETE CASCADE,
+                    topic_id INT NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+                    weight FLOAT DEFAULT 0.0,
+                    PRIMARY KEY (block_id, topic_id)
+                );
+
+                -- Create indexes if they don't exist
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_blocks_show_date' AND object_id = OBJECT_ID('blocks'))
+                CREATE INDEX idx_blocks_show_date ON blocks(show_id);
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_blocks_status' AND object_id = OBJECT_ID('blocks'))
+                CREATE INDEX idx_blocks_status ON blocks(status);
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_summaries_block' AND object_id = OBJECT_ID('summaries'))
+                CREATE INDEX idx_summaries_block ON summaries(block_id);
+            """))
+            conn.commit()
+            logger.info("✅ Azure SQL tables initialized successfully")
             try:
                 conn.execute("ALTER TABLE summaries ADD COLUMN raw_json TEXT")
             except Exception:
