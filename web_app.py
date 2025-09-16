@@ -289,6 +289,13 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
         recent_shows = db.get_blocks_by_date(check_date)
         if recent_shows:
             recent_dates.append(check_date)
+
+    # Simple prev/next date helpers
+    prev_date = view_date - timedelta(days=1)
+    next_date = view_date + timedelta(days=1)
+    today_local = get_local_date()
+    if next_date > today_local:
+        next_date = None
     
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
@@ -303,6 +310,8 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
             "completion_rate": round(completed_blocks / total_blocks * 100) if total_blocks > 0 else 0
         },
         "recent_dates": recent_dates,
+        "prev_date": prev_date,
+        "next_date": next_date,
         "is_today": view_date == get_local_date(),
         "message": message,
         "error": error,
@@ -418,10 +427,23 @@ async def block_detail(request: Request, block_id: int):
             filler_stats = None
     block_info['filler_stats'] = filler_stats
 
+    # Try to infer show_date for navigation aids
+    show_date = None
+    try:
+        with db.get_connection() as conn:
+            row = conn.execute("""
+                SELECT s.show_date FROM blocks b JOIN shows s ON s.id = b.show_id WHERE b.id = ?
+            """, (block_id,)).fetchone()
+            if row:
+                show_date = row[0] if isinstance(row, (list, tuple)) else row['show_date']
+    except Exception:
+        show_date = None
+
     return templates.TemplateResponse("block_detail.html", {
         "request": request,
         "block": block_info,
-        "segments": segs
+        "segments": segs,
+        "show_date": show_date
     })
 
 @app.get("/archive", response_class=HTMLResponse)
@@ -441,6 +463,12 @@ async def archive(request: Request):
         """).fetchall()
     
     archive_data = [dict(row) for row in rows]
+    
+    # Convert show_date strings to date objects for template
+    from datetime import datetime
+    for show in archive_data:
+        if isinstance(show['show_date'], str):
+            show['show_date'] = datetime.strptime(show['show_date'], '%Y-%m-%d').date()
     
     return templates.TemplateResponse("archive.html", {
         "request": request,

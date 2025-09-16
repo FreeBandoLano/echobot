@@ -36,6 +36,156 @@
     .filler-pill-ok { background: var(--color-panel-alt); }
     .filler-pill-warn { background: linear-gradient(90deg, rgba(255,165,0,0.15), rgba(255,165,0,0.25)); border-color: rgba(255,165,0,0.6); }
     .filler-pill-high { background: linear-gradient(90deg, rgba(220,53,69,0.15), rgba(220,53,69,0.3)); border-color: rgba(220,53,69,0.6); }
+
+        /* Mobile-specific styles for block detail page */
+        @media (max-width: 768px) {
+            .detail-meta {
+                flex-direction: column;
+                gap: 0.5rem;
+                font-size: 0.75rem;
+            }
+            
+            .pill {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.7rem;
+                display: inline-block;
+                margin-bottom: 0.25rem;
+            }
+            
+            .back-links {
+                flex-direction: column;
+                gap: 0.4rem;
+            }
+            
+            .back-links a {
+                padding: 0.6rem 1rem;
+                font-size: 0.7rem;
+                text-align: center;
+            }
+            
+            .emergent-grid {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+            }
+            
+            .emergent-card {
+                padding: 0.6rem 0.7rem 0.75rem;
+            }
+            
+            .theme-title {
+                font-size: 0.8rem;
+            }
+            
+            .theme-bullets li {
+                font-size: 0.7rem;
+            }
+            
+            .entities-grid {
+                grid-template-columns: 1fr !important;
+            }
+            
+            .entity-group {
+                margin-bottom: 1rem;
+            }
+            
+            .actions-list li {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.25rem;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr) !important;
+            }
+            
+            .metric-card {
+                padding: 0.5rem !important;
+            }
+            
+            .metric-card div:first-child {
+                font-size: 1rem !important;
+            }
+            
+            .metric-card div:last-child {
+                font-size: 0.6rem !important;
+            }
+            
+            .transcript-seg {
+                padding: 0.6rem;
+                font-size: 0.8rem;
+            }
+            
+            .transcript-seg small {
+                font-size: 0.65rem;
+            }
+            
+            /* Mobile action bar styles */
+            .mobile-action-bar {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: var(--color-panel);
+                border-top: 1px solid var(--color-border);
+                padding: 0.75rem;
+                display: flex;
+                justify-content: space-around;
+                align-items: center;
+                z-index: 1000;
+                box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            }
+            
+            .mobile-action-bar button {
+                background: none;
+                border: none;
+                padding: 0.5rem;
+                border-radius: 8px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 0.25rem;
+                font-size: 0.75rem;
+                color: var(--text-secondary);
+                transition: all 0.2s ease;
+                min-width: 60px;
+                cursor: pointer;
+            }
+            
+            .mobile-action-bar button:hover {
+                background: var(--color-panel-alt);
+                color: var(--color-accent);
+            }
+            
+            .mobile-action-bar button.active {
+                color: var(--color-accent);
+                background: rgba(52, 152, 219, 0.1);
+            }
+            
+            .mobile-action-bar button i {
+                font-size: 1.2rem;
+            }
+            
+            .mobile-action-bar button span {
+                font-size: 0.7rem;
+                font-weight: 500;
+            }
+            
+            /* Adjust main content for mobile action bar */
+            main {
+                padding-bottom: 5rem;
+            }
+        }
+        
+        /* Hide mobile action bar on desktop */
+        @media (min-width: 769px) {
+            .mobile-action-bar {
+                display: none;
+            }
+            
+            main {
+                padding-bottom: 2rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -51,8 +201,9 @@
         <section class="panel" data-active="true">
             <div class="back-links">
                 <a href="/">DASHBOARD</a>
+                {% if show_date %}<a href="/?date_param={{ show_date }}">VIEW DAY</a>{% endif %}
                 <a href="/archive">ARCHIVE</a>
-                <a href="/timeline?days=1#block-{{ block.id }}">TIMELINE</a>
+                {% if show_date %}<a href="/timeline?date={{ show_date }}#block-{{ block.id }}">TIMELINE</a>{% else %}<a href="/timeline?days=1#block-{{ block.id }}">TIMELINE</a>{% endif %}
             </div>
             <h2><i class="bi bi-list-ul"></i> Block {{ block.block_code }} – {{ block.block_name }}</h2>
             <div class="detail-meta">
@@ -380,5 +531,14 @@
       .segments-table tbody tr td.col-filler:before{ content:'Filler '; font-weight:600; }
     }
     </style>
+
+        <!-- Mobile Action Bar -->
+        <nav class="mobile-action-bar" aria-label="Quick actions">
+            <button onclick="location.href='/'"><i class="bi bi-house"></i><span>Home</span></button>
+            <button onclick="location.href='/archive'"><i class="bi bi-archive"></i><span>Archive</span></button>
+            <button onclick="location.href='/analytics'"><i class="bi bi-graph-up"></i><span>Analytics</span></button>
+            <button onclick="location.href='/timeline'"><i class="bi bi-activity"></i><span>Timeline</span></button>
+            <button onclick="window.history.back()"><i class="bi bi-arrow-left"></i><span>Back</span></button>
+        </nav>
 </body>
 </html>

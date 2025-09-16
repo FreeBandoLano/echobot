@@ -16,6 +16,12 @@
 <body data-is-today="{{ 1 if is_today else 0 }}" data-view-date="{{ view_date.strftime('%Y-%m-%d') }}">
     <header class="app-header">
         <a href="/" class="app-logo"><i class="bi bi-broadcast"></i> <span>Radio Synopsis</span></a>
+        <nav class="app-nav">
+            <a href="/" class="app-nav__link app-nav__link--active">Today</a>
+            <a href="/archive" class="app-nav__link">Archive</a>
+            <a href="/analytics" class="app-nav__link">Analytics</a>
+            <a href="/timeline" class="app-nav__link">Timeline</a>
+        </nav>
         <div class="app-date">
             <i class="bi bi-calendar3"></i> {{ view_date.strftime('%B %d, %Y') }}
             {% if is_today %}<span class="app-live">● LIVE</span>{% endif %}
@@ -48,6 +54,20 @@
 
         <!-- Panels -->
         <section class="panel" id="panel-overview" aria-labelledby="heading-overview" data-active="false">
+            <div class="d-flex" style="justify-content:space-between; align-items:center; gap:.5rem; margin:.25rem 0 0.75rem; flex-wrap:wrap;">
+                <div class="btn-group" role="group" aria-label="Date navigation" style="flex:0 0 auto;">
+                    <a class="block-action" href="/?date_param={{ prev_date }}" {% if not prev_date %}aria-disabled="true" style="opacity:.5; pointer-events:none;"{% endif %}><i class="bi bi-chevron-left"></i> Prev</a>
+                    <a class="block-action" href="/">Today</a>
+                    <a class="block-action" href="/?date_param={{ next_date }}" {% if not next_date %}aria-disabled="true" style="opacity:.5; pointer-events:none;"{% endif %}>Next <i class="bi bi-chevron-right"></i></a>
+                </div>
+                <div class="d-flex align-items-center" style="gap:.5rem; flex:1 1 auto; justify-content:flex-end;">
+                    <label for="jumpDate" class="small text-muted" style="font-size:.6rem; letter-spacing:.08em;">Jump to</label>
+                    <input id="jumpDate" type="date" class="form-control" style="max-width: 170px; height:28px; padding:.1rem .35rem; font-size:.7rem;" value="{{ view_date.strftime('%Y-%m-%d') }}" />
+                </div>
+                <div class="small text-muted" style="font-size:.6rem; letter-spacing:.08em; flex:1 1 100%; text-align:right;">
+                    Shortcuts: ←/→ change day · T go today · R refresh
+                </div>
+            </div>
             <h2 id="heading-overview"><i class="bi bi-graph-up"></i> Today's Overview</h2>
             <div class="status-grid">
                 <div class="status-card">
@@ -236,6 +256,7 @@
             <button data-nav="blocks"><i class="bi bi-list-ul"></i><span>Blocks</span></button>
             {% if digest %}<button data-nav="digest"><i class="bi bi-file-text"></i><span>Digest</span></button>{% endif %}
             <button data-nav="archive"><i class="bi bi-archive"></i><span>Archive</span></button>
+            <button onclick="location.href='/timeline'"><i class="bi bi-activity"></i><span>Timeline</span></button>
             <button data-refresh><i class="bi bi-arrow-repeat"></i><span>Refresh</span></button>
         </nav>
 
@@ -367,7 +388,7 @@
             setInterval(() => { if (!hubOpen) window.location.reload(); }, 120000);
         }
 
-        window.addEventListener('resize', positionOrbitButtons);
+    window.addEventListener('resize', positionOrbitButtons);
         window.addEventListener('load', () => {
             buildLinkLines();
             positionOrbitButtons();
@@ -376,6 +397,17 @@
                 btn.addEventListener('click', e => {
                     const id = parseInt(btn.getAttribute('data-block-id'));
                     if (!isNaN(id)) showBlockDetail(id);
+                });
+            });
+            // Make entire block card clickable (excluding explicit buttons/toggles)
+            document.querySelectorAll('.block-summary').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('.block-toggle') || e.target.closest('button') || e.target.tagName.toLowerCase() === 'a') return;
+                    const btn = card.querySelector('.block-action[data-block-id]');
+                    if (btn) {
+                        const id = parseInt(btn.getAttribute('data-block-id'));
+                        if (!isNaN(id)) showBlockDetail(id);
+                    }
                 });
             });
             // Mobile action bar wiring
@@ -421,6 +453,36 @@
             mq.addEventListener('change', applyBlockCollapse);
             applyBlockCollapse();
         });
+
+        // Keyboard shortcuts: left/right for prev/next day, T for today, R refresh, 1-4 panels
+        document.addEventListener('keydown', (e) => {
+            const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+            if (tag === 'input' || tag === 'textarea') return;
+            if (e.key === 'ArrowLeft' && '{{ prev_date }}' !== 'None') {
+                window.location.href='/?date_param={{ prev_date }}';
+            } else if (e.key === 'ArrowRight' && '{{ next_date }}' !== 'None') {
+                window.location.href='/?date_param={{ next_date }}';
+            } else if (e.key.toLowerCase() === 't') {
+                window.location.href='/';
+            } else if (e.key.toLowerCase() === 'r') {
+                window.location.reload();
+            } else if (e.key === '1') {
+                showPanel('overview');
+            } else if (e.key === '2') {
+                showPanel('blocks');
+            } else if (e.key === '3' && document.getElementById('panel-digest')) {
+                showPanel('digest');
+            } else if (e.key === '4') {
+                showPanel('archive');
+            }
+        });
+        // Date jump wiring
+        const jump = document.getElementById('jumpDate');
+        if (jump) {
+            jump.addEventListener('change', () => {
+                if (jump.value) window.location.href='/?date_param=' + encodeURIComponent(jump.value);
+            });
+        }
     </script>
     <style>
     /* Collapsible block summaries */

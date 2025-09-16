@@ -18,6 +18,141 @@
     .roadmap li { font-size:.75rem; color:var(--text-secondary); margin:.4rem 0; line-height:1.35; }
   .spark-tip { position:absolute; z-index:5; background:var(--color-panel); border:1px solid var(--color-border); padding:.3rem .45rem .35rem; font-size:.55rem; letter-spacing:.06em; color:var(--text-secondary); border-radius:4px; box-shadow:0 2px 4px rgba(0,0,0,0.25); pointer-events:none; display:none; white-space:nowrap; }
   .spark-point { cursor:pointer; }
+
+    /* Mobile-specific styles for analytics page */
+    @media (max-width: 768px) {
+        .analytics-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin: 0 0 1.5rem;
+        }
+        
+        .analytic-card {
+            padding: 1rem 0.75rem 1rem;
+            border-radius: 12px;
+        }
+        
+        .analytic-card h3 {
+            font-size: 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .analytic-value {
+            font-size: 1.8rem;
+        }
+        
+        .placeholder-chart {
+            height: 120px;
+            font-size: 0.7rem;
+        }
+        
+        .roadmap {
+            padding: 0.75rem 1rem 1rem;
+            border-radius: 12px;
+        }
+        
+        .roadmap h3 {
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .roadmap li {
+            font-size: 0.8rem;
+            margin: 0.3rem 0;
+        }
+        
+        /* Table responsiveness */
+        .analytic-card table {
+            font-size: 0.7rem;
+        }
+        
+        .analytic-card th,
+        .analytic-card td {
+            padding: 0.3rem 0.4rem;
+        }
+        
+        /* Topic bars responsive */
+        .topic-bar {
+            padding: 0.5rem 0.6rem 0.55rem;
+        }
+        
+        .topic-bar__track {
+            margin: 0.35rem 0 0.25rem;
+        }
+        
+        /* Timeline responsive */
+        .timeline-bar__label {
+            font-size: 0.5rem;
+            top: -0.9rem;
+        }
+        
+        /* Mobile action bar styles */
+        .mobile-action-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--color-panel);
+            border-top: 1px solid var(--color-border);
+            padding: 0.75rem;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 1000;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .mobile-action-bar button {
+            background: none;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+            min-width: 60px;
+            cursor: pointer;
+        }
+        
+        .mobile-action-bar button:hover {
+            background: var(--color-panel-alt);
+            color: var(--color-accent);
+        }
+        
+        .mobile-action-bar button.active {
+            color: var(--color-accent);
+            background: rgba(52, 152, 219, 0.1);
+        }
+        
+        .mobile-action-bar button i {
+            font-size: 1.2rem;
+        }
+        
+        .mobile-action-bar button span {
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        
+        /* Adjust main content for mobile action bar */
+        main {
+            padding-bottom: 5rem;
+        }
+    }
+    
+    /* Hide mobile action bar on desktop */
+    @media (min-width: 769px) {
+        .mobile-action-bar {
+            display: none;
+        }
+        
+        main {
+            padding-bottom: 2rem;
+        }
+    }
   </style>
 </head>
 <body>
@@ -310,7 +445,176 @@
       }
     });
     // Embed filler trend data for sparkline
+  <script>
+    // Progressive enhancement: apply dynamic sizes after load
+    window.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.topic-bar').forEach(el => {
+        const pct = parseFloat(el.dataset.weight || '0');
+        const fill = el.querySelector('.topic-bar__fill');
+        if (fill) fill.style.width = pct + '%';
+      });
+      document.querySelectorAll('.timeline-bar').forEach(el => {
+        const h = parseFloat(el.dataset.height || '0');
+        const col = el.querySelector('.timeline-bar__col');
+        if (col) col.style.height = Math.max(6, h) + '%';
+      });
+      const fb = document.querySelector('.filler-bar');
+      if (fb) {
+        const fillerPct = parseFloat(fb.dataset.filler || '0');
+        const fillerDiv = fb.querySelector('.filler-bar__filler');
+        const contentDiv = fb.querySelector('.filler-bar__content');
+        if (fillerDiv && contentDiv) {
+          fillerDiv.style.width = fillerPct + '%';
+          contentDiv.style.width = (100 - fillerPct) + '%';
+        }
+      }
+      // Sparkline for filler trend
+      const sparkSvg = document.getElementById('fillerSparkSvg');
+      if (sparkSvg && window.fillerTrendData) {
+        const data = window.fillerTrendData;
+        if (data.length > 1) {
+          const maxY = Math.max(...data.map(d => d.filler_pct), 60);
+            const minY = 0;
+            const w = 200, h = 60;
+            const step = w / (data.length - 1);
+            let path = '';
+            data.forEach((d, i) => {
+              const x = i * step;
+              const y = h - ((d.filler_pct - minY) / (maxY - minY || 1) * (h - 4)) - 2;
+              path += (i === 0 ? 'M' : 'L') + x + ' ' + y + ' ';
+            });
+            const line = document.createElementNS('http://www.w3.org/2000/svg','path');
+            line.setAttribute('d', path.trim());
+            line.setAttribute('fill', 'none');
+            line.setAttribute('stroke', 'url(#gradFiller)');
+            line.setAttribute('stroke-width', '2');
+            const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+            const grad = document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
+            grad.setAttribute('id','gradFiller');
+            grad.setAttribute('x1','0'); grad.setAttribute('x2','1'); grad.setAttribute('y1','0'); grad.setAttribute('y2','0');
+            const stop1 = document.createElementNS('http://www.w3.org/2000/svg','stop'); stop1.setAttribute('offset','0%'); stop1.setAttribute('stop-color','var(--color-accent)');
+            const stop2 = document.createElementNS('http://www.w3.org/2000/svg','stop'); stop2.setAttribute('offset','100%'); stop2.setAttribute('stop-color','#d35400');
+            grad.appendChild(stop1); grad.appendChild(stop2); defs.appendChild(grad);
+            sparkSvg.appendChild(defs);
+            sparkSvg.appendChild(line);
+            // Threshold bands
+            const warnY = h - ((35 - minY)/(maxY - minY || 1) * (h - 4)) - 2;
+            const highY = h - ((50 - minY)/(maxY - minY || 1) * (h - 4)) - 2;
+            const warn = document.createElementNS('http://www.w3.org/2000/svg','line');
+            warn.setAttribute('x1','0'); warn.setAttribute('x2', String(w)); warn.setAttribute('y1', String(warnY)); warn.setAttribute('y2', String(warnY));
+            warn.setAttribute('stroke','rgba(255,165,0,.4)'); warn.setAttribute('stroke-dasharray','3,3'); warn.setAttribute('stroke-width','1');
+            const high = document.createElementNS('http://www.w3.org/2000/svg','line');
+            high.setAttribute('x1','0'); high.setAttribute('x2', String(w)); high.setAttribute('y1', String(highY)); high.setAttribute('y2', String(highY));
+            high.setAttribute('stroke','rgba(220,53,69,.4)'); high.setAttribute('stroke-dasharray','3,3'); high.setAttribute('stroke-width','1');
+            sparkSvg.appendChild(warn); sparkSvg.appendChild(high);
+
+            // Tooltip
+            const tip = document.createElement('div');
+            tip.className = 'spark-tip';
+            sparkSvg.parentElement.appendChild(tip);
+            function showTip(evt, d) {
+              tip.textContent = d.date + ' • ' + d.filler_pct + '%';
+              tip.style.display = 'block';
+              const rect = sparkSvg.getBoundingClientRect();
+              tip.style.left = (evt.clientX - rect.left + 8) + 'px';
+              tip.style.top = (evt.clientY - rect.top - 28) + 'px';
+            }
+            function moveTip(evt) {
+              if (tip.style.display === 'block') {
+                const rect = sparkSvg.getBoundingClientRect();
+                tip.style.left = (evt.clientX - rect.left + 8) + 'px';
+                tip.style.top = (evt.clientY - rect.top - 28) + 'px';
+              }
+            }
+            function hideTip() { tip.style.display = 'none'; }
+            sparkSvg.addEventListener('mousemove', moveTip);
+
+            // Points
+            data.forEach((d, i) => {
+              const x = i * step;
+              const y = h - ((d.filler_pct - minY) / (maxY - minY || 1) * (h - 4)) - 2;
+              path += (i === 0 ? 'M' : 'L') + x + ' ' + y + ' ';
+            });
+            const line = document.createElementNS('http://www.w3.org/2000/svg','path');
+            line.setAttribute('d', path.trim());
+            line.setAttribute('fill', 'none');
+            line.setAttribute('stroke', 'url(#gradFiller)');
+            line.setAttribute('stroke-width', '2');
+            const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+            const grad = document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
+            grad.setAttribute('id','gradFiller');
+            grad.setAttribute('x1','0'); grad.setAttribute('x2','1'); grad.setAttribute('y1','0'); grad.setAttribute('y2','0');
+            const stop1 = document.createElementNS('http://www.w3.org/2000/svg','stop'); stop1.setAttribute('offset','0%'); stop1.setAttribute('stop-color','var(--color-accent)');
+            const stop2 = document.createElementNS('http://www.w3.org/2000/svg','stop'); stop2.setAttribute('offset','100%'); stop2.setAttribute('stop-color','#d35400');
+            grad.appendChild(stop1); grad.appendChild(stop2); defs.appendChild(grad);
+            sparkSvg.appendChild(defs);
+            sparkSvg.appendChild(line);
+            // Threshold bands
+            const warnY = h - ((35 - minY)/(maxY - minY || 1) * (h - 4)) - 2;
+            const highY = h - ((50 - minY)/(maxY - minY || 1) * (h - 4)) - 2;
+            const warn = document.createElementNS('http://www.w3.org/2000/svg','line');
+            warn.setAttribute('x1','0'); warn.setAttribute('x2', String(w)); warn.setAttribute('y1', String(warnY)); warn.setAttribute('y2', String(warnY));
+            warn.setAttribute('stroke','rgba(255,165,0,.4)'); warn.setAttribute('stroke-dasharray','3,3'); warn.setAttribute('stroke-width','1');
+            const high = document.createElementNS('http://www.w3.org/2000/svg','line');
+            high.setAttribute('x1','0'); high.setAttribute('x2', String(w)); high.setAttribute('y1', String(highY)); high.setAttribute('y2', String(highY));
+            high.setAttribute('stroke','rgba(220,53,69,.4)'); high.setAttribute('stroke-dasharray','3,3'); high.setAttribute('stroke-width','1');
+            sparkSvg.appendChild(warn); sparkSvg.appendChild(high);
+
+            // Tooltip
+            const tip = document.createElement('div');
+            tip.className = 'spark-tip';
+            sparkSvg.parentElement.appendChild(tip);
+            function showTip(evt, d) {
+              tip.textContent = d.date + ' • ' + d.filler_pct + '%';
+              tip.style.display = 'block';
+              const rect = sparkSvg.getBoundingClientRect();
+              tip.style.left = (evt.clientX - rect.left + 8) + 'px';
+              tip.style.top = (evt.clientY - rect.top - 28) + 'px';
+            }
+            function moveTip(evt) {
+              if (tip.style.display === 'block') {
+                const rect = sparkSvg.getBoundingClientRect();
+                tip.style.left = (evt.clientX - rect.left + 8) + 'px';
+                tip.style.top = (evt.clientY - rect.top - 28) + 'px';
+              }
+            }
+            function hideTip() { tip.style.display = 'none'; }
+            sparkSvg.addEventListener('mousemove', moveTip);
+
+            // Points
+            data.forEach((d, i) => {
+              const x = i * step;
+              const y = h - ((d.filler_pct - minY) / (maxY - minY || 1) * (h - 4)) - 2;
+              const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+              c.setAttribute('cx', String(x));
+              c.setAttribute('cy', String(y));
+              c.setAttribute('r','3');
+              c.setAttribute('class','spark-point');
+              let col = 'var(--color-accent)';
+              if (d.filler_pct > 50) col = '#dc3545'; else if (d.filler_pct > 35) col = '#ffa500';
+              c.setAttribute('fill', col);
+              c.setAttribute('stroke','#fff');
+              c.setAttribute('stroke-width','1');
+              c.addEventListener('mouseenter', (e) => { showTip(e, d); });
+              c.addEventListener('focus', (e) => { showTip(e, d); });
+              c.addEventListener('mouseleave', hideTip);
+              c.addEventListener('blur', hideTip);
+              sparkSvg.appendChild(c);
+            });
+        }
+      }
+    });
+    // Embed filler trend data for sparkline
   window.fillerTrendData = JSON.parse('{% filter tojson %}{{ filler_trend }}{% endfilter %}'.replace(/&quot;/g,'"'));
   </script>
+
+        <!-- Mobile Action Bar -->
+        <nav class="mobile-action-bar" aria-label="Quick actions">
+            <button onclick="location.href='/'"><i class="bi bi-house"></i><span>Home</span></button>
+            <button onclick="location.href='/archive'"><i class="bi bi-archive"></i><span>Archive</span></button>
+            <button onclick="location.href='/analytics'" class="active"><i class="bi bi-graph-up"></i><span>Analytics</span></button>
+            <button onclick="location.href='/timeline'"><i class="bi bi-activity"></i><span>Timeline</span></button>
+            <button onclick="window.history.back()"><i class="bi bi-arrow-left"></i><span>Back</span></button>
+        </nav>
 </body>
 </html>
