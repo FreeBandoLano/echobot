@@ -43,7 +43,7 @@ class RadioScheduler:
     def setup_daily_schedule(self):
         """Set up the daily recording schedule."""
         
-        logger.info("Setting up daily radio recording schedule...")
+        logger.info("📋 Setting up daily radio recording schedule...")
         
         # Clear any existing schedule
         schedule.clear()
@@ -70,7 +70,7 @@ class RadioScheduler:
                 self._process_block, block_code
             ).tag(f'process_{block_code}')
             
-            logger.info(f"Block {block_code}: Record at {start_time} Barbados ({utc_start_time} UTC), Process at {process_time} Barbados ({utc_process_time} UTC)")
+            logger.info(f"   ✅ Block {block_code}: Record at {start_time} Barbados ({utc_start_time} UTC), Process at {process_time} Barbados ({utc_process_time} UTC)")
         
         # Schedule daily digest creation (15 minutes after show ends) - convert to UTC
         utc_digest_time = self._convert_barbados_to_utc_time("14:15")
@@ -84,7 +84,8 @@ class RadioScheduler:
             self._cleanup_old_files
         ).tag('cleanup')
         
-        logger.info("Daily schedule configured successfully")
+        logger.info("✅ Daily schedule configured successfully")
+        logger.info(f"📊 Total scheduled jobs: {len(schedule.get_jobs())}")
     
     def _convert_barbados_to_utc_time(self, barbados_time_str: str) -> str:
         """Convert a Barbados time (HH:MM) to UTC time (HH:MM) for scheduling."""
@@ -112,15 +113,17 @@ class RadioScheduler:
             return
         
         self.running = True
-        logger.info("Starting radio scheduler...")
+        logger.info("=" * 50)
+        logger.info("📅 RADIO SCHEDULER STARTING...")
+        logger.info("=" * 50)
         
         # Start task manager for automated processing
         try:
             from task_manager import task_manager
             task_manager.start()
-            logger.info("Task manager started for automated processing")
+            logger.info("✅ Task manager started for automated processing")
         except Exception as e:
-            logger.warning(f"Failed to start task manager: {e}")
+            logger.warning(f"⚠️ Failed to start task manager: {e}")
         
         self.setup_daily_schedule()
         
@@ -128,7 +131,10 @@ class RadioScheduler:
         self.scheduler_thread = threading.Thread(target=self._run_scheduler, daemon=True)
         self.scheduler_thread.start()
         
-        logger.info("Radio scheduler started successfully")
+        logger.info("✅ Radio scheduler started successfully")
+        logger.info(f"🔄 Scheduler thread running: {self.scheduler_thread.is_alive()}")
+        logger.info(f"📊 Scheduler status: {self.running}")
+        logger.info("=" * 50)
         
         # Print next scheduled jobs
         self._print_next_jobs()

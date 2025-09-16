@@ -101,26 +101,63 @@ setup_directories()
 async def lifespan(app: FastAPI):
     """Manage scheduler lifecycle with the web application."""
     # Startup
-    logger.info("Starting scheduler with web application...")
+    logger.info("=" * 60)
+    logger.info("🚀 FASTAPI LIFESPAN STARTUP EVENT TRIGGERED")
+    logger.info("=" * 60)
+    
     if scheduler is not None:
         try:
+            logger.info("📅 Starting automated recording scheduler...")
             scheduler.start()
-            logger.info(f"Scheduler started successfully. Running: {scheduler.running}")
+            logger.info(f"✅ Scheduler started successfully! Running: {scheduler.running}")
+            
+            # Log the schedule details for verification
+            from config import Config
+            logger.info("📋 Recording schedule (Barbados time UTC-4):")
+            for block_code, block_config in Config.BLOCKS.items():
+                start_time = block_config['start_time']
+                end_time = block_config['end_time']
+                name = block_config['name']
+                logger.info(f"   Block {block_code}: {start_time}-{end_time} ({name})")
+            
+            # Show next scheduled jobs if available
+            try:
+                import schedule
+                jobs = schedule.get_jobs()
+                if jobs:
+                    logger.info(f"📝 Next {len(jobs)} scheduled jobs:")
+                    for job in sorted(jobs, key=lambda x: x.next_run)[:5]:
+                        next_run = job.next_run.strftime('%Y-%m-%d %H:%M:%S UTC')
+                        logger.info(f"   {job.tags} at {next_run}")
+                else:
+                    logger.warning("⚠️ No scheduled jobs found")
+            except Exception as e:
+                logger.warning(f"Could not display scheduled jobs: {e}")
+                
         except Exception as e:
-            logger.error(f"Failed to start scheduler: {e}")
+            logger.error(f"❌ Failed to start scheduler: {e}")
+            logger.exception("Scheduler startup error details:")
     else:
-        logger.warning("Scheduler not available - continuing without automated recording")
+        logger.warning("⚠️ Scheduler not available - continuing without automated recording")
+    
+    logger.info("🌐 Web application startup complete")
+    logger.info("=" * 60)
     
     yield  # App runs here
     
     # Shutdown  
-    logger.info("Shutting down scheduler...")
+    logger.info("=" * 60)
+    logger.info("🛑 FASTAPI LIFESPAN SHUTDOWN EVENT TRIGGERED")
+    logger.info("=" * 60)
     if scheduler is not None:
         try:
+            logger.info("📅 Stopping scheduler...")
             scheduler.stop()
-            logger.info("Scheduler stopped successfully")
+            logger.info("✅ Scheduler stopped successfully")
         except Exception as e:
-            logger.error(f"Error stopping scheduler: {e}")
+            logger.error(f"❌ Error stopping scheduler: {e}")
+    logger.info("🌐 Web application shutdown complete")
+    logger.info("=" * 60)
 
 # Create the single FastAPI app instance here with lifespan
 app = FastAPI(title="Radio Synopsis Dashboard", version="1.1.0", lifespan=lifespan)
