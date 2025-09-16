@@ -292,8 +292,9 @@ class TaskManager:
             self.add_task(TaskType.SUMMARIZE_BLOCK, block_id=completed_task.block_id)
             
         elif completed_task.task_type == TaskType.SUMMARIZE_BLOCK:
-            # After summarization, schedule email
-            self.add_task(TaskType.EMAIL_BLOCK_SUMMARY, block_id=completed_task.block_id)
+            # After summarization, NO LONGER schedule individual block emails
+            # Only schedule daily digest when all blocks are complete
+            logger.info(f"Block {completed_task.block_id} summarized - skipping individual email")
             
             # Check if this was the last block of the day - schedule daily digest
             if completed_task.show_date:

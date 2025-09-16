@@ -362,7 +362,7 @@ https://echobot-docker-app.azurewebsites.net/
         return html
     
     def send_daily_digest(self, show_date: date) -> bool:
-        """Send daily digest email to stakeholders."""
+        """Send daily digest email to stakeholders with 2000 char optimization."""
         try:
             # Get daily digest
             digest = db.get_daily_digest(show_date)
@@ -377,15 +377,24 @@ https://echobot-docker-app.azurewebsites.net/
             # Format date
             formatted_date = show_date.strftime('%B %d, %Y')
             
-            # Create subject
-            subject = f"[Brass Tacks] Daily Digest – {formatted_date}"
+            # Create subject (concise for email)
+            subject = f"[Brass Tacks] Daily Brief – {formatted_date}"
             
-            # Create email body
+            # Create email body with length validation
             body_text = self._create_daily_digest_text(digest, show_date, completed_blocks)
             body_html = self._create_daily_digest_html(digest, show_date, completed_blocks)
             
+            # Log digest length for monitoring
+            digest_length = len(digest.get('digest_text', ''))
+            email_length = len(body_text)
+            logger.info(f"📊 Daily digest: {digest_length} chars core content, {email_length} chars total email")
+            
             # Send email
-            return self._send_email(subject, body_text, body_html)
+            success = self._send_email(subject, body_text, body_html)
+            if success:
+                logger.info(f"📧 Daily digest email delivered to {len(self.email_to)} recipients")
+            
+            return success
             
         except Exception as e:
             logger.error(f"Error sending daily digest email: {e}")
@@ -393,30 +402,32 @@ https://echobot-docker-app.azurewebsites.net/
     
     def _create_daily_digest_text(self, digest: Dict, show_date: date, 
                                  completed_blocks: List[Dict]) -> str:
-        """Create plain text daily digest email."""
+        """Create plain text daily digest email with 2000 char limit."""
         
         formatted_date = show_date.strftime('%B %d, %Y')
         
-        text = f"""DOWN TO BRASS TACKS - DAILY DIGEST
-{'=' * 50}
+        # Extract the core digest content (should already be ~2000 chars from GPT)
+        digest_content = digest.get('digest_text', 'No digest available')
+        
+        # Create minimal header/footer to preserve space for content
+        text = f"""DOWN TO BRASS TACKS - DAILY BRIEF
+{formatted_date} | {len(completed_blocks)}/4 blocks | {digest.get('total_callers', 0)} callers
 
-Date: {formatted_date}
-Blocks Processed: {len(completed_blocks)}/4
-Total Callers: {digest.get('total_callers', 0)}
+{digest_content}
 
-DAILY SUMMARY
-{'-' * 15}
-{digest.get('digest_text', 'No digest available')}
-
-{'=' * 50}
-Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S AST')}
-System: Radio Synopsis Automated Briefing
-Contact: Technical Support for questions
-
-📊 For deeper analytics and detailed insights:
-View full archive, caller segments & dashboard at:
-https://echobot-docker-app.azurewebsites.net/
+---
+Generated: {datetime.now().strftime('%H:%M AST')} | View details: https://echobot-docker-app.azurewebsites.net/
 """
+        
+        # Ensure we don't exceed reasonable email length
+        if len(text) > 2500:  # Allow some buffer for headers
+            logger.warning(f"Daily digest email too long ({len(text)} chars), truncating...")
+            # Truncate at last complete sentence before limit
+            truncate_pos = text.rfind('.', 0, 2400)
+            if truncate_pos > 1000:  # Make sure we don't truncate too much
+                text = text[:truncate_pos + 1] + "\n\n[Content truncated - view full digest online]"
+        
+        return text
         
         return text
     

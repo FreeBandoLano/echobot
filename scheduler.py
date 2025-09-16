@@ -276,21 +276,35 @@ class RadioScheduler:
             logger.error(f"Processing thread error for Block {block_code}: {e}")
     
     def _create_daily_digest(self):
-        """Create daily digest after all blocks are processed."""
+        """Create and email daily digest after all blocks are processed."""
         
         today = get_local_date()
-        logger.info(f"Creating daily digest for {today}")
+        logger.info(f"📧 Creating and emailing daily digest for {today}")
         
         try:
+            # Create digest
             digest = summarizer.create_daily_digest(today)
             
             if digest:
-                logger.info("Daily digest created successfully")
+                logger.info("✅ Daily digest created successfully")
+                
+                # Send email digest (EOD delivery)
+                try:
+                    from email_service import email_service
+                    email_sent = email_service.send_daily_digest(today)
+                    if email_sent:
+                        logger.info("📧 Daily digest email sent successfully")
+                    else:
+                        logger.warning("⚠️ Daily digest email failed to send")
+                except Exception as email_err:
+                    logger.error(f"❌ Email service error: {email_err}")
+                    
             else:
-                logger.warning("Daily digest creation failed")
+                logger.warning("⚠️ Daily digest creation failed")
                 
         except Exception as e:
-            logger.error(f"Error creating daily digest: {e}")
+            logger.error(f"❌ Error creating daily digest: {e}")
+            logger.exception("Daily digest error details:")
     
     def _cleanup_old_files(self):
         """Clean up old audio and transcript files."""

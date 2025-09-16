@@ -518,7 +518,7 @@ Rules:
     
     def _generate_daily_digest(self, show_date: datetime.date, block_summaries: List[Dict], 
                               total_callers: int, entities: List[str]) -> Optional[str]:
-        """Generate daily digest using GPT."""
+        """Generate daily digest using GPT with 2000 character limit for email."""
         
         # Prepare content
         blocks_content = ""
@@ -526,19 +526,43 @@ Rules:
             blocks_content += f"\n\n=== {block_summary['block_code']} - {block_summary['block_name']} ===\n"
             blocks_content += f"Callers: {block_summary['caller_count']}\n"
             blocks_content += block_summary['summary']
-        
+
         prompt = f"""
-Create a daily digest for government civil servants based on today's "Down to Brass Tacks" radio program.
+Create a concise daily executive briefing for government civil servants from today's "Down to Brass Tacks" radio program.
+
+STRICT REQUIREMENTS:
+- Maximum 2000 characters total (for email delivery)
+- Focus on actionable intelligence and policy implications
+- Use clear, professional tone suitable for senior officials
 
 Date: {show_date}
 Total Blocks: {len(block_summaries)}
 Total Callers: {total_callers}
-Key Entities: {', '.join(entities[:15])}
+Key Entities: {', '.join(entities[:10])}
 
 Block Summaries:
 {blocks_content}
 
-Provide: Executive Summary, Key Themes, Public Sentiment, Policy Implications, Notable Quotes, Recommended Follow-Up Actions.
+FORMAT (stay within 2000 chars):
+📊 EXECUTIVE SUMMARY (300 chars max)
+[Brief overview of main topics and public concerns]
+
+🗣️ KEY THEMES (400 chars max)
+[Top 3-4 issues discussed with caller sentiment]
+
+📈 PUBLIC SENTIMENT (300 chars max)
+[Overall public mood and concerns]
+
+⚠️ POLICY IMPLICATIONS (400 chars max)
+[What government should consider/address]
+
+💬 NOTABLE QUOTES (300 chars max)
+[1-2 impactful caller statements]
+
+🎯 RECOMMENDED ACTIONS (300 chars max)
+[Specific next steps for departments]
+
+Keep each section concise. Use bullet points where helpful. Prioritize government-relevant content.
 """
         
         try:
@@ -556,13 +580,13 @@ Provide: Executive Summary, Key Themes, Public Sentiment, Policy Implications, N
                         kwargs = dict(
                             model=m,
                             messages=[
-                                {"role": "system", "content": "You are a senior government analyst creating daily briefings."},
+                                {"role": "system", "content": "You are a senior government analyst creating daily briefings. Write concisely within character limits. Focus on policy relevance and actionable intelligence."},
                                 {"role": "user", "content": prompt}
                             ],
                             temperature=0.2,
                         )
                         if param_style == 'max_completion_tokens':
-                            kwargs['max_completion_tokens'] = 2000
+                            kwargs['max_completion_tokens'] = 2000  # Match our character target
                         elif param_style == 'max_tokens':
                             kwargs['max_tokens'] = 2000
                         response = self.client.chat.completions.create(**kwargs)
