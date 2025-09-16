@@ -12,6 +12,7 @@ from typing import Optional, List, Dict
 import json
 import logging
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 from config import Config
 from database import db
@@ -95,8 +96,34 @@ def setup_directories():
 
 setup_directories()
 
-# Create the single FastAPI app instance here
-app = FastAPI(title="Radio Synopsis Dashboard", version="1.1.0")
+# Lifespan event handler to start/stop scheduler with web app
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage scheduler lifecycle with the web application."""
+    # Startup
+    logger.info("Starting scheduler with web application...")
+    if scheduler is not None:
+        try:
+            scheduler.start()
+            logger.info(f"Scheduler started successfully. Running: {scheduler.running}")
+        except Exception as e:
+            logger.error(f"Failed to start scheduler: {e}")
+    else:
+        logger.warning("Scheduler not available - continuing without automated recording")
+    
+    yield  # App runs here
+    
+    # Shutdown  
+    logger.info("Shutting down scheduler...")
+    if scheduler is not None:
+        try:
+            scheduler.stop()
+            logger.info("Scheduler stopped successfully")
+        except Exception as e:
+            logger.error(f"Error stopping scheduler: {e}")
+
+# Create the single FastAPI app instance here with lifespan
+app = FastAPI(title="Radio Synopsis Dashboard", version="1.1.0", lifespan=lifespan)
 
 # Set up templates directory
 templates_dir = Path("templates")
