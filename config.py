@@ -63,7 +63,7 @@ class Config:
     }
     
     # Processing Configuration
-    MAX_SUMMARY_LENGTH = int(os.getenv('MAX_SUMMARY_LENGTH', 1000))
+    MAX_SUMMARY_LENGTH = int(os.getenv('MAX_SUMMARY_LENGTH', 2000))  # Doubled from 1000
     ENABLE_DETAILED_QUOTES = os.getenv('ENABLE_DETAILED_QUOTES', 'true').lower() == 'true'
     ENABLE_EMBED_CLUSTERING = os.getenv('ENABLE_EMBED_CLUSTERING', 'true').lower() == 'true'
     EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'text-embedding-3-small')

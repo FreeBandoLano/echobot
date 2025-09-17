@@ -470,6 +470,32 @@ class Database:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def get_topics_for_day(self, show_date: date, limit: int = 15) -> List[Dict]:
+        """Get topics for a specific day with their weights and block coverage."""
+        with self.get_connection() as conn:
+            if isinstance(show_date, str):
+                date_param = show_date
+            else:
+                date_param = show_date.strftime('%Y-%m-%d')
+            
+            rows = conn.execute(
+                """
+                SELECT t.name, SUM(bt.weight) as total_weight, 
+                       COUNT(DISTINCT bt.block_id) as blocks,
+                       GROUP_CONCAT(DISTINCT b.block_code) as block_codes
+                FROM block_topics bt
+                JOIN topics t ON t.id = bt.topic_id
+                JOIN blocks b ON b.id = bt.block_id
+                JOIN shows s ON s.id = b.show_id
+                WHERE s.show_date = ?
+                GROUP BY t.id, t.name
+                ORDER BY total_weight DESC
+                LIMIT ?
+                """,
+                (date_param, limit)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def get_completion_timeline(self, days: int = 7) -> List[Dict]:
         with self.get_connection() as conn:
             rows = conn.execute(

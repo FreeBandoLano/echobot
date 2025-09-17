@@ -498,8 +498,11 @@ Rules:
         if not block_summaries:
             return None
         
+        # Get topics for the day
+        day_topics = db.get_topics_for_day(show_date, limit=10)
+        
         # Generate daily digest
-        digest_text = self._generate_daily_digest(show_date, block_summaries, total_callers, list(all_entities))
+        digest_text = self._generate_daily_digest(show_date, block_summaries, total_callers, list(all_entities), day_topics)
         
         # Save to database
         if digest_text:
@@ -517,7 +520,7 @@ Rules:
         return digest_text
     
     def _generate_daily_digest(self, show_date: datetime.date, block_summaries: List[Dict], 
-                              total_callers: int, entities: List[str]) -> Optional[str]:
+                              total_callers: int, entities: List[str], day_topics: List[Dict] = None) -> Optional[str]:
         """Generate daily digest using GPT with 2000 character limit for email."""
         
         # Prepare content
@@ -527,28 +530,40 @@ Rules:
             blocks_content += f"Callers: {block_summary['caller_count']}\n"
             blocks_content += block_summary['summary']
 
+        # Prepare topics content
+        topics_content = ""
+        if day_topics:
+            topics_list = []
+            for topic in day_topics[:8]:
+                topic_line = f"• {topic['name']} (weight: {topic['total_weight']:.1f}, blocks: {topic.get('block_codes', '')})"
+                topics_list.append(topic_line)
+            topics_content = f"\n\nTop Topics Discussed:\n" + "\n".join(topics_list)
+
         prompt = f"""
 Create a concise daily executive briefing for government civil servants from today's "Down to Brass Tacks" radio program.
 
 STRICT REQUIREMENTS:
-- Maximum 2000 characters total (for email delivery)
+- Maximum 4000 characters total (for email delivery)  # Doubled from 2000
 - Focus on actionable intelligence and policy implications
 - Use clear, professional tone suitable for senior officials
 
 Date: {show_date}
 Total Blocks: {len(block_summaries)}
 Total Callers: {total_callers}
-Key Entities: {', '.join(entities[:10])}
+Key Entities: {', '.join(entities[:10])}{topics_content}
 
 Block Summaries:
 {blocks_content}
 
-FORMAT (stay within 2000 chars):
-📊 EXECUTIVE SUMMARY (300 chars max)
+FORMAT (stay within 4000 chars):
+📊 EXECUTIVE SUMMARY (400 chars max)
 [Brief overview of main topics and public concerns]
 
-🗣️ KEY THEMES (400 chars max)
+🗣️ KEY THEMES (500 chars max)
 [Top 3-4 issues discussed with caller sentiment]
+
+📋 TOPICS COVERED (400 chars max)
+[Main discussion topics with frequency/importance indicators]
 
 📈 PUBLIC SENTIMENT (300 chars max)
 [Overall public mood and concerns]

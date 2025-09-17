@@ -420,11 +420,11 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View details: https://echobo
 """
         
         # Ensure we don't exceed reasonable email length
-        if len(text) > 2500:  # Allow some buffer for headers
+        if len(text) > 5000:  # Increased buffer for longer content
             logger.warning(f"Daily digest email too long ({len(text)} chars), truncating...")
             # Truncate at last complete sentence before limit
-            truncate_pos = text.rfind('.', 0, 2400)
-            if truncate_pos > 1000:  # Make sure we don't truncate too much
+            truncate_pos = text.rfind('.', 0, 4800)
+            if truncate_pos > 2000:  # Make sure we don't truncate too much
                 text = text[:truncate_pos + 1] + "\n\n[Content truncated - view full digest online]"
         
         return text

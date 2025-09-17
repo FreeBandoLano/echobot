@@ -73,7 +73,7 @@ class RadioScheduler:
             logger.info(f"   ✅ Block {block_code}: Record at {start_time} Barbados ({utc_start_time} UTC), Process at {process_time} Barbados ({utc_process_time} UTC)")
         
         # Schedule daily digest creation (15 minutes after show ends) - convert to UTC
-        utc_digest_time = self._convert_barbados_to_utc_time("14:15")
+        utc_digest_time = self._convert_barbados_to_utc_time("10:15")
         schedule.every().day.at(utc_digest_time).do(
             self._create_daily_digest
         ).tag('daily_digest')
