@@ -362,7 +362,7 @@ https://echobot-docker-app.azurewebsites.net/
         return html
     
     def send_daily_digest(self, show_date: date) -> bool:
-        """Send daily digest email to stakeholders with 2000 char optimization."""
+        """Send daily digest email to stakeholders with 4000 char optimization."""
         try:
             # Get daily digest
             digest = db.get_daily_digest(show_date)
@@ -402,11 +402,11 @@ https://echobot-docker-app.azurewebsites.net/
     
     def _create_daily_digest_text(self, digest: Dict, show_date: date, 
                                  completed_blocks: List[Dict]) -> str:
-        """Create plain text daily digest email with 2000 char limit."""
+        """Create plain text daily digest email with 4000 char limit."""
         
         formatted_date = show_date.strftime('%B %d, %Y')
         
-        # Extract the core digest content (should already be ~2000 chars from GPT)
+        # Extract the core digest content (should already be ~4000 chars from GPT)
         digest_content = digest.get('digest_text', 'No digest available')
         
         # Create minimal header/footer to preserve space for content

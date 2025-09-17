@@ -521,7 +521,7 @@ Rules:
     
     def _generate_daily_digest(self, show_date: datetime.date, block_summaries: List[Dict], 
                               total_callers: int, entities: List[str], day_topics: List[Dict] = None) -> Optional[str]:
-        """Generate daily digest using GPT with 2000 character limit for email."""
+        """Generate daily digest using GPT with 4000 character limit for email."""
         
         # Prepare content
         blocks_content = ""
