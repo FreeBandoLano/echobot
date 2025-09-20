@@ -282,7 +282,7 @@ class TaskManager:
         values = list(updates.values()) + [task_id]
         
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute(f"UPDATE tasks SET {set_clause} WHERE id = ?", values)
+            conn.execute(f"UPDATE tasks SET {set_clause} WHERE id = ?", tuple(values))
             conn.commit()
     
     def _schedule_next_pipeline_task(self, completed_task: Task):

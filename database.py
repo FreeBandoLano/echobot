@@ -422,7 +422,7 @@ class Database:
         with self.get_connection() as conn:
             conn.execute(
                 f"UPDATE blocks SET {', '.join(fields)} WHERE id = ?",
-                values
+                tuple(values)
             )
     
     def get_block(self, block_id: int) -> Optional[Dict]:
