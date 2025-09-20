@@ -49,8 +49,8 @@
             <button class="orbit-btn" data-panel="archive" aria-label="Archive">
                 <i class="bi bi-archive orbit-icon"></i><span>Archive</span>
             </button>
-    </div>
-    </div>
+            </div>
+        </div>
 
         <!-- Panels -->
         <section class="panel" id="panel-overview" aria-labelledby="heading-overview" data-active="false">
@@ -97,8 +97,8 @@
                     <div class="status-value">{{ filler_today.filler_pct }}%</div>
                     <div class="status-label">Filler Share</div>
                 </div>
-                {% endif %}
-            </div>
+                    {% endif %}
+                </div>
         </section>
 
         <section class="panel" id="panel-blocks" aria-labelledby="heading-blocks" data-active="false">
@@ -121,11 +121,11 @@
                         </select>
                         <button type="submit" style="margin-top:.2rem; font-size:.55rem; letter-spacing:.12em; font-weight:600; padding:.4rem .5rem; border:none; border-radius:var(--radius-pill); background:var(--grad-active); color:var(--text-inverse); cursor:pointer;">START</button>
                     </form>
-                    {% endfor %}
+                        {% endfor %}
+                    </div>
                 </div>
-            </div>
             {% endif %}
-            {% for block in blocks %}
+                {% for block in blocks %}
             <div class="block-summary" data-collapsed="true">
                 <div class="block-header">
                     <div class="block-title">Block {{ block.block_code }} - {{ block.block_name }}</div>
@@ -142,9 +142,9 @@
                         </div>
                         <button class="block-toggle" type="button" aria-label="Toggle details" tabindex="0"><i class="bi bi-chevron-down"></i></button>
                     </div>
-                </div>
+                    </div>
                 <div class="block-collapsible">
-                {% if block.summary %}
+                        {% if block.summary %}
                     {% set clean_summary = block.summary.summary_text.split('{')[0].strip() if '{' in block.summary.summary_text else block.summary.summary_text %}
                     <p class="block-body">{{ clean_summary[:200] }}{% if clean_summary|length > 200 %}...{% endif %}</p>
                     
@@ -198,41 +198,41 @@
                         <div class="block-themes" style="margin:.5rem 0; display:flex; gap:.4rem; flex-wrap:wrap;">
                             {% for theme in block.emergent_themes %}
                                 <span style="background:var(--color-overlay); border:1px solid var(--color-border); padding:.25rem .5rem; border-radius:var(--radius-pill); font-size:.6rem; letter-spacing:.08em; color:var(--text-tertiary);">{{ theme }}</span>
-                            {% endfor %}
+                                    {% endfor %}
                         </div>
-                    {% endif %}
-                    
+                            {% endif %}
+                            
                     <div class="block-footer">
                         <span><i class="bi bi-people"></i> {{ block.summary.caller_count or 0 }} callers</span>
                         {% if block.duration_minutes %}
                             <span><i class="bi bi-clock"></i> {{ block.duration_minutes }}min</span>
                         {% endif %}
                         <button class="block-action" data-block-id="{{ block.id }}">DETAILS</button>
-                    </div>
-                {% else %}
+                            </div>
+                        {% else %}
                     <p class="block-body">
                         {% if block.status == 'pending' %}
                             <i class="bi bi-clock"></i> Scheduled for {{ block.start_time }}
                         {% else %}
                             <i class="bi bi-hourglass-split"></i> Processing...
-                        {% endif %}
+                            {% endif %}
                     </p>
-                {% endif %}
+                        {% endif %}
+                    </div>
                 </div>
-            </div>
-            {% endfor %}
+                {% endfor %}
         </section>
 
-        {% if digest %}
+                {% if digest %}
         <section class="panel" id="panel-digest" aria-labelledby="heading-digest" data-active="false">
             <h2 id="heading-digest"><i class="bi bi-file-text"></i> Daily Digest</h2>
             <div class="digest-box">{{ digest.digest_text }}</div>
             <div style="margin-top:1rem; display:flex; gap:.75rem; justify-content:flex-end; flex-wrap:wrap;">
                 <button class="block-action" style="background:var(--grad-gold); color:var(--text-inverse);" onclick="window.print()"><i class="bi bi-printer"></i> PRINT</button>
                 <button class="block-action" onclick="downloadDigest()"><i class="bi bi-download"></i> DOWNLOAD</button>
-            </div>
+                    </div>
         </section>
-        {% endif %}
+                {% endif %}
 
         <section class="panel" id="panel-archive" aria-labelledby="heading-archive" data-active="false">
             <h2 id="heading-archive"><i class="bi bi-archive"></i> Recent Archive</h2>
@@ -244,9 +244,9 @@
                         <div style="font-size:.7rem; color:var(--text-tertiary);">{{ recent_date.year }}</div>
                     </div>
                     <i class="bi bi-chevron-right"></i>
-                </div>
-                {% endfor %}
-            </div>
+                                </div>
+                            {% endfor %}
+                        </div>
         </section>
     </main>
 

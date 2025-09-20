@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     odbcinst \
     libodbc2 \
     libodbccr2 \
+    libgssapi-krb5-2 \
     && mkdir -p /etc/apt/sources.list.d/ \
     && curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/microsoft-prod.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql-release.list \
@@ -38,7 +39,8 @@ COPY . .
 # Expose build metadata inside container
 ENV GIT_COMMIT_SHA=${GIT_COMMIT} \
 	BUILD_TIME=${BUILD_TIME} \
-	TZ=America/Barbados
+	TZ=America/Barbados \
+	LD_LIBRARY_PATH=/opt/microsoft/msodbcsql17/lib64:$LD_LIBRARY_PATH
 
 LABEL org.opencontainers.image.revision=${GIT_COMMIT} \
 	  org.opencontainers.image.created=${BUILD_TIME} \
