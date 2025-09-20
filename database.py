@@ -24,11 +24,19 @@ class AzureConnectionWrapper:
     def __init__(self, sa_conn):
         self._conn = sa_conn
 
-    def execute(self, query: str, params: tuple = ()):  # sqlite-like signature
-        if params:
-            return self._conn.execute(text(query), params)
+    def execute(self, query, params: tuple = ()):  # sqlite-like signature
+        # Handle both string queries and TextClause objects
+        if hasattr(query, '_is_text_clause'):
+            # Already a TextClause, use as-is
+            text_query = query
         else:
-            return self._conn.execute(text(query))
+            # String query, wrap with text()
+            text_query = text(query)
+            
+        if params:
+            return self._conn.execute(text_query, params)
+        else:
+            return self._conn.execute(text_query)
 
     def commit(self):
         return self._conn.commit()
