@@ -1,22 +1,23 @@
+# Use Python 3.11 slim image
 FROM python:3.11-slim
 
 # Build arguments (must come after FROM)
 ARG GIT_COMMIT=unknown
 ARG BUILD_TIME=unknown
 
-# Install system dependencies including FFmpeg and ODBC driver for Azure SQL
+# Install system dependencies including ODBC drivers
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
-    gnupg2 \
-    lsb-release \
     unixodbc-dev \
-    && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \
-    && echo "deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/$(lsb_release -rs)/prod $(lsb_release -cs) main" > /etc/apt/sources.list.d/mssql-release.list \
-    && apt-get update \
-    && ACCEPT_EULA=Y apt-get install -y msodbcsql17 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Microsoft ODBC Driver 17 using direct download (bypasses repository issues)
+RUN curl -fsSL https://packages.microsoft.com/debian/12/prod/pool/main/m/msodbcsql17/msodbcsql17_17.10.6.1-1_amd64.deb -o msodbcsql17.deb \
+    && ACCEPT_EULA=Y dpkg -i msodbcsql17.deb || true \
+    && apt-get install -f -y \
+    && rm -f msodbcsql17.deb
 
 # Set the working directory in the container
 WORKDIR /app
