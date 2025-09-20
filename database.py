@@ -245,8 +245,8 @@ class Database:
                 FROM INFORMATION_SCHEMA.COLUMNS 
                 WHERE TABLE_NAME = 'summaries' AND COLUMN_NAME = 'raw_json'
             """
-            # Use str(check_column) to ensure it's a string for exec_driver_sql
-            result = conn.execute(str(text(check_column))).fetchall()
+            # Explicitly convert to string for exec_driver_sql
+            result = conn.execute(str(check_column)).fetchall()
             if not result:
                 try:
                     conn.execute("ALTER TABLE summaries ADD raw_json NVARCHAR(MAX)")
@@ -254,8 +254,8 @@ class Database:
                 except Exception as e:
                     logger.info(f"Raw_json column might already exist: {e}")
             
-            # Create tables with SQL Server syntax
-            conn.execute(text("""
+            # For the large table creation query, ensure it's a string
+            tables_query = """
                 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[shows]') AND type in (N'U'))
                 CREATE TABLE shows (
                     id INT IDENTITY(1,1) PRIMARY KEY,
@@ -323,7 +323,8 @@ class Database:
 
                 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_summaries_block' AND object_id = OBJECT_ID('summaries'))
                 CREATE INDEX idx_summaries_block ON summaries(block_id);
-            """))
+            """
+            conn.execute(str(tables_query))
             conn.commit()
             logger.info("✅ Azure SQL tables initialized successfully")
             try:
