@@ -25,7 +25,7 @@ class AzureConnectionWrapper:
         self._conn = sa_conn
 
     def execute(self, query: str, params: tuple = ()):  # sqlite-like signature
-        return self._conn.exec_driver_sql(query, params if params else None)
+        return self._conn.execute(text(query), params if params else {})
 
     def commit(self):
         return self._conn.commit()
