@@ -13,7 +13,8 @@ RUN apt-get update && apt-get install -y \
     unixodbc \
     unixodbc-dev \
     odbcinst \
-    libodbc1 \
+    libodbc2 \
+    libodbccr2 \
     && curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
     && curl https://packages.microsoft.com/config/debian/12/prod.list > /etc/apt/sources.list.d/mssql-release.list \
     && apt-get update \
