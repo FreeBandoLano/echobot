@@ -55,6 +55,7 @@ class Database:
         
         if azure_connection_string and SQLALCHEMY_AVAILABLE:
             try:
+                import pyodbc  # Explicitly check if pyodbc loads (fails if libodbc missing)
                 # Use Azure SQL Database
                 self.engine = create_engine(
                     azure_connection_string,
@@ -69,8 +70,8 @@ class Database:
                     conn.execute(text("SELECT 1"))
                 self.use_azure_sql = True
                 logger.info("✅ Using Azure SQL Database for persistent storage")
-            except Exception as e:
-                logger.warning(f"Azure SQL connection failed, falling back to SQLite: {e}")
+            except (ImportError, Exception) as e:
+                logger.warning(f"Azure SQL setup failed (possibly missing ODBC driver): {e}")
                 self.use_azure_sql = False
         else:
             if azure_connection_string and not SQLALCHEMY_AVAILABLE:
@@ -244,10 +245,11 @@ class Database:
                 FROM INFORMATION_SCHEMA.COLUMNS 
                 WHERE TABLE_NAME = 'summaries' AND COLUMN_NAME = 'raw_json'
             """
-            result = conn.execute(text(check_column)).fetchall()
+            # Use str(check_column) to ensure it's a string for exec_driver_sql
+            result = conn.execute(str(text(check_column))).fetchall()
             if not result:
                 try:
-                    conn.execute(text("ALTER TABLE summaries ADD raw_json NVARCHAR(MAX)"))
+                    conn.execute("ALTER TABLE summaries ADD raw_json NVARCHAR(MAX)")
                     conn.commit()
                 except Exception as e:
                     logger.info(f"Raw_json column might already exist: {e}")
