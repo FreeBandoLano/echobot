@@ -460,7 +460,7 @@ async def archive(request: Request):
             LEFT JOIN blocks b ON s.id = b.show_id
             GROUP BY s.show_date, s.title
             ORDER BY s.show_date DESC
-        """).fetchall()
+        """, ()).fetchall()
     
     archive_data = [dict(row) for row in rows]
     
@@ -486,7 +486,7 @@ async def analytics(request: Request):
                 SUM(CASE WHEN b.status='completed' THEN 1 ELSE 0 END) as completed_blocks
             FROM shows s
             LEFT JOIN blocks b ON b.show_id = s.id
-        """).fetchone()
+        """, ()).fetchone()
     total_blocks = totals["total_blocks"] or 0
     completed_blocks = totals["completed_blocks"] or 0
     avg_completion_rate = 0
