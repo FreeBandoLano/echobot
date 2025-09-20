@@ -9,6 +9,7 @@ ARG BUILD_TIME=unknown
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
+    unixodbc \
     unixodbc-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
