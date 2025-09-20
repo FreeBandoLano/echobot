@@ -66,14 +66,17 @@ class Database:
             return conn
     
     def execute_sql(self, query: str, params: tuple = (), fetch: bool = False):
-        """Execute SQL with appropriate method based on database type."""
+        """Execute SQL with appropriate method based on database type.
+        For Azure SQL via SQLAlchemy, use exec_driver_sql so that DBAPI-style
+        '?' placeholders work with positional parameters.
+        """
         if self.use_azure_sql:
             with self.get_connection() as conn:
                 if fetch:
-                    result = conn.execute(text(query), params)
+                    result = conn.exec_driver_sql(query, params if params else None)
                     return [dict(row._mapping) for row in result.fetchall()]
                 else:
-                    conn.execute(text(query), params)
+                    conn.exec_driver_sql(query, params if params else None)
                     conn.commit()
         else:
             with self.get_connection() as conn:
