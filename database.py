@@ -25,7 +25,10 @@ class AzureConnectionWrapper:
         self._conn = sa_conn
 
     def execute(self, query: str, params: tuple = ()):  # sqlite-like signature
-        return self._conn.execute(text(query), params if params else {})
+        if params:
+            return self._conn.execute(text(query), params)
+        else:
+            return self._conn.execute(text(query))
 
     def commit(self):
         return self._conn.commit()
@@ -401,14 +404,25 @@ class Database:
     
     def get_blocks_by_date(self, show_date: date) -> List[Dict]:
         """Get all blocks for a specific date."""
-        with self.get_connection() as conn:
-            rows = conn.execute("""
-                SELECT b.* FROM blocks b
-                JOIN shows s ON b.show_id = s.id
-                WHERE s.show_date = ?
-                ORDER BY b.block_code
-            """, (show_date,)).fetchall()
-            return [dict(row) for row in rows]
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                result = conn.execute(text("""
+                    SELECT b.* FROM blocks b
+                    JOIN shows s ON b.show_id = s.id
+                    WHERE s.show_date = :show_date
+                    ORDER BY b.block_code
+                """), {"show_date": show_date})
+                rows = result.fetchall()
+                return [dict(row._mapping) for row in rows]
+        else:
+            with self.get_connection() as conn:
+                rows = conn.execute("""
+                    SELECT b.* FROM blocks b
+                    JOIN shows s ON b.show_id = s.id
+                    WHERE s.show_date = ?
+                    ORDER BY b.block_code
+                """, (show_date,)).fetchall()
+                return [dict(row) for row in rows]
     
     def create_summary(self, block_id: int, summary_text: str, key_points: List[str], 
                       entities: List[str], caller_count: int = 0, quotes: List[Dict] = None, raw_json: Dict = None) -> int:
