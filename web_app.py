@@ -462,7 +462,10 @@ async def archive(request: Request):
             ORDER BY s.show_date DESC
         """, ()).fetchall()
     
-    archive_data = [dict(row) for row in rows]
+    if db.use_azure_sql:
+        archive_data = [dict(row._mapping) for row in rows]
+    else:
+        archive_data = [dict(row) for row in rows]
     
     # Convert show_date strings to date objects for template
     from datetime import datetime
@@ -487,13 +490,17 @@ async def analytics(request: Request):
             FROM shows s
             LEFT JOIN blocks b ON b.show_id = s.id
         """, ()).fetchone()
-    total_blocks = totals["total_blocks"] or 0
-    completed_blocks = totals["completed_blocks"] or 0
+    if db.use_azure_sql:
+        totals_dict = dict(totals._mapping) if totals else {}
+    else:
+        totals_dict = dict(totals) if totals else {}
+    total_blocks = totals_dict.get("total_blocks", 0) or 0
+    completed_blocks = totals_dict.get("completed_blocks", 0) or 0
     avg_completion_rate = 0
     if total_blocks > 0:
         avg_completion_rate = round(completed_blocks / total_blocks * 100)
     metrics = {
-        "total_shows": totals["total_shows"] or 0,
+        "total_shows": totals_dict.get("total_shows", 0) or 0,
         "total_blocks": total_blocks,
         "completed_blocks": completed_blocks,
         "avg_completion_rate": avg_completion_rate
@@ -651,7 +658,10 @@ async def timeline_view(request: Request, days: int = 1, date: str | None = None
                 ORDER BY s.show_date, b.block_code, seg.start_sec
                 """, (f'-{days} days',)
             ).fetchall()
-    segments = [dict(r) for r in seg_rows]
+    if db.use_azure_sql:
+        segments = [dict(r._mapping) for r in seg_rows]
+    else:
+        segments = [dict(r) for r in seg_rows]
     # Derived metrics
     total_seconds = 0.0
     filler_seconds = 0.0
