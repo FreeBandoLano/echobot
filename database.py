@@ -345,10 +345,7 @@ class Database:
         """Get show by date."""
         if self.use_azure_sql:
             with self.get_connection() as conn:
-                result = conn.execute(
-                    text("SELECT * FROM shows WHERE show_date = :show_date"),
-                    {"show_date": show_date}
-                )
+                result = conn.execute(str(text("SELECT * FROM shows WHERE show_date = :show_date")), {"show_date": show_date})
                 row = result.fetchone()
                 return dict(row._mapping) if row else None
         else:
@@ -392,10 +389,7 @@ class Database:
         """Get block by ID."""
         if self.use_azure_sql:
             with self.get_connection() as conn:
-                result = conn.execute(
-                    text("SELECT * FROM blocks WHERE id = :block_id"),
-                    {"block_id": block_id}
-                )
+                result = conn.execute(str(text("SELECT * FROM blocks WHERE id = :block_id")), {"block_id": block_id})
                 row = result.fetchone()
                 return dict(row._mapping) if row else None
         else:
@@ -438,10 +432,7 @@ class Database:
         """Get summary by block ID."""
         if self.use_azure_sql:
             with self.get_connection() as conn:
-                result = conn.execute(
-                    text("SELECT * FROM summaries WHERE block_id = :block_id"),
-                    {"block_id": block_id}
-                )
+                result = conn.execute(str(text("SELECT * FROM summaries WHERE block_id = :block_id")), {"block_id": block_id})
                 row = result.fetchone()
                 if row:
                     summary = dict(row._mapping)
@@ -496,10 +487,7 @@ class Database:
         """Get daily digest by date."""
         if self.use_azure_sql:
             with self.get_connection() as conn:
-                result = conn.execute(
-                    text("SELECT * FROM daily_digests WHERE show_date = :show_date"),
-                    {"show_date": show_date}
-                )
+                result = conn.execute(str(text("SELECT * FROM daily_digests WHERE show_date = :show_date")), {"show_date": show_date})
                 row = result.fetchone()
                 return dict(row._mapping) if row else None
         else:
