@@ -19,6 +19,29 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+class AzureConnectionWrapper:
+    """Thin wrapper over SQLAlchemy Connection to support sqlite-style execute()."""
+    def __init__(self, sa_conn):
+        self._conn = sa_conn
+
+    def execute(self, query: str, params: tuple = ()):  # sqlite-like signature
+        return self._conn.exec_driver_sql(query, params if params else None)
+
+    def commit(self):
+        return self._conn.commit()
+
+    def close(self):
+        return self._conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            self.close()
+        finally:
+            return False
+
 class Database:
     """Database manager supporting both SQLite (local) and Azure SQL (production)."""
     
@@ -59,7 +82,7 @@ class Database:
     def get_connection(self):
         """Get database connection (Azure SQL or SQLite)."""
         if self.use_azure_sql:
-            return self.engine.connect()
+            return AzureConnectionWrapper(self.engine.connect())
         else:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row  # Enable dict-like access
