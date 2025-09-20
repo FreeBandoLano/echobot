@@ -5,7 +5,7 @@ FROM python:3.11-slim
 ARG GIT_COMMIT=unknown
 ARG BUILD_TIME=unknown
 
-# Install system dependencies including full ODBC setup
+# Install system dependencies including full ODBC setup with verification
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
@@ -13,13 +13,15 @@ RUN apt-get update && apt-get install -y \
     unixodbc \
     unixodbc-dev \
     odbcinst \
+    libodbc1 \
     && curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
     && curl https://packages.microsoft.com/config/debian/12/prod.list > /etc/apt/sources.list.d/mssql-release.list \
     && apt-get update \
     && ACCEPT_EULA=Y apt-get install -y msodbcsql17 \
+    && odbcinst -q -d -n "ODBC Driver 17 for SQL Server" \
+    && if [ -z "$(odbcinst -q -d -n 'ODBC Driver 17 for SQL Server')" ]; then echo "❌ ODBC Driver not found!"; exit 1; else echo "✅ ODBC Driver 17 verified"; fi \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && echo "✅ ODBC Driver 17 installed successfully" || echo "❌ ODBC installation failed"
+    && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory in the container
 WORKDIR /app
