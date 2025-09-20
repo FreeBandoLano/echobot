@@ -260,10 +260,41 @@ class Database:
             result = conn.execute(str(text(check_column))).fetchall()
             if not result:
                 try:
-                    conn.execute("ALTER TABLE summaries ADD raw_json NVARCHAR(MAX)")
+                    # Use our wrapper properly - it will handle the text() wrapping
+                    conn.execute("ALTER TABLE summaries ADD raw_json NVARCHAR(MAX)", ())
                     conn.commit()
                 except Exception as e:
                     logger.info(f"Raw_json column might already exist: {e}")
+            
+            # Check if title column exists in shows table and add it if missing
+            check_title_column = """
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'shows' AND COLUMN_NAME = 'title'
+            """
+            title_result = conn.execute(str(text(check_title_column))).fetchall()
+            if not title_result:
+                try:
+                    conn.execute("ALTER TABLE shows ADD title NVARCHAR(255) DEFAULT 'Down to Brass Tacks'", ())
+                    conn.commit()
+                    logger.info("✅ Added missing title column to shows table")
+                except Exception as e:
+                    logger.info(f"Title column might already exist: {e}")
+            
+            # Check if total_callers column exists in shows table and add it if missing
+            check_callers_column = """
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'shows' AND COLUMN_NAME = 'total_callers'
+            """
+            callers_result = conn.execute(str(text(check_callers_column))).fetchall()
+            if not callers_result:
+                try:
+                    conn.execute("ALTER TABLE shows ADD total_callers INT DEFAULT 0", ())
+                    conn.commit()
+                    logger.info("✅ Added missing total_callers column to shows table")
+                except Exception as e:
+                    logger.info(f"Total_callers column might already exist: {e}")
             
             # For the large table creation query, ensure it's a string
             tables_query = """
@@ -271,6 +302,8 @@ class Database:
                 CREATE TABLE shows (
                     id INT IDENTITY(1,1) PRIMARY KEY,
                     show_date DATE NOT NULL UNIQUE,
+                    title NVARCHAR(255) DEFAULT 'Down to Brass Tacks',
+                    total_callers INT DEFAULT 0,
                     created_at DATETIME2 DEFAULT GETDATE()
                 );
 
@@ -338,10 +371,6 @@ class Database:
             conn.execute(str(text(tables_query)))
             conn.commit()
             logger.info("✅ Azure SQL tables initialized successfully")
-            try:
-                conn.execute("ALTER TABLE summaries ADD COLUMN raw_json TEXT")
-            except Exception:
-                pass  # Column may already exist
     
     def create_show(self, show_date: date, title: str = "Down to Brass Tacks") -> int:
         """Create a new show record."""
