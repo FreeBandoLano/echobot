@@ -340,11 +340,20 @@ class Database:
     
     def get_show(self, show_date: date) -> Optional[Dict]:
         """Get show by date."""
-        with self.get_connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM shows WHERE show_date = ?", (show_date,)
-            ).fetchone()
-            return dict(row) if row else None
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                result = conn.execute(
+                    text("SELECT * FROM shows WHERE show_date = :show_date"),
+                    {"show_date": show_date}
+                )
+                row = result.fetchone()
+                return dict(row._mapping) if row else None
+        else:
+            with self.get_connection() as conn:
+                row = conn.execute(
+                    "SELECT * FROM shows WHERE show_date = ?", (show_date,)
+                ).fetchone()
+                return dict(row) if row else None
     
     def create_block(self, show_id: int, block_code: str, start_time: datetime, end_time: datetime) -> int:
         """Create a new block record."""
@@ -378,11 +387,20 @@ class Database:
     
     def get_block(self, block_id: int) -> Optional[Dict]:
         """Get block by ID."""
-        with self.get_connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM blocks WHERE id = ?", (block_id,)
-            ).fetchone()
-            return dict(row) if row else None
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                result = conn.execute(
+                    text("SELECT * FROM blocks WHERE id = :block_id"),
+                    {"block_id": block_id}
+                )
+                row = result.fetchone()
+                return dict(row._mapping) if row else None
+        else:
+            with self.get_connection() as conn:
+                row = conn.execute(
+                    "SELECT * FROM blocks WHERE id = ?", (block_id,)
+                ).fetchone()
+                return dict(row) if row else None
     
     def get_blocks_by_date(self, show_date: date) -> List[Dict]:
         """Get all blocks for a specific date."""
@@ -415,27 +433,51 @@ class Database:
     
     def get_summary(self, block_id: int) -> Optional[Dict]:
         """Get summary by block ID."""
-        with self.get_connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM summaries WHERE block_id = ?", (block_id,)
-            ).fetchone()
-            
-            if row:
-                summary = dict(row)
-                # Parse JSON fields
-                summary['key_points'] = json.loads(summary['key_points'] or '[]')
-                summary['entities'] = json.loads(summary['entities'] or '[]')
-                summary['quotes'] = json.loads(summary['quotes'] or '[]')
-                # Parse raw_json field if present
-                if summary.get('raw_json'):
-                    try:
-                        summary['raw_json'] = json.loads(summary['raw_json'])
-                    except (json.JSONDecodeError, TypeError):
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                result = conn.execute(
+                    text("SELECT * FROM summaries WHERE block_id = :block_id"),
+                    {"block_id": block_id}
+                )
+                row = result.fetchone()
+                if row:
+                    summary = dict(row._mapping)
+                    # Parse JSON fields
+                    summary['key_points'] = json.loads(summary['key_points'] or '[]')
+                    summary['entities'] = json.loads(summary['entities'] or '[]')
+                    summary['quotes'] = json.loads(summary['quotes'] or '[]')
+                    # Parse raw_json field if present
+                    if summary.get('raw_json'):
+                        try:
+                            summary['raw_json'] = json.loads(summary['raw_json'])
+                        except (json.JSONDecodeError, TypeError):
+                            summary['raw_json'] = {}
+                    else:
                         summary['raw_json'] = {}
-                else:
-                    summary['raw_json'] = {}
-                return summary
-            return None
+                    return summary
+                return None
+        else:
+            with self.get_connection() as conn:
+                row = conn.execute(
+                    "SELECT * FROM summaries WHERE block_id = ?", (block_id,)
+                ).fetchone()
+                
+                if row:
+                    summary = dict(row)
+                    # Parse JSON fields
+                    summary['key_points'] = json.loads(summary['key_points'] or '[]')
+                    summary['entities'] = json.loads(summary['entities'] or '[]')
+                    summary['quotes'] = json.loads(summary['quotes'] or '[]')
+                    # Parse raw_json field if present
+                    if summary.get('raw_json'):
+                        try:
+                            summary['raw_json'] = json.loads(summary['raw_json'])
+                        except (json.JSONDecodeError, TypeError):
+                            summary['raw_json'] = {}
+                    else:
+                        summary['raw_json'] = {}
+                    return summary
+                return None
     
     def create_daily_digest(self, show_date: date, digest_text: str, total_blocks: int, total_callers: int) -> int:
         """Create daily digest."""
@@ -449,11 +491,20 @@ class Database:
     
     def get_daily_digest(self, show_date: date) -> Optional[Dict]:
         """Get daily digest by date."""
-        with self.get_connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM daily_digests WHERE show_date = ?", (show_date,)
-            ).fetchone()
-            return dict(row) if row else None
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                result = conn.execute(
+                    text("SELECT * FROM daily_digests WHERE show_date = :show_date"),
+                    {"show_date": show_date}
+                )
+                row = result.fetchone()
+                return dict(row._mapping) if row else None
+        else:
+            with self.get_connection() as conn:
+                row = conn.execute(
+                    "SELECT * FROM daily_digests WHERE show_date = ?", (show_date,)
+                ).fetchone()
+                return dict(row) if row else None
 
     # ---------------- Topic Analytics Helpers ----------------
     @staticmethod
