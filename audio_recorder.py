@@ -387,7 +387,10 @@ class AudioRecorder:
         audio_path = Config.AUDIO_DIR / audio_filename
         
         # Create block in database
+        logger.info(f"🔍 record_live_duration DEBUG - Before create_block: show_id={show_id} (type: {type(show_id)}), block_code='{block_code}' (type: {type(block_code)})")
+        logger.info(f"🔍 record_live_duration DEBUG - start_time={start_time} (type: {type(start_time)}), end_time={end_time} (type: {type(end_time)})")
         block_id = db.create_block(show_id, block_code, start_time, end_time)
+        logger.info(f"🔍 record_live_duration DEBUG - create_block successful, block_id={block_id}")
         
         logger.info(f"Starting live recording for Block {block_code}: {audio_filename}")
         print(f"🎙️  RECORDING INITIATED: Block {block_code} for {duration_minutes} minutes")

@@ -403,13 +403,29 @@ class Database:
         start_time_str = start_time.strftime('%Y-%m-%d %H:%M:%S')
         end_time_str = end_time.strftime('%Y-%m-%d %H:%M:%S')
         
-        with self.get_connection() as conn:
-            cursor = conn.execute("""
-                INSERT OR REPLACE INTO blocks 
-                (show_id, block_code, start_time, end_time, duration_minutes, status)
-                VALUES (?, ?, ?, ?, ?, 'scheduled')
-            """, (show_id, block_code, start_time_str, end_time_str, duration_minutes))
-            return cursor.lastrowid
+        # Debug logging for Azure deployment
+        logger.info(f"🔍 create_block DEBUG - Input types: show_id={type(show_id)}, block_code={type(block_code)}, start_time={type(start_time)}, end_time={type(end_time)}")
+        logger.info(f"🔍 create_block DEBUG - Values: show_id={show_id}, block_code='{block_code}', duration_minutes={duration_minutes}")
+        logger.info(f"🔍 create_block DEBUG - String conversions: start_time_str='{start_time_str}', end_time_str='{end_time_str}'")
+        logger.info(f"🔍 create_block DEBUG - Database type: {'Azure SQL' if self.use_azure_sql else 'SQLite'}")
+        
+        try:
+            with self.get_connection() as conn:
+                params = (show_id, block_code, start_time_str, end_time_str, duration_minutes)
+                logger.info(f"🔍 create_block DEBUG - Parameters tuple: {params} (types: {[type(p) for p in params]})")
+                
+                cursor = conn.execute("""
+                    INSERT OR REPLACE INTO blocks 
+                    (show_id, block_code, start_time, end_time, duration_minutes, status)
+                    VALUES (?, ?, ?, ?, ?, 'scheduled')
+                """, params)
+                block_id = cursor.lastrowid
+                logger.info(f"🔍 create_block DEBUG - Successfully created block_id: {block_id}")
+                return block_id
+        except Exception as e:
+            logger.error(f"🔍 create_block DEBUG - Exception in database operation: {e} (type: {type(e)})")
+            logger.error(f"🔍 create_block DEBUG - Full exception details: {repr(e)}")
+            raise
     
     def update_block_status(self, block_id: int, status: str, **kwargs):
         """Update block status and optional fields."""
