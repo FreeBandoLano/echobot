@@ -1,10 +1,21 @@
 # Radio Synopsis & Emergent Topic Intelligence (VOB 92.9 – "Down to Brass Tacks")
 
-Automated collection, transcription, emergent topic summarization, clustering intelligence, and daily briefing generation for the Barbados call‑in program "Down to Brass Tacks" — optimized for civil service situational awareness.
+Automated collection, transcription, emergent topic summarization, clustering intelligence, and **enhanced 4000-word daily intelligence briefing generation** for the Barbados call‑in program "Down to Brass Tacks" — optimized for government situational awareness and policy decision-making.
 
-## 🎯 Current Scope (September 2025)
+## 🆕 Enhanced Summarization System (v1.4.0)
 
-End‑to‑end autonomous pipeline (record → transcribe → segment → summarize → analyze → digest/email) with emergent topic intelligence, rolling window summaries, filler analytics, timeline visualization, and comprehensive monitoring. **Production-ready system** currently deployed on Azure with automatic version tracking and continuous deployment.
+**NEW**: 4000-word structured daily intelligence briefings designed for government analysis:
+
+- **📊 Comprehensive Analysis**: Executive Summary, Topics Overview, Conversation Evolution, Moderator Analysis, Public Sentiment, Policy Implications
+- **🏛️ Government Focus**: Designed for Prime Minister's office and senior civil servants tracking public opinion ahead of elections
+- **📈 Conversation Evolution**: Tracks how discussions and sentiment shift throughout the program
+- **🎯 Policy Intelligence**: Actionable recommendations and political risk assessment
+- **🔒 Classification**: INTERNAL GOVERNMENT USE with professional formatting
+- **📱 Enhanced UI**: Structured digest display with government styling, removed Raw JSON/Hide Filler buttons for cleaner production interface
+
+## 🎯 Current Scope (January 2025)
+
+End‑to‑end autonomous pipeline (record → transcribe → segment → summarize → analyze → **enhanced digest/email**) with emergent topic intelligence, rolling window summaries, filler analytics, timeline visualization, and comprehensive monitoring. **Production-ready system** currently deployed on Azure with automatic version tracking and continuous deployment.
 
 **⚠️ Current Priority**: Enhancing recording process visibility in Azure log streams for real-time operational monitoring.
 
@@ -111,6 +122,13 @@ ENABLE_EMBED_CLUSTERING=true
 EMBEDDING_MODEL=text-embedding-3-small
 CLUSTER_SIM_THRESHOLD=0.78
 CLUSTER_MAX_CLUSTERS=8
+
+# Enhanced Summarization (NEW in v1.4.0)
+ENABLE_DAILY_DIGEST=true
+DAILY_DIGEST_TARGET_WORDS=4000
+ENABLE_STRUCTURED_OUTPUT=true
+ENABLE_CONVERSATION_EVOLUTION=true
+ENABLE_TOPIC_DEEP_DIVE=true
 
 # Email (optional)
 ENABLE_EMAIL=true

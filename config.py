@@ -74,6 +74,13 @@ class Config:
     ENABLE_LLM = os.getenv('ENABLE_LLM', 'true').lower() in ('1','true','yes','on')
     # Summarization model (adaptive fallback handled in code if incompatible)
     SUMMARIZATION_MODEL = os.getenv('SUMMARIZATION_MODEL', 'gpt-5-nano-2025-08-07')
+    
+    # Enhanced Summarization Configuration
+    ENABLE_DAILY_DIGEST = os.getenv('ENABLE_DAILY_DIGEST', 'true').lower() == 'true'
+    DAILY_DIGEST_TARGET_WORDS = int(os.getenv('DAILY_DIGEST_TARGET_WORDS', 4000))
+    ENABLE_STRUCTURED_OUTPUT = os.getenv('ENABLE_STRUCTURED_OUTPUT', 'true').lower() == 'true'
+    ENABLE_CONVERSATION_EVOLUTION = os.getenv('ENABLE_CONVERSATION_EVOLUTION', 'true').lower() == 'true'
+    ENABLE_TOPIC_DEEP_DIVE = os.getenv('ENABLE_TOPIC_DEEP_DIVE', 'true').lower() == 'true'
 
     # Approximate model pricing (USD per 1K tokens) – update as needed
     # Sources: public pricing pages; keep conservative estimates.

@@ -912,6 +912,55 @@ async def reprocess_date(date: str = Form(...)):
         logger.error(f"Reprocessing failed for {date}: {e}")
         raise HTTPException(status_code=500, detail=f"Reprocessing failed: {str(e)}")
 
+@app.post("/api/generate-enhanced-digest")
+async def generate_enhanced_digest(date: str = Form(...)):
+    """Generate enhanced daily digest for a specific date."""
+    
+    try:
+        # Parse and validate date
+        from datetime import datetime
+        try:
+            target_date = datetime.strptime(date, '%Y-%m-%d').date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+        
+        # Check if blocks exist for this date
+        blocks = db.get_blocks_by_date(target_date)
+        completed_blocks = [b for b in blocks if b['status'] == 'completed']
+        
+        if not completed_blocks:
+            return {
+                "success": False,
+                "message": f"No completed blocks found for {target_date}",
+                "date": str(target_date)
+            }
+        
+        # Generate enhanced digest
+        logger.info(f"Generating enhanced digest for {target_date}")
+        digest_text = summarizer.create_daily_digest(target_date)
+        
+        if digest_text:
+            return {
+                "success": True,
+                "date": str(target_date),
+                "digest_type": "enhanced" if Config.ENABLE_STRUCTURED_OUTPUT else "standard",
+                "message": f"Enhanced digest generated successfully for {target_date}",
+                "blocks_processed": len(completed_blocks),
+                "preview": digest_text[:200] + "..." if len(digest_text) > 200 else digest_text
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to generate digest (LLM may be disabled)",
+                "date": str(target_date)
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Enhanced digest generation failed for {date}: {e}")
+        raise HTTPException(status_code=500, detail=f"Digest generation failed: {str(e)}")
+
 @app.post("/api/cleanup-legacy-data")
 async def cleanup_legacy_data():
     """Clean JSON contamination from old summary_text where raw_json is missing."""

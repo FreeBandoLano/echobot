@@ -380,12 +380,35 @@
                         </div>
                     {% endif %}
 
-                    <!-- Toggle for Raw JSON (for debugging) -->
+                    <!-- Enhanced Summary Data (Production View) -->
+                    {% if block.emergent %}
                     <div style="margin-top:2rem; padding-top:1rem; border-top:1px solid var(--color-border);">
-                        <button class="toggle-raw" onclick="const w=this.parentElement.nextElementSibling;w.style.display=w.style.display==='block'?'none':'block';this.textContent=w.style.display==='block'?'HIDE RAW DATA':'VIEW RAW DATA';">VIEW RAW DATA</button>
+                        <h4>Enhanced Analysis</h4>
+                        <div class="enhanced-summary">
+                            {% if block.emergent.key_themes %}
+                            <div class="summary-section">
+                                <h5>Key Themes</h5>
+                                <ul>
+                                    {% for theme in block.emergent.key_themes %}
+                                    <li><strong>{{ theme.title }}:</strong> {{ theme.description }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            {% endif %}
+                            
+                            {% if block.emergent.entities %}
+                            <div class="summary-section">
+                                <h5>Key Entities</h5>
+                                <div class="entity-tags">
+                                    {% for entity in block.emergent.entities %}
+                                    <span class="entity-tag">{{ entity }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
-                    <div class="raw-json-wrap"><pre class="raw-json">{{ block.emergent | tojson(indent=2) }}</pre></div>
-                {% endif %}
+                    {% endif %}
             {% endif %}
             {% if block.transcript %}
                 <h3 class="sub-heading" style="margin-top:2rem;">Transcript</h3>
@@ -397,7 +420,6 @@
                     {% if block.guard_band_stats.content_seconds is not none and block.guard_band_stats.total_seconds %}
                         <span>{{ block.guard_band_stats.content_seconds }}s content of {{ block.guard_band_stats.total_seconds }}s total</span>
                     {% endif %}
-                    <button class="gb-toggle-btn" id="gbToggle" data-state="show">HIDE FILLER</button>
                 </div>
                 {% endif %}
                 <div style="max-height:600px; overflow:auto; padding-right:.5rem;" id="transcriptContainer">
@@ -443,21 +465,6 @@
             {% endif %}
         </section>
     </main>
-    <script>
-    (function(){
-        const btn = document.getElementById('gbToggle');
-        if(!btn) return;
-        const container = document.getElementById('transcriptContainer');
-        btn.addEventListener('click', () => {
-            const hide = btn.getAttribute('data-state') === 'show';
-            container.querySelectorAll('.transcript-seg.guard-band').forEach(el => {
-                if(hide) el.classList.add('guard-band-hidden'); else el.classList.remove('guard-band-hidden');
-            });
-            btn.textContent = hide ? 'SHOW FILLER' : 'HIDE FILLER';
-            btn.setAttribute('data-state', hide ? 'hidden' : 'show');
-        });
-    })();
-    </script>
     <script>
     // Mobile collapsible sections
     (function(){

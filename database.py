@@ -1042,6 +1042,7 @@ class Database:
                 ORDER BY total_weight DESC
                 """))
                 rows = conn.execute(query, {"date_param": date_param, "limit": limit}).fetchall()
+                return [dict(r._mapping) for r in rows]
         else:
             with self.get_connection() as conn:
                 if isinstance(show_date, str):
@@ -1065,7 +1066,7 @@ class Database:
                     """,
                     (date_param, limit)
                 ).fetchall()
-        return [dict(r) for r in rows]
+        return [dict(r._mapping) if hasattr(r, '_mapping') else dict(r) for r in rows]
 
     def get_completion_timeline(self, days: int = 7) -> List[Dict]:
         if self.use_azure_sql:
@@ -1119,6 +1120,7 @@ class Database:
                 WHERE s.show_date >= DATEADD(day, :days, GETDATE())
                 """))
                 seg_rows = conn.execute(query, {"days": -int(days)}).fetchall()
+                seg_rows = [dict(r._mapping) for r in seg_rows]
         else:
             with self.get_connection() as conn:
                 # Join segments -> blocks -> shows for date filter
@@ -1133,6 +1135,7 @@ class Database:
                     """,
                     (f'-{int(days)} days',)
                 ).fetchall()
+                seg_rows = [dict(r) for r in seg_rows]
         if not seg_rows:
             return {
                 'days': days,

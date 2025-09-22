@@ -521,7 +521,18 @@ Rules:
     
     def _generate_daily_digest(self, show_date: datetime.date, block_summaries: List[Dict], 
                               total_callers: int, entities: List[str], day_topics: List[Dict] = None) -> Optional[str]:
-        """Generate daily digest using GPT with 4000 character limit for email."""
+        """Generate enhanced daily digest with 4000-word structured output for government analysis."""
+        
+        # Check if enhanced mode is enabled
+        if Config.ENABLE_DAILY_DIGEST and Config.ENABLE_STRUCTURED_OUTPUT:
+            return self._generate_enhanced_daily_digest(show_date, block_summaries, total_callers, entities, day_topics)
+        
+        # Original implementation for backward compatibility
+        return self._generate_standard_daily_digest(show_date, block_summaries, total_callers, entities, day_topics)
+    
+    def _generate_standard_daily_digest(self, show_date: datetime.date, block_summaries: List[Dict], 
+                                      total_callers: int, entities: List[str], day_topics: List[Dict] = None) -> Optional[str]:
+        """Generate standard daily digest using GPT with 4000 character limit for email."""
         
         # Prepare content
         blocks_content = ""
@@ -580,14 +591,149 @@ FORMAT (stay within 4000 chars):
 Keep each section concise. Use bullet points where helpful. Prioritize government-relevant content.
 """
         
+        return self._execute_daily_digest_llm(prompt, show_date, len(block_summaries), total_callers)
+    
+    def _generate_enhanced_daily_digest(self, show_date: datetime.date, block_summaries: List[Dict], 
+                                      total_callers: int, entities: List[str], day_topics: List[Dict] = None) -> Optional[str]:
+        """Generate enhanced 4000-word structured daily digest for comprehensive government analysis."""
+        
+        # Prepare detailed content
+        blocks_content = ""
+        for block_summary in block_summaries:
+            blocks_content += f"\n\n=== {block_summary['block_code']} - {block_summary['block_name']} ===\n"
+            blocks_content += f"Callers: {block_summary['caller_count']}\n"
+            blocks_content += f"Key Points: {json.dumps(block_summary['key_points'])}\n"
+            blocks_content += f"Entities: {', '.join(block_summary['entities'])}\n"
+            blocks_content += f"Summary: {block_summary['summary']}\n"
+
+        # Prepare detailed topics content
+        topics_content = ""
+        if day_topics:
+            topics_list = []
+            for i, topic in enumerate(day_topics[:15], 1):  # More topics for enhanced analysis
+                topic_line = f"{i}. {topic['name']} (weight: {topic['total_weight']:.2f}, blocks: {topic.get('block_codes', 'N/A')})"
+                topics_list.append(topic_line)
+            topics_content = f"\n\nDetailed Topics Analysis:\n" + "\n".join(topics_list)
+
+        conversation_evolution = ""
+        if Config.ENABLE_CONVERSATION_EVOLUTION:
+            conversation_evolution = "\n\nCONVERSATION EVOLUTION TRACKING:\nAnalyze how topics and sentiment evolved throughout the program, noting shifts in caller mood, changing priorities, and emerging themes."
+
+        prompt = f"""
+Create a comprehensive 4000-word daily intelligence briefing for senior government officials from today's "Down to Brass Tacks" radio program. 
+
+This briefing is for the Prime Minister's press secretary and senior civil servants to understand public sentiment and emerging issues ahead of upcoming elections.
+
+REQUIREMENTS:
+- Target 4000 words (approximately 24,000-28,000 characters)
+- Structured, professional analysis suitable for executive briefing
+- Focus on policy implications, public sentiment, and actionable intelligence
+- Include conversation evolution tracking and deep topic analysis
+- Provide structured JSON metadata alongside narrative analysis
+
+Date: {show_date}
+Total Program Blocks: {len(block_summaries)}
+Total Public Callers: {total_callers}
+Key Public Figures Mentioned: {', '.join(entities[:15])}{topics_content}{conversation_evolution}
+
+Detailed Block Analysis:
+{blocks_content}
+
+REQUIRED STRUCTURE (4000 words total):
+
+## PREAMBLE (300 words)
+Brief introduction to the program, date context, overall participation levels, and significance for government monitoring.
+
+## EXECUTIVE SUMMARY (500 words)
+Comprehensive overview of main themes, critical issues, overall public sentiment, and immediate government concerns.
+
+## TOPICS OVERVIEW (800 words)
+Detailed analysis of all major topics discussed:
+- Topic prioritization by public engagement
+- Cross-block topic evolution
+- Sentiment analysis per topic
+- Policy implications for each major theme
+
+## CONVERSATION EVOLUTION (600 words)
+Track how discussions evolved throughout the program:
+- Opening themes vs closing themes
+- Sentiment shifts during the program
+- How callers influenced each other
+- Moderator guidance and steering
+- Emerging consensus or divisions
+
+## MODERATOR POSITIONS & INFLUENCE (400 words)
+Analysis of how program hosts:
+- Framed discussions and guided conversations
+- Responded to controversial topics
+- Influenced public opinion through questioning
+- Aligned with or challenged government positions
+
+## PUBLIC SENTIMENT ANALYSIS (600 words)
+Deep dive into caller emotions, concerns, and priorities:
+- Overall mood and confidence levels
+- Specific demographic patterns (if identifiable)
+- Areas of public frustration or support
+- Comparison to recent polling or previous programs
+
+## POLICY IMPLICATIONS & RECOMMENDATIONS (500 words)
+Actionable intelligence for government response:
+- Issues requiring immediate attention
+- Long-term policy considerations
+- Public communication opportunities
+- Potential political risks or advantages
+
+## NOTABLE QUOTES & EVIDENCE (300 words)
+Key statements that capture public mood or reveal important insights, with context and analysis.
+
+Return the analysis in this EXACT JSON structure:
+{{
+    "metadata": {{
+        "date": "{show_date}",
+        "word_count": <actual_word_count>,
+        "blocks_analyzed": {len(block_summaries)},
+        "total_callers": {total_callers},
+        "generation_timestamp": "<ISO_timestamp>"
+    }},
+    "preamble": "<300_word_introduction>",
+    "executive_summary": "<500_word_overview>",
+    "topics_overview": "<800_word_topic_analysis>",
+    "conversation_evolution": "<600_word_evolution_tracking>",
+    "moderator_analysis": "<400_word_moderator_influence>",
+    "sentiment_analysis": "<600_word_public_sentiment>",
+    "policy_implications": "<500_word_recommendations>",
+    "notable_quotes": "<300_word_key_statements>",
+    "key_insights": [
+        "<insight_1>",
+        "<insight_2>",
+        "<insight_3>"
+    ],
+    "priority_actions": [
+        "<action_1>",
+        "<action_2>",
+        "<action_3>"
+    ]
+}}
+
+Focus on intelligence value for government decision-making. Be thorough, analytical, and provide specific actionable insights.
+"""
+        
+        return self._execute_daily_digest_llm(prompt, show_date, len(block_summaries), total_callers, enhanced=True)
+    
+    def _execute_daily_digest_llm(self, prompt: str, show_date: datetime.date, num_blocks: int, 
+                                 total_callers: int, enhanced: bool = False) -> Optional[str]:
+        """Execute LLM call for daily digest generation with fallback handling."""
+        
         try:
             if not Config.ENABLE_LLM or not self.client:
                 logger.info("LLM disabled or missing key; skipping daily digest LLM call")
                 return None
+            
             # Adaptive daily digest generation (reuse fallback logic)
             dd_models = [getattr(Config, 'SUMMARIZATION_MODEL', 'gpt-5-nano-2025-08-07'), 'gpt-4.1-mini', 'gpt-4o-mini']
             response = None
             last_err = None
+            
             for m in dd_models:
                 for param_style in ('max_completion_tokens', 'max_tokens', None):
                     try:
@@ -595,17 +741,21 @@ Keep each section concise. Use bullet points where helpful. Prioritize governmen
                         kwargs = dict(
                             model=m,
                             messages=[
-                                {"role": "system", "content": "You are a senior government analyst creating daily briefings. Write concisely within character limits. Focus on policy relevance and actionable intelligence."},
+                                {"role": "system", "content": "You are a senior government intelligence analyst creating daily briefings for executive decision-making. Write professionally, analytically, and focus on actionable intelligence. For enhanced mode, provide comprehensive analysis in structured JSON format."},
                                 {"role": "user", "content": prompt}
                             ],
                             temperature=0.2,
                         )
+                        
+                        # Set token limits based on mode
+                        max_tokens = 8000 if enhanced else 2000
                         if param_style == 'max_completion_tokens':
-                            kwargs['max_completion_tokens'] = 2000  # Match our character target
+                            kwargs['max_completion_tokens'] = max_tokens
                         elif param_style == 'max_tokens':
-                            kwargs['max_tokens'] = 2000
+                            kwargs['max_tokens'] = max_tokens
+                            
                         response = self.client.chat.completions.create(**kwargs)
-                        logger.info(f"Daily digest model success: model={m} style={param_style}")
+                        logger.info(f"Daily digest model success: model={m} style={param_style} enhanced={enhanced}")
                         break
                     except Exception as e:
                         last_err = e
@@ -620,42 +770,124 @@ Keep each section concise. Use bullet points where helpful. Prioritize governmen
                         break
                 if response:
                     break
+                    
             if not response:
                 logger.error(f"All daily digest model attempts failed: {last_err}")
+                self.usage['daily_digest_llm_failures'] += 1
                 return None
             
-            digest_text = response.choices[0].message.content
-            # Estimate cost for digest
-            try:
-                usage = getattr(response, 'usage', None)
-                if usage and hasattr(usage, 'prompt_tokens'):
-                    p_tokens = usage.prompt_tokens
-                    c_tokens = getattr(usage, 'completion_tokens', 0)
-                else:
-                    # Removed cost tracking
-                    p_tokens = max(1, len(prompt) // 4)
-                    c_tokens = max(1, len(digest_text) // 4)
-            except Exception:
-                pass
+            digest_content = response.choices[0].message.content
             
-            # Add header with metadata
-            header = f"""
-DAILY RADIO SYNOPSIS - DOWN TO BRASS TACKS
-Date: {show_date}
-Program Time: 10:00 AM - 2:00 PM AST
-Blocks Processed: {len(block_summaries)}
-Total Callers: {total_callers}
-Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-{'='*60}
-"""
-            
-            return header + digest_text
+            # Handle enhanced vs standard formatting
+            if enhanced and Config.ENABLE_STRUCTURED_OUTPUT:
+                return self._format_enhanced_digest(digest_content, show_date, num_blocks, total_callers)
+            else:
+                return self._format_standard_digest(digest_content, show_date, num_blocks, total_callers)
             
         except Exception as e:
             self.usage['daily_digest_llm_failures'] += 1
             logger.error(f"Error generating daily digest: {e}")
             return None
+    
+    def _format_standard_digest(self, digest_text: str, show_date: datetime.date, 
+                               num_blocks: int, total_callers: int) -> str:
+        """Format standard digest with header."""
+        header = f"""
+DAILY RADIO SYNOPSIS - DOWN TO BRASS TACKS
+Date: {show_date}
+Program Time: 10:00 AM - 2:00 PM AST
+Blocks Processed: {num_blocks}
+Total Callers: {total_callers}
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+{'='*60}
+"""
+        return header + digest_text
+    
+    def _format_enhanced_digest(self, digest_content: str, show_date: datetime.date, 
+                               num_blocks: int, total_callers: int) -> str:
+        """Format enhanced digest from JSON structure."""
+        try:
+            # Try to parse as JSON first
+            if digest_content.strip().startswith('{'):
+                digest_data = json.loads(digest_content)
+                return self._render_structured_digest(digest_data, show_date, num_blocks, total_callers)
+            else:
+                # Fallback to standard formatting if not JSON
+                logger.warning("Enhanced digest not in JSON format, using standard formatting")
+                return self._format_standard_digest(digest_content, show_date, num_blocks, total_callers)
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse enhanced digest JSON, using standard formatting")
+            return self._format_standard_digest(digest_content, show_date, num_blocks, total_callers)
+    
+    def _render_structured_digest(self, digest_data: dict, show_date: datetime.date, 
+                                 num_blocks: int, total_callers: int) -> str:
+        """Render structured digest from parsed JSON data."""
+        try:
+            if not isinstance(digest_data, dict):
+                logger.warning("digest_data is not a dictionary, falling back to standard format")
+                return self._format_standard_digest(str(digest_data), show_date, num_blocks, total_callers)
+            
+            header = f"""
+ENHANCED DAILY INTELLIGENCE BRIEFING
+DOWN TO BRASS TACKS RADIO PROGRAM ANALYSIS
+
+Date: {show_date}
+Program Duration: 10:00 AM - 2:00 PM AST
+Blocks Analyzed: {num_blocks}
+Total Public Callers: {total_callers}
+Analysis Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Target Audience: Prime Minister's Office, Senior Civil Servants
+Classification: INTERNAL GOVERNMENT USE
+
+{'='*80}
+"""
+            
+            content = header
+            
+            # Add each section
+            sections = [
+                ("PREAMBLE", "preamble"),
+                ("EXECUTIVE SUMMARY", "executive_summary"),
+                ("TOPICS OVERVIEW", "topics_overview"),
+                ("CONVERSATION EVOLUTION", "conversation_evolution"),
+                ("MODERATOR ANALYSIS", "moderator_analysis"),
+                ("PUBLIC SENTIMENT ANALYSIS", "sentiment_analysis"),
+                ("POLICY IMPLICATIONS & RECOMMENDATIONS", "policy_implications"),
+                ("NOTABLE QUOTES & EVIDENCE", "notable_quotes")
+            ]
+            
+            for section_title, section_key in sections:
+                if section_key in digest_data and digest_data[section_key]:
+                    content += f"\n\n## {section_title}\n\n{digest_data[section_key]}"
+            
+            # Add key insights
+            if "key_insights" in digest_data and digest_data["key_insights"]:
+                content += f"\n\n## KEY INSIGHTS\n"
+                for i, insight in enumerate(digest_data["key_insights"], 1):
+                    content += f"\n{i}. {insight}"
+            
+            # Add priority actions
+            if "priority_actions" in digest_data and digest_data["priority_actions"]:
+                content += f"\n\n## PRIORITY ACTIONS\n"
+                for i, action in enumerate(digest_data["priority_actions"], 1):
+                    content += f"\n{i}. {action}"
+            
+            # Add metadata footer
+            if "metadata" in digest_data:
+                metadata = digest_data["metadata"]
+                content += f"\n\n## ANALYSIS METADATA\n"
+                content += f"Word Count: {metadata.get('word_count', 'N/A')}\n"
+                content += f"Generation Timestamp: {metadata.get('generation_timestamp', 'N/A')}\n"
+            
+            content += f"\n\n{'='*80}\nEND OF BRIEFING"
+            
+            return content
+            
+        except Exception as e:
+            logger.error(f"Error rendering structured digest: {e}")
+            # Fallback to standard formatting
+            return self._format_standard_digest(str(digest_data), show_date, num_blocks, total_callers)
 
 # Global summarizer instance
 summarizer = RadioSummarizer()

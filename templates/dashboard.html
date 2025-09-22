@@ -225,12 +225,43 @@
 
                 {% if digest %}
         <section class="panel" id="panel-digest" aria-labelledby="heading-digest" data-active="false">
-            <h2 id="heading-digest"><i class="bi bi-file-text"></i> Daily Digest</h2>
-            <div class="digest-box">{{ digest.digest_text }}</div>
+            <h2 id="heading-digest"><i class="bi bi-file-text"></i> Daily Intelligence Digest</h2>
+            
+            {% if digest.digest_text.startswith('ENHANCED DAILY INTELLIGENCE BRIEFING') %}
+            <!-- Enhanced structured digest display -->
+            <div class="enhanced-digest">
+                <div class="digest-header">
+                    <div class="classification-label">INTERNAL GOVERNMENT USE</div>
+                    <div class="digest-meta">
+                        <span><i class="bi bi-calendar3"></i> {{ view_date.strftime('%B %d, %Y') }}</span>
+                        <span><i class="bi bi-people"></i> {{ stats.total_callers }} Callers</span>
+                        <span><i class="bi bi-collection"></i> {{ stats.completed_blocks }} Blocks</span>
+                    </div>
+                </div>
+                
+                <div class="digest-content">
+                    <!-- Parse and display structured sections -->
+                    {% set sections = digest.digest_text.split('## ') %}
+                    {% for section in sections[1:] %}
+                        {% set section_parts = section.split('\n\n', 1) %}
+                        {% if section_parts|length > 1 %}
+                        <div class="digest-section">
+                            <h3 class="section-title">{{ section_parts[0] }}</h3>
+                            <div class="section-content">{{ section_parts[1]|replace('\n', '<br>')|safe }}</div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <!-- Standard digest display -->
+            <div class="digest-box standard-digest">{{ digest.digest_text }}</div>
+            {% endif %}
+            
             <div style="margin-top:1rem; display:flex; gap:.75rem; justify-content:flex-end; flex-wrap:wrap;">
                 <button class="block-action" style="background:var(--grad-gold); color:var(--text-inverse);" onclick="window.print()"><i class="bi bi-printer"></i> PRINT</button>
                 <button class="block-action" onclick="downloadDigest()"><i class="bi bi-download"></i> DOWNLOAD</button>
-                    </div>
+            </div>
         </section>
                 {% endif %}
 
