@@ -332,7 +332,8 @@ class Database:
                     transcript_file_path NVARCHAR(500),
                     created_at DATETIME2 DEFAULT GETDATE(),
                     start_time DATETIME2,
-                    end_time DATETIME2
+                    end_time DATETIME2,
+                    duration_minutes INT
                 );
 
                 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[summaries]') AND type in (N'U'))
@@ -361,7 +362,8 @@ class Database:
                 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[topics]') AND type in (N'U'))
                 CREATE TABLE topics (
                     id INT IDENTITY(1,1) PRIMARY KEY,
-                    word NVARCHAR(100) NOT NULL UNIQUE,
+                    name NVARCHAR(200) NOT NULL,
+                    normalized_name NVARCHAR(200) NOT NULL UNIQUE,
                     created_at DATETIME2 DEFAULT GETDATE()
                 );
 
@@ -373,6 +375,45 @@ class Database:
                     PRIMARY KEY (block_id, topic_id)
                 );
 
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[segments]') AND type in (N'U'))
+                CREATE TABLE segments (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    block_id INT REFERENCES blocks(id) ON DELETE CASCADE,
+                    start_sec FLOAT NOT NULL,
+                    end_sec FLOAT NOT NULL,
+                    text NVARCHAR(MAX) NOT NULL,
+                    speaker NVARCHAR(100),
+                    speaker_type NVARCHAR(50),
+                    guard_band INT DEFAULT 0,
+                    created_at DATETIME2 DEFAULT GETDATE()
+                );
+
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[chapters]') AND type in (N'U'))
+                CREATE TABLE chapters (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    show_id INT REFERENCES shows(id) ON DELETE CASCADE,
+                    label NVARCHAR(100) NOT NULL,
+                    anchor_type NVARCHAR(50),
+                    start_time DATETIME2 NOT NULL,
+                    end_time DATETIME2 NOT NULL,
+                    created_at DATETIME2 DEFAULT GETDATE(),
+                    UNIQUE(show_id, label)
+                );
+
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[llm_daily_usage]') AND type in (N'U'))
+                CREATE TABLE llm_daily_usage (
+                    date DATE NOT NULL,
+                    model NVARCHAR(100) NOT NULL,
+                    prompt_tokens INT DEFAULT 0,
+                    completion_tokens INT DEFAULT 0,
+                    usd FLOAT DEFAULT 0,
+                    block_calls INT DEFAULT 0,
+                    digest_calls INT DEFAULT 0,
+                    failures INT DEFAULT 0,
+                    updated_at DATETIME2 DEFAULT GETDATE(),
+                    PRIMARY KEY (date, model)
+                );
+
                 -- Create indexes if they don't exist
                 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_blocks_show_date' AND object_id = OBJECT_ID('blocks'))
                 CREATE INDEX idx_blocks_show_date ON blocks(show_id);
@@ -382,6 +423,18 @@ class Database:
 
                 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_summaries_block' AND object_id = OBJECT_ID('summaries'))
                 CREATE INDEX idx_summaries_block ON summaries(block_id);
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_segments_block' AND object_id = OBJECT_ID('segments'))
+                CREATE INDEX idx_segments_block ON segments(block_id);
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_segments_time' AND object_id = OBJECT_ID('segments'))
+                CREATE INDEX idx_segments_time ON segments(block_id, start_sec);
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_chapters_show' AND object_id = OBJECT_ID('chapters'))
+                CREATE INDEX idx_chapters_show ON chapters(show_id);
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_llm_daily_usage_date' AND object_id = OBJECT_ID('llm_daily_usage'))
+                CREATE INDEX idx_llm_daily_usage_date ON llm_daily_usage(date);
             """
             conn.execute(str(text(tables_query)))
             conn.commit()
@@ -436,6 +489,18 @@ class Database:
                 row = conn.execute(
                     "SELECT * FROM shows WHERE show_date = ?", (show_date_str,)
                 ).fetchone()
+                return dict(row) if row else None
+
+    def get_show_by_id(self, show_id: int) -> Optional[Dict]:
+        """Get show by ID."""
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                result = conn.execute(str(text("SELECT * FROM shows WHERE id = :show_id")), {"show_id": show_id})
+                row = result.fetchone()
+                return dict(row._mapping) if row else None
+        else:
+            with self.get_connection() as conn:
+                row = conn.execute("SELECT * FROM shows WHERE id = ?", (show_id,)).fetchone()
                 return dict(row) if row else None
     
     def create_block(self, show_id: int, block_code: str, start_time: datetime, end_time: datetime) -> int:

@@ -108,7 +108,7 @@ class AudioTranscriber:
                 try:
                     show_id = block['show_id']
                     from datetime import datetime as dt
-                    show = db.get_show(block['show_id']) if hasattr(db, 'get_show') else None
+                    show = db.get_show_by_id(show_id) if hasattr(db, 'get_show_by_id') else None
                     # Fallback: derive show_date from block start_time
                     if show:
                         show_date = show['show_date']
