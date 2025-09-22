@@ -1018,7 +1018,7 @@ class Database:
                     """,
                     (f'-{int(days)} days', limit)
                 ).fetchall()
-        return [dict(r) for r in rows]
+        return [dict(r._mapping) if hasattr(r, '_mapping') else dict(r) for r in rows]
 
     def get_topics_for_day(self, show_date: date, limit: int = 15) -> List[Dict]:
         """Get topics for a specific day with their weights and block coverage."""
