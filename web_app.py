@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 
 from config import Config
 from database import db
+from sqlalchemy import text
 
 # Import version info early for logging
 # Prioritize environment variables (from Docker build) over hardcoded version.py
