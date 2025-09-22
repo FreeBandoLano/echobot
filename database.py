@@ -374,10 +374,13 @@ class Database:
     
     def create_show(self, show_date: date, title: str = "Down to Brass Tacks") -> int:
         """Create a new show record."""
+        # Convert date object to string for SQLite compatibility (Python 3.12+ requirement)
+        show_date_str = show_date.strftime('%Y-%m-%d')
+        
         with self.get_connection() as conn:
             cursor = conn.execute(
                 "INSERT OR REPLACE INTO shows (show_date, title) VALUES (?, ?)",
-                (show_date, title)
+                (show_date_str, title)
             )
             return cursor.lastrowid
     
@@ -389,9 +392,11 @@ class Database:
                 row = result.fetchone()
                 return dict(row._mapping) if row else None
         else:
+            # Convert date object to string for SQLite compatibility (Python 3.12+ requirement)
+            show_date_str = show_date.strftime('%Y-%m-%d')
             with self.get_connection() as conn:
                 row = conn.execute(
-                    "SELECT * FROM shows WHERE show_date = ?", (show_date,)
+                    "SELECT * FROM shows WHERE show_date = ?", (show_date_str,)
                 ).fetchone()
                 return dict(row) if row else None
     
@@ -472,13 +477,15 @@ class Database:
                 rows = result.fetchall()
                 return [dict(row._mapping) for row in rows]
         else:
+            # Convert date object to string for SQLite compatibility (Python 3.12+ requirement)
+            show_date_str = show_date.strftime('%Y-%m-%d')
             with self.get_connection() as conn:
                 rows = conn.execute("""
                     SELECT b.* FROM blocks b
                     JOIN shows s ON b.show_id = s.id
                     WHERE s.show_date = ?
                     ORDER BY b.block_code
-                """, (show_date,)).fetchall()
+                """, (show_date_str,)).fetchall()
                 return [dict(row) for row in rows]
     
     def create_summary(self, block_id: int, summary_text: str, key_points: List[str], 
@@ -546,12 +553,15 @@ class Database:
     
     def create_daily_digest(self, show_date: date, digest_text: str, total_blocks: int, total_callers: int) -> int:
         """Create daily digest."""
+        # Convert date object to string for SQLite compatibility (Python 3.12+ requirement)
+        show_date_str = show_date.strftime('%Y-%m-%d')
+        
         with self.get_connection() as conn:
             cursor = conn.execute("""
                 INSERT OR REPLACE INTO daily_digests 
                 (show_date, digest_text, total_blocks, total_callers)
                 VALUES (?, ?, ?, ?)
-            """, (show_date, digest_text, total_blocks, total_callers))
+            """, (show_date_str, digest_text, total_blocks, total_callers))
             return cursor.lastrowid
     
     def get_daily_digest(self, show_date: date) -> Optional[Dict]:
@@ -562,9 +572,11 @@ class Database:
                 row = result.fetchone()
                 return dict(row._mapping) if row else None
         else:
+            # Convert date object to string for SQLite compatibility (Python 3.12+ requirement)
+            show_date_str = show_date.strftime('%Y-%m-%d')
             with self.get_connection() as conn:
                 row = conn.execute(
-                    "SELECT * FROM daily_digests WHERE show_date = ?", (show_date,)
+                    "SELECT * FROM daily_digests WHERE show_date = ?", (show_date_str,)
                 ).fetchone()
                 return dict(row) if row else None
 
