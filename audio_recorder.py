@@ -349,12 +349,10 @@ class AudioRecorder:
         end_time = datetime.strptime(f"{show_date} {end_time_str}", "%Y-%m-%d %H:%M")
         end_time = Config.TIMEZONE.localize(end_time)
         
-        # Get or create show
-        show = db.get_show(show_date)
-        if not show:
-            show_id = db.create_show(show_date)
-        else:
-            show_id = show['id']
+        # Always create a new show for scheduled recordings (avoids stale references)
+        # This prevents foreign key issues after database resets during deployments
+        show_id = db.create_show(show_date)
+        logger.info(f"Created new show for scheduled recording: show_id={show_id}")
         
         return self.record_block(block_code, start_time, end_time, show_id)
     
@@ -370,16 +368,13 @@ class AudioRecorder:
         
         logger.info(f"Starting immediate recording for Block {block_code}")
         logger.info(f"Duration: {duration_minutes} minutes ({duration_seconds} seconds)")
-        logger.info(f"Start: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info(f"End: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        # Get or create show for today
+        # Get current date
         today = now.date()
-        show = db.get_show(today)
-        if not show:
-            show_id = db.create_show(today)
-        else:
-            show_id = show['id']
+        
+        # Always create a new show for manual recordings (they're typically one-off)
+        # This avoids issues with stale show references after database resets
+        show_id = db.create_show(today)
+        logger.info(f"Created new show for manual recording: show_id={show_id}")
         
         # Generate filename with current timestamp
         timestamp_str = now.strftime('%Y-%m-%d_%H-%M-%S')
