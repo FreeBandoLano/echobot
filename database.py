@@ -399,12 +399,16 @@ class Database:
         """Create a new block record."""
         duration_minutes = int((end_time - start_time).total_seconds() / 60)
         
+        # Convert timezone-aware datetime objects to strings for database compatibility
+        start_time_str = start_time.strftime('%Y-%m-%d %H:%M:%S')
+        end_time_str = end_time.strftime('%Y-%m-%d %H:%M:%S')
+        
         with self.get_connection() as conn:
             cursor = conn.execute("""
                 INSERT OR REPLACE INTO blocks 
                 (show_id, block_code, start_time, end_time, duration_minutes, status)
                 VALUES (?, ?, ?, ?, ?, 'scheduled')
-            """, (show_id, block_code, start_time, end_time, duration_minutes))
+            """, (show_id, block_code, start_time_str, end_time_str, duration_minutes))
             return cursor.lastrowid
     
     def update_block_status(self, block_id: int, status: str, **kwargs):
