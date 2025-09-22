@@ -296,6 +296,21 @@ class Database:
                 except Exception as e:
                     logger.info(f"Total_callers column might already exist: {e}")
             
+            # Check if duration_minutes column exists in blocks table and add it if missing
+            check_duration_column = """
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'blocks' AND COLUMN_NAME = 'duration_minutes'
+            """
+            duration_result = conn.execute(str(text(check_duration_column))).fetchall()
+            if not duration_result:
+                try:
+                    conn.execute("ALTER TABLE blocks ADD duration_minutes INT", ())
+                    conn.commit()
+                    logger.info("✅ Added missing duration_minutes column to blocks table")
+                except Exception as e:
+                    logger.info(f"Duration_minutes column might already exist: {e}")
+            
             # For the large table creation query, ensure it's a string
             tables_query = """
                 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[shows]') AND type in (N'U'))
