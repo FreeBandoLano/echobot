@@ -382,6 +382,23 @@ class Database:
                 except Exception as e:
                     logger.info(f"NULL cleanup error: {e}")
             
+            # CRITICAL: One-time emergency cleanup for existing NULL normalized_name values
+            # This runs every startup to ensure the UNIQUE constraint doesn't get violated
+            try:
+                null_count = conn.execute(str(text("SELECT COUNT(*) FROM topics WHERE normalized_name IS NULL"))).fetchone()[0]
+                if null_count > 0:
+                    logger.warning(f"🚨 EMERGENCY: Found {null_count} topics with NULL normalized_name - fixing immediately...")
+                    conn.execute(str(text("""
+                        UPDATE topics 
+                        SET normalized_name = LOWER(REPLACE(COALESCE(name, 'topic_' + CAST(id AS NVARCHAR)), ' ', ''))
+                        WHERE normalized_name IS NULL
+                    """)))
+                    conn.commit()
+                    logger.info(f"✅ EMERGENCY FIX: Cleaned up {null_count} NULL normalized_name values")
+            except Exception as e:
+                logger.error(f"❌ EMERGENCY FIX FAILED: {e}")
+                # Continue anyway - don't crash the app
+            
             # For the large table creation query, ensure it's a string
             tables_query = """
                 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[shows]') AND type in (N'U'))
@@ -907,12 +924,37 @@ class Database:
                 else:
                     # Insert new topic
                     insert_query = "INSERT INTO topics (name, normalized_name) VALUES (:name, :norm)"
-                    conn.execute(str(text(insert_query)), {"name": name.strip(), "norm": norm})
-                    conn.commit()
-                    
-                    # Get the inserted ID
-                    id_result = conn.execute(str(text("SELECT id FROM topics WHERE normalized_name = :norm")), {"norm": norm})
-                    return id_result.fetchone()[0]
+                    try:
+                        conn.execute(str(text(insert_query)), {"name": name.strip(), "norm": norm})
+                        conn.commit()
+                        
+                        # Get the inserted ID
+                        id_result = conn.execute(str(text("SELECT id FROM topics WHERE normalized_name = :norm")), {"norm": norm})
+                        return id_result.fetchone()[0]
+                    except Exception as e:
+                        # If UNIQUE constraint violation due to NULL values, try emergency cleanup
+                        if "UNIQUE KEY constraint" in str(e) and "NULL" in str(e):
+                            logger.warning(f"🔧 Emergency cleanup triggered for topic '{name}' due to NULL constraint")
+                            try:
+                                # Clean up any remaining NULL normalized_name values
+                                conn.execute(str(text("""
+                                    UPDATE topics 
+                                    SET normalized_name = LOWER(REPLACE(COALESCE(name, 'topic_' + CAST(id AS NVARCHAR)), ' ', ''))
+                                    WHERE normalized_name IS NULL
+                                """)))
+                                conn.commit()
+                                
+                                # Retry the insert
+                                conn.execute(str(text(insert_query)), {"name": name.strip(), "norm": norm})
+                                conn.commit()
+                                
+                                id_result = conn.execute(str(text("SELECT id FROM topics WHERE normalized_name = :norm")), {"norm": norm})
+                                return id_result.fetchone()[0]
+                            except Exception as retry_e:
+                                logger.error(f"❌ Emergency cleanup failed for topic '{name}': {retry_e}")
+                                raise e
+                        else:
+                            raise e
         else:
             with self.get_connection() as conn:
                 row = conn.execute("SELECT id FROM topics WHERE normalized_name = ?", (norm,)).fetchone()
