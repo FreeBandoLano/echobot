@@ -1083,8 +1083,13 @@ class Database:
 
     # ---------------- Segments / Chapters (Phase 1) ----------------
     def delete_segments_for_block(self, block_id: int):
-        with self.get_connection() as conn:
-            conn.execute("DELETE FROM segments WHERE block_id = ?", (block_id,))
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                conn.execute(str(text("DELETE FROM segments WHERE block_id = :block_id")), {"block_id": block_id})
+                conn.commit()
+        else:
+            with self.get_connection() as conn:
+                conn.execute("DELETE FROM segments WHERE block_id = ?", (block_id,))
 
     def insert_segment(self, block_id: int, start_sec: float, end_sec: float, text: str,
                        speaker: Optional[str], guard_band: bool):
@@ -1094,25 +1099,49 @@ class Database:
                 speaker_type = 'caller'
             elif speaker.lower().startswith('host'):
                 speaker_type = 'host'
-        with self.get_connection() as conn:
-            conn.execute(
-                """INSERT INTO segments (block_id, start_sec, end_sec, text, speaker, speaker_type, guard_band)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (block_id, float(start_sec), float(end_sec), text.strip(), speaker, speaker_type, 1 if guard_band else 0)
-            )
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                conn.execute(str(text("""
+                    INSERT INTO segments (block_id, start_sec, end_sec, text, speaker, speaker_type, guard_band)
+                    VALUES (:block_id, :start_sec, :end_sec, :text, :speaker, :speaker_type, :guard_band)
+                """)), {
+                    "block_id": block_id, "start_sec": float(start_sec), "end_sec": float(end_sec),
+                    "text": text.strip(), "speaker": speaker, "speaker_type": speaker_type,
+                    "guard_band": 1 if guard_band else 0
+                })
+                conn.commit()
+        else:
+            with self.get_connection() as conn:
+                conn.execute(
+                    """INSERT INTO segments (block_id, start_sec, end_sec, text, speaker, speaker_type, guard_band)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (block_id, float(start_sec), float(end_sec), text.strip(), speaker, speaker_type, 1 if guard_band else 0)
+                )
 
     def get_segments_for_block(self, block_id: int) -> List[Dict]:
-        with self.get_connection() as conn:
-            rows = conn.execute(
-                "SELECT * FROM segments WHERE block_id = ? ORDER BY start_sec", (block_id,)
-            ).fetchall()
-            return [dict(r) for r in rows]
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                rows = conn.execute(str(text(
+                    "SELECT * FROM segments WHERE block_id = :block_id ORDER BY start_sec"
+                )), {"block_id": block_id}).fetchall()
+                return [dict(r._mapping) for r in rows]
+        else:
+            with self.get_connection() as conn:
+                rows = conn.execute(
+                    "SELECT * FROM segments WHERE block_id = ? ORDER BY start_sec", (block_id,)
+                ).fetchall()
+                return [dict(r) for r in rows]
 
     def count_segments_for_block(self, block_id: int) -> int:
         """Return count of persisted segments for a block (fast)."""
-        with self.get_connection() as conn:
-            row = conn.execute("SELECT COUNT(1) as c FROM segments WHERE block_id = ?", (block_id,)).fetchone()
-            return int(row['c']) if row else 0
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                row = conn.execute(str(text("SELECT COUNT(1) as c FROM segments WHERE block_id = :block_id")), {"block_id": block_id}).fetchone()
+                return int(row['c']) if row else 0
+        else:
+            with self.get_connection() as conn:
+                row = conn.execute("SELECT COUNT(1) as c FROM segments WHERE block_id = ?", (block_id,)).fetchone()
+                return int(row['c']) if row else 0
 
     def get_filler_stats_for_block(self, block_id: int) -> Optional[Dict[str, Any]]:
         """Compute filler/content stats for a single block using persisted segments.
@@ -1217,9 +1246,14 @@ class Database:
                     )
 
     def get_chapters_for_show(self, show_id: int) -> List[Dict]:
-        with self.get_connection() as conn:
-            rows = conn.execute("SELECT * FROM chapters WHERE show_id = ? ORDER BY start_time", (show_id,)).fetchall()
-            return [dict(r) for r in rows]
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                rows = conn.execute(str(text("SELECT * FROM chapters WHERE show_id = :show_id ORDER BY start_time")), {"show_id": show_id}).fetchall()
+                return [dict(r._mapping) for r in rows]
+        else:
+            with self.get_connection() as conn:
+                rows = conn.execute("SELECT * FROM chapters WHERE show_id = ? ORDER BY start_time", (show_id,)).fetchall()
+                return [dict(r) for r in rows]
 
     # ---------------- LLM Usage Persistence ----------------
     def upsert_llm_daily_usage(self, date_val: date, model: str, prompt_tokens: int = 0, completion_tokens: int = 0,
