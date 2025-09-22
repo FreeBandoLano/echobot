@@ -956,7 +956,7 @@ class Database:
                 JOIN blocks b ON b.id = bt.block_id
                 JOIN shows s ON s.id = b.show_id
                 WHERE s.show_date >= DATEADD(day, :days, GETDATE())
-                GROUP BY t.id
+                GROUP BY t.id, t.name
                 ORDER BY total_weight DESC
                 """))
                 rows = conn.execute(query, {"days": -int(days), "limit": limit}).fetchall()
