@@ -311,6 +311,34 @@ class Database:
                 except Exception as e:
                     logger.info(f"Duration_minutes column might already exist: {e}")
             
+            # CRITICAL: Check if topics table has old 'word' column and migrate to new schema
+            check_topics_schema = """
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'topics' AND COLUMN_NAME IN ('word', 'name', 'normalized_name')
+            """
+            topics_columns = [row[0] for row in conn.execute(str(text(check_topics_schema))).fetchall()]
+            
+            if 'word' in topics_columns and 'name' not in topics_columns:
+                logger.info("🔄 Migrating topics table from old 'word' schema to new 'name/normalized_name' schema...")
+                try:
+                    # Add new columns
+                    conn.execute("ALTER TABLE topics ADD name NVARCHAR(200)", ())
+                    conn.execute("ALTER TABLE topics ADD normalized_name NVARCHAR(200)", ())
+                    conn.commit()
+                    
+                    # Migrate data: copy 'word' to both 'name' and 'normalized_name' 
+                    conn.execute(str(text("UPDATE topics SET name = word, normalized_name = LOWER(REPLACE(word, ' ', ''))")))
+                    conn.commit()
+                    
+                    # Drop old column (optional - can be done later for safety)
+                    # conn.execute("ALTER TABLE topics DROP COLUMN word", ())
+                    
+                    logger.info("✅ Successfully migrated topics table schema")
+                except Exception as e:
+                    logger.error(f"❌ Failed to migrate topics table: {e}")
+                    # Continue anyway - the new table creation will handle it
+            
             # For the large table creation query, ensure it's a string
             tables_query = """
                 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[shows]') AND type in (N'U'))

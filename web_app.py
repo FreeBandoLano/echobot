@@ -430,12 +430,21 @@ async def block_detail(request: Request, block_id: int):
     # Try to infer show_date for navigation aids
     show_date = None
     try:
-        with db.get_connection() as conn:
-            row = conn.execute("""
-                SELECT s.show_date FROM blocks b JOIN shows s ON s.id = b.show_id WHERE b.id = ?
-            """, (block_id,)).fetchone()
-            if row:
-                show_date = row[0] if isinstance(row, (list, tuple)) else row['show_date']
+        if db.use_azure_sql:
+            with db.get_connection() as conn:
+                from sqlalchemy import text
+                row = conn.execute(str(text("""
+                    SELECT s.show_date FROM blocks b JOIN shows s ON s.id = b.show_id WHERE b.id = :block_id
+                """)), {"block_id": block_id}).fetchone()
+                if row:
+                    show_date = row['show_date']
+        else:
+            with db.get_connection() as conn:
+                row = conn.execute("""
+                    SELECT s.show_date FROM blocks b JOIN shows s ON s.id = b.show_id WHERE b.id = ?
+                """, (block_id,)).fetchone()
+                if row:
+                    show_date = row[0] if isinstance(row, (list, tuple)) else row['show_date']
     except Exception:
         show_date = None
 
