@@ -510,21 +510,35 @@ class Database:
     
     def update_block_status(self, block_id: int, status: str, **kwargs):
         """Update block status and optional fields."""
-        fields = ["status = ?"]
-        values = [status]
-        
-        for field, value in kwargs.items():
-            if field in ['audio_file_path', 'transcript_file_path']:
-                fields.append(f"{field} = ?")
-                values.append(str(value))
-        
-        values.append(block_id)
-        
-        with self.get_connection() as conn:
-            conn.execute(
-                f"UPDATE blocks SET {', '.join(fields)} WHERE id = ?",
-                tuple(values)
-            )
+        if self.use_azure_sql:
+            fields = ["status = :status"]
+            params = {"status": status, "block_id": block_id}
+            
+            for field, value in kwargs.items():
+                if field in ['audio_file_path', 'transcript_file_path']:
+                    fields.append(f"{field} = :{field}")
+                    params[field] = str(value)
+            
+            with self.get_connection() as conn:
+                query = f"UPDATE blocks SET {', '.join(fields)} WHERE id = :block_id"
+                conn.execute(str(text(query)), params)
+                conn.commit()
+        else:
+            fields = ["status = ?"]
+            values = [status]
+            
+            for field, value in kwargs.items():
+                if field in ['audio_file_path', 'transcript_file_path']:
+                    fields.append(f"{field} = ?")
+                    values.append(str(value))
+            
+            values.append(block_id)
+            
+            with self.get_connection() as conn:
+                conn.execute(
+                    f"UPDATE blocks SET {', '.join(fields)} WHERE id = ?",
+                    tuple(values)
+                )
     
     def get_block(self, block_id: int) -> Optional[Dict]:
         """Get block by ID."""
