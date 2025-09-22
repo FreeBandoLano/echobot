@@ -637,27 +637,51 @@ async def timeline_view(request: Request, days: int = 1, date: str | None = None
             days = 1
     with db.get_connection() as conn:
         if single_date:
-            seg_rows = conn.execute(
-                """
+            if db.use_azure_sql:
+                from sqlalchemy import text
+                query = str(text("""
                 SELECT s.show_date, b.block_code, b.id as block_id, seg.start_sec, seg.end_sec, seg.text, seg.speaker, seg.guard_band
                 FROM segments seg
                 JOIN blocks b ON b.id = seg.block_id
                 JOIN shows s ON s.id = b.show_id
-                WHERE s.show_date = ?
+                WHERE s.show_date = :single_date
                 ORDER BY b.block_code, seg.start_sec
-                """, (single_date,)
-            ).fetchall()
+                """))
+                seg_rows = conn.execute(query, {"single_date": single_date}).fetchall()
+            else:
+                seg_rows = conn.execute(
+                    """
+                    SELECT s.show_date, b.block_code, b.id as block_id, seg.start_sec, seg.end_sec, seg.text, seg.speaker, seg.guard_band
+                    FROM segments seg
+                    JOIN blocks b ON b.id = seg.block_id
+                    JOIN shows s ON s.id = b.show_id
+                    WHERE s.show_date = ?
+                    ORDER BY b.block_code, seg.start_sec
+                    """, (single_date,)
+                ).fetchall()
         else:
-            seg_rows = conn.execute(
-                """
+            if db.use_azure_sql:
+                from sqlalchemy import text
+                query = str(text("""
                 SELECT s.show_date, b.block_code, b.id as block_id, seg.start_sec, seg.end_sec, seg.text, seg.speaker, seg.guard_band
                 FROM segments seg
                 JOIN blocks b ON b.id = seg.block_id
                 JOIN shows s ON s.id = b.show_id
-                WHERE s.show_date >= date('now', ?)
+                WHERE s.show_date >= DATEADD(day, :days, GETDATE())
                 ORDER BY s.show_date, b.block_code, seg.start_sec
-                """, (f'-{days} days',)
-            ).fetchall()
+                """))
+                seg_rows = conn.execute(query, {"days": -days}).fetchall()
+            else:
+                seg_rows = conn.execute(
+                    """
+                    SELECT s.show_date, b.block_code, b.id as block_id, seg.start_sec, seg.end_sec, seg.text, seg.speaker, seg.guard_band
+                    FROM segments seg
+                    JOIN blocks b ON b.id = seg.block_id
+                    JOIN shows s ON s.id = b.show_id
+                    WHERE s.show_date >= date('now', ?)
+                    ORDER BY s.show_date, b.block_code, seg.start_sec
+                    """, (f'-{days} days',)
+                ).fetchall()
     if db.use_azure_sql:
         segments = [dict(r._mapping) for r in seg_rows]
     else:

@@ -570,17 +570,57 @@ class Database:
         quotes = quotes or []
         raw_json = raw_json or {}
         
-        with self.get_connection() as conn:
-            cursor = conn.execute("""
-                INSERT OR REPLACE INTO summaries 
-                (block_id, summary_text, key_points, entities, caller_count, quotes, raw_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                block_id, summary_text, 
-                json.dumps(key_points), json.dumps(entities), 
-                caller_count, json.dumps(quotes), json.dumps(raw_json)
-            ))
-            return cursor.lastrowid
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                # Check if summary exists for this block
+                check_query = "SELECT id FROM summaries WHERE block_id = :block_id"
+                existing = conn.execute(str(text(check_query)), {"block_id": block_id}).fetchone()
+                
+                params = {
+                    "block_id": block_id,
+                    "summary_text": summary_text,
+                    "key_points": json.dumps(key_points),
+                    "entities": json.dumps(entities),
+                    "caller_count": caller_count,
+                    "quotes": json.dumps(quotes),
+                    "raw_json": json.dumps(raw_json)
+                }
+                
+                if existing:
+                    # Update existing summary
+                    update_query = """
+                    UPDATE summaries 
+                    SET summary_text = :summary_text, key_points = :key_points, entities = :entities, 
+                        caller_count = :caller_count, quotes = :quotes, raw_json = :raw_json
+                    WHERE block_id = :block_id
+                    """
+                    conn.execute(str(text(update_query)), params)
+                    conn.commit()
+                    return existing[0]
+                else:
+                    # Insert new summary
+                    insert_query = """
+                    INSERT INTO summaries (block_id, summary_text, key_points, entities, caller_count, quotes, raw_json)
+                    VALUES (:block_id, :summary_text, :key_points, :entities, :caller_count, :quotes, :raw_json)
+                    """
+                    conn.execute(str(text(insert_query)), params)
+                    conn.commit()
+                    
+                    # Get the inserted ID
+                    id_result = conn.execute(str(text("SELECT id FROM summaries WHERE block_id = :block_id")), {"block_id": block_id})
+                    return id_result.fetchone()[0]
+        else:
+            with self.get_connection() as conn:
+                cursor = conn.execute("""
+                    INSERT OR REPLACE INTO summaries 
+                    (block_id, summary_text, key_points, entities, caller_count, quotes, raw_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    block_id, summary_text, 
+                    json.dumps(key_points), json.dumps(entities), 
+                    caller_count, json.dumps(quotes), json.dumps(raw_json)
+                ))
+                return cursor.lastrowid
     
     def get_summary(self, block_id: int) -> Optional[Dict]:
         """Get summary by block ID."""
@@ -705,82 +745,168 @@ class Database:
         norm = self._normalize_topic(name)
         if not norm:
             raise ValueError("Empty topic")
-        with self.get_connection() as conn:
-            row = conn.execute("SELECT id FROM topics WHERE normalized_name = ?", (norm,)).fetchone()
-            if row:
-                return row[0]
-            cur = conn.execute("INSERT INTO topics (name, normalized_name) VALUES (?, ?)", (name.strip(), norm))
-            return cur.lastrowid
+            
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                # Check if topic exists
+                check_query = "SELECT id FROM topics WHERE normalized_name = :norm"
+                existing = conn.execute(str(text(check_query)), {"norm": norm}).fetchone()
+                
+                if existing:
+                    return existing[0]
+                else:
+                    # Insert new topic
+                    insert_query = "INSERT INTO topics (name, normalized_name) VALUES (:name, :norm)"
+                    conn.execute(str(text(insert_query)), {"name": name.strip(), "norm": norm})
+                    conn.commit()
+                    
+                    # Get the inserted ID
+                    id_result = conn.execute(str(text("SELECT id FROM topics WHERE normalized_name = :norm")), {"norm": norm})
+                    return id_result.fetchone()[0]
+        else:
+            with self.get_connection() as conn:
+                row = conn.execute("SELECT id FROM topics WHERE normalized_name = ?", (norm,)).fetchone()
+                if row:
+                    return row[0]
+                cur = conn.execute("INSERT INTO topics (name, normalized_name) VALUES (?, ?)", (name.strip(), norm))
+                return cur.lastrowid
 
     def link_topic_to_block(self, block_id: int, topic_id: int, weight: float):
-        with self.get_connection() as conn:
-            conn.execute(
-                "INSERT OR REPLACE INTO block_topics (block_id, topic_id, weight) VALUES (?, ?, ?)",
-                (block_id, topic_id, weight)
-            )
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                # Check if link exists
+                check_query = "SELECT COUNT(*) FROM block_topics WHERE block_id = :block_id AND topic_id = :topic_id"
+                exists = conn.execute(str(text(check_query)), {"block_id": block_id, "topic_id": topic_id}).fetchone()[0]
+                
+                params = {"block_id": block_id, "topic_id": topic_id, "weight": weight}
+                
+                if exists > 0:
+                    # Update existing link
+                    update_query = "UPDATE block_topics SET weight = :weight WHERE block_id = :block_id AND topic_id = :topic_id"
+                    conn.execute(str(text(update_query)), params)
+                else:
+                    # Insert new link
+                    insert_query = "INSERT INTO block_topics (block_id, topic_id, weight) VALUES (:block_id, :topic_id, :weight)"
+                    conn.execute(str(text(insert_query)), params)
+                conn.commit()
+        else:
+            with self.get_connection() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO block_topics (block_id, topic_id, weight) VALUES (?, ?, ?)",
+                    (block_id, topic_id, weight)
+                )
 
     def get_top_topics(self, days: int = 14, limit: int = 15) -> List[Dict]:
-        with self.get_connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT t.name, SUM(bt.weight) as total_weight, COUNT(DISTINCT bt.block_id) as blocks
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                query = str(text("""
+                SELECT TOP (:limit) t.name, SUM(bt.weight) as total_weight, COUNT(DISTINCT bt.block_id) as blocks
                 FROM block_topics bt
                 JOIN topics t ON t.id = bt.topic_id
                 JOIN blocks b ON b.id = bt.block_id
                 JOIN shows s ON s.id = b.show_id
-                WHERE s.show_date >= date('now', ?)
+                WHERE s.show_date >= DATEADD(day, :days, GETDATE())
                 GROUP BY t.id
                 ORDER BY total_weight DESC
-                LIMIT ?
-                """,
-                (f'-{int(days)} days', limit)
-            ).fetchall()
+                """))
+                rows = conn.execute(query, {"days": -int(days), "limit": limit}).fetchall()
+        else:
+            with self.get_connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT t.name, SUM(bt.weight) as total_weight, COUNT(DISTINCT bt.block_id) as blocks
+                    FROM block_topics bt
+                    JOIN topics t ON t.id = bt.topic_id
+                    JOIN blocks b ON b.id = bt.block_id
+                    JOIN shows s ON s.id = b.show_id
+                    WHERE s.show_date >= date('now', ?)
+                    GROUP BY t.id
+                    ORDER BY total_weight DESC
+                    LIMIT ?
+                    """,
+                    (f'-{int(days)} days', limit)
+                ).fetchall()
         return [dict(r) for r in rows]
 
     def get_topics_for_day(self, show_date: date, limit: int = 15) -> List[Dict]:
         """Get topics for a specific day with their weights and block coverage."""
-        with self.get_connection() as conn:
-            if isinstance(show_date, str):
-                date_param = show_date
-            else:
-                date_param = show_date.strftime('%Y-%m-%d')
-            
-            rows = conn.execute(
-                """
-                SELECT t.name, SUM(bt.weight) as total_weight, 
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                if isinstance(show_date, str):
+                    date_param = show_date
+                else:
+                    date_param = show_date.strftime('%Y-%m-%d')
+                
+                query = str(text("""
+                SELECT TOP (:limit) t.name, SUM(bt.weight) as total_weight, 
                        COUNT(DISTINCT bt.block_id) as blocks,
-                       GROUP_CONCAT(DISTINCT b.block_code) as block_codes
+                       STRING_AGG(b.block_code, ',') as block_codes
                 FROM block_topics bt
                 JOIN topics t ON t.id = bt.topic_id
                 JOIN blocks b ON b.id = bt.block_id
                 JOIN shows s ON s.id = b.show_id
-                WHERE s.show_date = ?
+                WHERE s.show_date = :date_param
                 GROUP BY t.id, t.name
                 ORDER BY total_weight DESC
-                LIMIT ?
-                """,
-                (date_param, limit)
-            ).fetchall()
+                """))
+                rows = conn.execute(query, {"date_param": date_param, "limit": limit}).fetchall()
+        else:
+            with self.get_connection() as conn:
+                if isinstance(show_date, str):
+                    date_param = show_date
+                else:
+                    date_param = show_date.strftime('%Y-%m-%d')
+                
+                rows = conn.execute(
+                    """
+                    SELECT t.name, SUM(bt.weight) as total_weight, 
+                           COUNT(DISTINCT bt.block_id) as blocks,
+                           GROUP_CONCAT(DISTINCT b.block_code) as block_codes
+                    FROM block_topics bt
+                    JOIN topics t ON t.id = bt.topic_id
+                    JOIN blocks b ON b.id = bt.block_id
+                    JOIN shows s ON s.id = b.show_id
+                    WHERE s.show_date = ?
+                    GROUP BY t.id, t.name
+                    ORDER BY total_weight DESC
+                    LIMIT ?
+                    """,
+                    (date_param, limit)
+                ).fetchall()
         return [dict(r) for r in rows]
 
     def get_completion_timeline(self, days: int = 7) -> List[Dict]:
-        with self.get_connection() as conn:
-            rows = conn.execute(
-                """
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                query = str(text("""
                 SELECT s.show_date as date,
                        COUNT(b.id) as total_blocks,
                        SUM(CASE WHEN b.status='completed' THEN 1 ELSE 0 END) as completed_blocks
                 FROM shows s
                 LEFT JOIN blocks b ON b.show_id = s.id
-                WHERE s.show_date >= date('now', ?)
+                WHERE s.show_date >= DATEADD(day, :days, GETDATE())
                 GROUP BY s.show_date
                 ORDER BY s.show_date ASC
-                """,
-                (f'-{int(days)} days',)
-            ).fetchall()
+                """))
+                rows = conn.execute(query, {"days": -int(days)}).fetchall()
+        else:
+            with self.get_connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT s.show_date as date,
+                           COUNT(b.id) as total_blocks,
+                           SUM(CASE WHEN b.status='completed' THEN 1 ELSE 0 END) as completed_blocks
+                    FROM shows s
+                    LEFT JOIN blocks b ON b.show_id = s.id
+                    WHERE s.show_date >= date('now', ?)
+                    GROUP BY s.show_date
+                    ORDER BY s.show_date ASC
+                    """,
+                    (f'-{int(days)} days',)
+                ).fetchall()
         result = []
         for r in rows:
-            d = dict(r)
+            d = dict(r) if not self.use_azure_sql else dict(r._mapping)
             total = d['total_blocks'] or 0
             completed = d['completed_blocks'] or 0
             d['completion_rate'] = round(completed / total * 100) if total else 0
@@ -790,19 +916,31 @@ class Database:
     def get_filler_content_stats(self, days: int = 7) -> Dict:
         """Compute aggregate filler vs content metrics over recent days using segments table.
         Returns dict with: total_segments, filler_segments, filler_pct, content_seconds, filler_seconds, avg_filler_pct_per_block."""
-        with self.get_connection() as conn:
-            # Join segments -> blocks -> shows for date filter
-            seg_rows = conn.execute(
-                """
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                query = str(text("""
                 SELECT s.show_date as date, b.id as block_id, seg.guard_band as guard, 
                        (seg.end_sec - seg.start_sec) as dur
                 FROM segments seg
                 JOIN blocks b ON b.id = seg.block_id
                 JOIN shows s ON s.id = b.show_id
-                WHERE s.show_date >= date('now', ?)
-                """,
-                (f'-{int(days)} days',)
-            ).fetchall()
+                WHERE s.show_date >= DATEADD(day, :days, GETDATE())
+                """))
+                seg_rows = conn.execute(query, {"days": -int(days)}).fetchall()
+        else:
+            with self.get_connection() as conn:
+                # Join segments -> blocks -> shows for date filter
+                seg_rows = conn.execute(
+                    """
+                    SELECT s.show_date as date, b.id as block_id, seg.guard_band as guard, 
+                           (seg.end_sec - seg.start_sec) as dur
+                    FROM segments seg
+                    JOIN blocks b ON b.id = seg.block_id
+                    JOIN shows s ON s.id = b.show_id
+                    WHERE s.show_date >= date('now', ?)
+                    """,
+                    (f'-{int(days)} days',)
+                ).fetchall()
         if not seg_rows:
             return {
                 'days': days,
@@ -886,21 +1024,36 @@ class Database:
 
     def get_daily_filler_trend(self, days: int = 14) -> List[Dict]:
         """Return list of {date, filler_pct, filler_seconds, content_seconds} for each day with segment data in range."""
-        with self.get_connection() as conn:
-            rows = conn.execute(
-                """
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                query = str(text("""
                 SELECT s.show_date as date,
                        SUM(CASE WHEN seg.guard_band=1 THEN (seg.end_sec - seg.start_sec) ELSE 0 END) as filler_sec,
                        SUM((seg.end_sec - seg.start_sec)) as total_sec
                 FROM segments seg
                 JOIN blocks b ON b.id = seg.block_id
                 JOIN shows s ON s.id = b.show_id
-                WHERE s.show_date >= date('now', ?)
+                WHERE s.show_date >= DATEADD(day, :days, GETDATE())
                 GROUP BY s.show_date
                 ORDER BY s.show_date ASC
-                """,
-                (f'-{int(days)} days',)
-            ).fetchall()
+                """))
+                rows = conn.execute(query, {"days": -int(days)}).fetchall()
+        else:
+            with self.get_connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT s.show_date as date,
+                           SUM(CASE WHEN seg.guard_band=1 THEN (seg.end_sec - seg.start_sec) ELSE 0 END) as filler_sec,
+                           SUM((seg.end_sec - seg.start_sec)) as total_sec
+                    FROM segments seg
+                    JOIN blocks b ON b.id = seg.block_id
+                    JOIN shows s ON s.id = b.show_id
+                    WHERE s.show_date >= date('now', ?)
+                    GROUP BY s.show_date
+                    ORDER BY s.show_date ASC
+                    """,
+                    (f'-{int(days)} days',)
+                ).fetchall()
         trend = []
         for r in rows:
             total = r['total_sec'] or 0.0
@@ -1013,8 +1166,13 @@ class Database:
     ]
 
     def ensure_chapters_for_show(self, show_id: int, show_date: date):
-        with self.get_connection() as conn:
-            existing = {row['label'] for row in conn.execute("SELECT label FROM chapters WHERE show_id = ?", (show_id,)).fetchall()}
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                existing = {row['label'] for row in conn.execute(str(text("SELECT label FROM chapters WHERE show_id = :show_id")), {"show_id": show_id}).fetchall()}
+        else:
+            with self.get_connection() as conn:
+                existing = {row['label'] for row in conn.execute("SELECT label FROM chapters WHERE show_id = ?", (show_id,)).fetchall()}
+                
         from datetime import datetime as dt
         for ch in self.DEFAULT_CHAPTERS:
             if ch['label'] in existing:
@@ -1022,12 +1180,27 @@ class Database:
             start_dt = dt.strptime(f"{show_date} {ch['start_hm']}", "%Y-%m-%d %H:%M")
             start_dt = Config.TIMEZONE.localize(start_dt)
             end_dt = start_dt + __import__('datetime').timedelta(minutes=ch['duration_min'])
-            with self.get_connection() as conn:
-                conn.execute(
-                    """INSERT OR IGNORE INTO chapters (show_id, label, anchor_type, start_time, end_time)
-                        VALUES (?, ?, ?, ?, ?)""",
-                    (show_id, ch['label'], ch['anchor_type'], start_dt.isoformat(), end_dt.isoformat())
-                )
+            
+            if self.use_azure_sql:
+                with self.get_connection() as conn:
+                    # Check if chapter already exists (Azure SQL version of INSERT OR IGNORE)
+                    check_query = "SELECT COUNT(*) FROM chapters WHERE show_id = :show_id AND label = :label"
+                    exists = conn.execute(str(text(check_query)), {"show_id": show_id, "label": ch['label']}).fetchone()[0]
+                    if exists == 0:
+                        insert_query = """INSERT INTO chapters (show_id, label, anchor_type, start_time, end_time)
+                                         VALUES (:show_id, :label, :anchor_type, :start_time, :end_time)"""
+                        conn.execute(str(text(insert_query)), {
+                            "show_id": show_id, "label": ch['label'], "anchor_type": ch['anchor_type'],
+                            "start_time": start_dt.isoformat(), "end_time": end_dt.isoformat()
+                        })
+                        conn.commit()
+            else:
+                with self.get_connection() as conn:
+                    conn.execute(
+                        """INSERT OR IGNORE INTO chapters (show_id, label, anchor_type, start_time, end_time)
+                            VALUES (?, ?, ?, ?, ?)""",
+                        (show_id, ch['label'], ch['anchor_type'], start_dt.isoformat(), end_dt.isoformat())
+                    )
 
     def get_chapters_for_show(self, show_id: int) -> List[Dict]:
         with self.get_connection() as conn:
@@ -1038,36 +1211,76 @@ class Database:
     def upsert_llm_daily_usage(self, date_val: date, model: str, prompt_tokens: int = 0, completion_tokens: int = 0,
                                usd: float = 0.0, block_calls: int = 0, digest_calls: int = 0, failures: int = 0):
         """Accumulate (upsert) daily LLM usage metrics for a model."""
-        with self.get_connection() as conn:
-            row = conn.execute("SELECT prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures FROM llm_daily_usage WHERE date=? AND model=?", (date_val, model)).fetchone()
-            if row:
-                conn.execute(
-                    """UPDATE llm_daily_usage
-                        SET prompt_tokens = prompt_tokens + ?,
-                            completion_tokens = completion_tokens + ?,
-                            usd = usd + ?,
-                            block_calls = block_calls + ?,
-                            digest_calls = digest_calls + ?,
-                            failures = failures + ?,
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE date = ? AND model = ?""",
-                    (prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures, date_val, model)
-                )
-            else:
-                conn.execute(
-                    """INSERT INTO llm_daily_usage (date, model, prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (date_val, model, prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures)
-                )
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                # Check if record exists
+                check_query = """SELECT prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures 
+                                FROM llm_daily_usage WHERE date = :date_val AND model = :model"""
+                existing = conn.execute(str(text(check_query)), {"date_val": date_val, "model": model}).fetchone()
+                
+                if existing:
+                    # Update existing record
+                    update_query = """UPDATE llm_daily_usage
+                                     SET prompt_tokens = prompt_tokens + :prompt_tokens,
+                                         completion_tokens = completion_tokens + :completion_tokens,
+                                         usd = usd + :usd,
+                                         block_calls = block_calls + :block_calls,
+                                         digest_calls = digest_calls + :digest_calls,
+                                         failures = failures + :failures,
+                                         updated_at = CURRENT_TIMESTAMP
+                                     WHERE date = :date_val AND model = :model"""
+                    conn.execute(str(text(update_query)), {
+                        "prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens, 
+                        "usd": usd, "block_calls": block_calls, "digest_calls": digest_calls, 
+                        "failures": failures, "date_val": date_val, "model": model
+                    })
+                else:
+                    # Insert new record
+                    insert_query = """INSERT INTO llm_daily_usage (date, model, prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures)
+                                     VALUES (:date_val, :model, :prompt_tokens, :completion_tokens, :usd, :block_calls, :digest_calls, :failures)"""
+                    conn.execute(str(text(insert_query)), {
+                        "date_val": date_val, "model": model, "prompt_tokens": prompt_tokens, 
+                        "completion_tokens": completion_tokens, "usd": usd, "block_calls": block_calls, 
+                        "digest_calls": digest_calls, "failures": failures
+                    })
+                conn.commit()
+        else:
+            with self.get_connection() as conn:
+                row = conn.execute("SELECT prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures FROM llm_daily_usage WHERE date=? AND model=?", (date_val, model)).fetchone()
+                if row:
+                    conn.execute(
+                        """UPDATE llm_daily_usage
+                            SET prompt_tokens = prompt_tokens + ?,
+                                completion_tokens = completion_tokens + ?,
+                                usd = usd + ?,
+                                block_calls = block_calls + ?,
+                                digest_calls = digest_calls + ?,
+                                failures = failures + ?,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE date = ? AND model = ?""",
+                        (prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures, date_val, model)
+                    )
+                else:
+                    conn.execute(
+                        """INSERT INTO llm_daily_usage (date, model, prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (date_val, model, prompt_tokens, completion_tokens, usd, block_calls, digest_calls, failures)
+                    )
 
     def get_llm_usage_history(self, days: int = 30) -> List[Dict]:
         """Return recent persisted LLM usage (internal)."""
-        with self.get_connection() as conn:
-            rows = conn.execute(
-                """SELECT * FROM llm_daily_usage WHERE date >= date('now', ?) ORDER BY date DESC, model""",
-                (f'-{int(days)} days',)
-            ).fetchall()
-            return [dict(r) for r in rows]
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                query = str(text("SELECT * FROM llm_daily_usage WHERE date >= DATEADD(day, :days, GETDATE()) ORDER BY date DESC, model"))
+                rows = conn.execute(query, {"days": -int(days)}).fetchall()
+                return [dict(row._mapping) for row in rows]
+        else:
+            with self.get_connection() as conn:
+                rows = conn.execute(
+                    """SELECT * FROM llm_daily_usage WHERE date >= date('now', ?) ORDER BY date DESC, model""",
+                    (f'-{int(days)} days',)
+                ).fetchall()
+                return [dict(r) for r in rows]
 
 # Global database instance
 db = Database()
