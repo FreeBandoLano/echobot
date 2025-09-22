@@ -342,13 +342,45 @@ class Database:
             
             # Handle case where both schemas exist (partial migration)
             elif 'word' in topics_columns and 'name' in topics_columns:
-                logger.info("🔄 Detected partial topics migration - making 'word' column nullable...")
+                logger.info("🔄 Detected partial topics migration - cleaning up schema...")
                 try:
+                    # Make 'word' column nullable
                     conn.execute("ALTER TABLE topics ALTER COLUMN word NVARCHAR(200) NULL", ())
                     conn.commit()
-                    logger.info("✅ Made 'word' column nullable")
+                    
+                    # CRITICAL: Fix NULL values in normalized_name that violate UNIQUE constraint
+                    # First, find and fix any NULL normalized_name values
+                    null_check = conn.execute(str(text("SELECT COUNT(*) FROM topics WHERE normalized_name IS NULL"))).fetchone()[0]
+                    if null_check > 0:
+                        logger.info(f"🔧 Found {null_check} topics with NULL normalized_name, fixing...")
+                        # Update NULL normalized_name values using the name column or generate unique values
+                        conn.execute(str(text("""
+                            UPDATE topics 
+                            SET normalized_name = LOWER(REPLACE(COALESCE(name, 'topic_' + CAST(id AS NVARCHAR)), ' ', ''))
+                            WHERE normalized_name IS NULL
+                        """)))
+                        conn.commit()
+                        logger.info("✅ Fixed NULL normalized_name values")
+                    
+                    logger.info("✅ Completed partial migration cleanup")
                 except Exception as e:
-                    logger.info(f"Word column might already be nullable: {e}")
+                    logger.info(f"Partial migration cleanup error: {e}")
+            
+            # Additional cleanup: ensure no NULL values exist in normalized_name for new schema
+            elif 'name' in topics_columns and 'normalized_name' in topics_columns:
+                try:
+                    null_check = conn.execute(str(text("SELECT COUNT(*) FROM topics WHERE normalized_name IS NULL"))).fetchone()[0]
+                    if null_check > 0:
+                        logger.info(f"🔧 Cleaning up {null_check} NULL normalized_name values...")
+                        conn.execute(str(text("""
+                            UPDATE topics 
+                            SET normalized_name = LOWER(REPLACE(COALESCE(name, 'topic_' + CAST(id AS NVARCHAR)), ' ', ''))
+                            WHERE normalized_name IS NULL
+                        """)))
+                        conn.commit()
+                        logger.info("✅ Cleaned up NULL normalized_name values")
+                except Exception as e:
+                    logger.info(f"NULL cleanup error: {e}")
             
             # For the large table creation query, ensure it's a string
             tables_query = """
@@ -1315,7 +1347,8 @@ class Database:
     def ensure_chapters_for_show(self, show_id: int, show_date: date):
         if self.use_azure_sql:
             with self.get_connection() as conn:
-                existing = {row['label'] for row in conn.execute(str(text("SELECT label FROM chapters WHERE show_id = :show_id")), {"show_id": show_id}).fetchall()}
+                rows = conn.execute(str(text("SELECT label FROM chapters WHERE show_id = :show_id")), {"show_id": show_id}).fetchall()
+                existing = {dict(row._mapping)['label'] for row in rows}
         else:
             with self.get_connection() as conn:
                 existing = {row['label'] for row in conn.execute("SELECT label FROM chapters WHERE show_id = ?", (show_id,)).fetchall()}
