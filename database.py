@@ -455,25 +455,41 @@ class Database:
         try:
             if self.use_azure_sql:
                 with self.get_connection() as conn:
-                    # Use SQL Server MERGE syntax for INSERT OR REPLACE equivalent
-                    query = """
-                    MERGE blocks AS target
-                    USING (VALUES (:show_id, :block_code, :start_time, :end_time, :duration_minutes, 'scheduled')) AS source (show_id, block_code, start_time, end_time, duration_minutes, status)
-                    ON target.show_id = source.show_id AND target.block_code = source.block_code
-                    WHEN MATCHED THEN 
-                        UPDATE SET start_time = source.start_time, end_time = source.end_time, duration_minutes = source.duration_minutes, status = source.status
-                    WHEN NOT MATCHED THEN
-                        INSERT (show_id, block_code, start_time, end_time, duration_minutes, status) VALUES (source.show_id, source.block_code, source.start_time, source.end_time, source.duration_minutes, source.status);
-                    """
+                    # Use proper INSERT/UPDATE approach instead of broken MERGE
+                    # First check if block exists
+                    check_query = "SELECT id FROM blocks WHERE show_id = :show_id AND block_code = :block_code"
+                    existing = conn.execute(str(text(check_query)), {"show_id": show_id, "block_code": block_code}).fetchone()
+                    
                     params = {"show_id": show_id, "block_code": block_code, "start_time": start_time_str, "end_time": end_time_str, "duration_minutes": duration_minutes}
                     logger.info(f"🔍 create_block DEBUG - Azure SQL parameters dict: {params}")
-                    conn.execute(str(text(query)), params)
-                    # Get the block ID
-                    id_result = conn.execute(str(text("SELECT id FROM blocks WHERE show_id = :show_id AND block_code = :block_code")), 
-                                           {"show_id": show_id, "block_code": block_code})
-                    block_id = id_result.fetchone()[0]
-                    logger.info(f"🔍 create_block DEBUG - Successfully created block_id: {block_id}")
-                    return block_id
+                    
+                    if existing:
+                        # Update existing block
+                        update_query = """
+                        UPDATE blocks 
+                        SET start_time = :start_time, end_time = :end_time, duration_minutes = :duration_minutes, status = 'scheduled'
+                        WHERE show_id = :show_id AND block_code = :block_code
+                        """
+                        conn.execute(str(text(update_query)), params)
+                        conn.commit()
+                        block_id = existing[0]
+                        logger.info(f"🔍 create_block DEBUG - Updated existing block_id: {block_id}")
+                        return block_id
+                    else:
+                        # Insert new block
+                        insert_query = """
+                        INSERT INTO blocks (show_id, block_code, start_time, end_time, duration_minutes, status) 
+                        VALUES (:show_id, :block_code, :start_time, :end_time, :duration_minutes, 'scheduled')
+                        """
+                        conn.execute(str(text(insert_query)), params)
+                        conn.commit()
+                        
+                        # Get the inserted ID
+                        id_result = conn.execute(str(text("SELECT id FROM blocks WHERE show_id = :show_id AND block_code = :block_code")), 
+                                               {"show_id": show_id, "block_code": block_code})
+                        block_id = id_result.fetchone()[0]
+                        logger.info(f"🔍 create_block DEBUG - Successfully created block_id: {block_id}")
+                        return block_id
             else:
                 with self.get_connection() as conn:
                     params = (show_id, block_code, start_time_str, end_time_str, duration_minutes)
@@ -618,20 +634,43 @@ class Database:
         
         if self.use_azure_sql:
             with self.get_connection() as conn:
-                # Use SQL Server MERGE syntax for INSERT OR REPLACE equivalent
-                query = """
-                MERGE daily_digests AS target
-                USING (VALUES (:show_date, :digest_text, :total_blocks, :total_callers)) AS source (show_date, digest_text, total_blocks, total_callers)
-                ON target.show_date = source.show_date
-                WHEN MATCHED THEN 
-                    UPDATE SET digest_text = source.digest_text, total_blocks = source.total_blocks, total_callers = source.total_callers
-                WHEN NOT MATCHED THEN
-                    INSERT (show_date, digest_text, total_blocks, total_callers) VALUES (source.show_date, source.digest_text, source.total_blocks, source.total_callers);
-                """
-                conn.execute(str(text(query)), {"show_date": show_date_str, "digest_text": digest_text, "total_blocks": total_blocks, "total_callers": total_callers})
-                # For MERGE, we need to get the ID differently
-                id_result = conn.execute(str(text("SELECT id FROM daily_digests WHERE show_date = :show_date")), {"show_date": show_date_str})
-                return id_result.fetchone()[0]
+                # Use proper INSERT/UPDATE approach instead of broken MERGE
+                # First check if daily digest exists
+                check_query = "SELECT id FROM daily_digests WHERE show_date = :show_date"
+                existing = conn.execute(str(text(check_query)), {"show_date": show_date_str}).fetchone()
+                
+                if existing:
+                    # Update existing digest
+                    update_query = """
+                    UPDATE daily_digests 
+                    SET digest_text = :digest_text, total_blocks = :total_blocks, total_callers = :total_callers 
+                    WHERE show_date = :show_date
+                    """
+                    conn.execute(str(text(update_query)), {
+                        "show_date": show_date_str, 
+                        "digest_text": digest_text, 
+                        "total_blocks": total_blocks, 
+                        "total_callers": total_callers
+                    })
+                    conn.commit()
+                    return existing[0]
+                else:
+                    # Insert new digest
+                    insert_query = """
+                    INSERT INTO daily_digests (show_date, digest_text, total_blocks, total_callers) 
+                    VALUES (:show_date, :digest_text, :total_blocks, :total_callers)
+                    """
+                    conn.execute(str(text(insert_query)), {
+                        "show_date": show_date_str, 
+                        "digest_text": digest_text, 
+                        "total_blocks": total_blocks, 
+                        "total_callers": total_callers
+                    })
+                    conn.commit()
+                    
+                    # Get the inserted ID
+                    id_result = conn.execute(str(text("SELECT id FROM daily_digests WHERE show_date = :show_date")), {"show_date": show_date_str})
+                    return id_result.fetchone()[0]
         else:
             with self.get_connection() as conn:
                 cursor = conn.execute("""
