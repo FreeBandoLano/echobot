@@ -394,21 +394,26 @@ class Database:
         
         if self.use_azure_sql:
             with self.get_connection() as conn:
-                # Use SQL Server MERGE syntax for INSERT OR REPLACE equivalent
-                query = """
-                MERGE shows AS target
-                USING (VALUES (:show_date, :title)) AS source (show_date, title)
-                ON target.show_date = source.show_date
-                WHEN MATCHED THEN 
-                    UPDATE SET title = source.title
-                WHEN NOT MATCHED THEN
-                    INSERT (show_date, title) VALUES (source.show_date, source.title);
-                SELECT SCOPE_IDENTITY() AS id;
-                """
-                result = conn.execute(str(text(query)), {"show_date": show_date_str, "title": title})
-                # For MERGE, we need to get the ID differently
-                id_result = conn.execute(str(text("SELECT id FROM shows WHERE show_date = :show_date")), {"show_date": show_date_str})
-                return id_result.fetchone()[0]
+                # Use simpler INSERT approach with proper transaction handling
+                # First check if show exists
+                check_query = "SELECT id FROM shows WHERE show_date = :show_date"
+                existing = conn.execute(str(text(check_query)), {"show_date": show_date_str}).fetchone()
+                
+                if existing:
+                    # Update existing show
+                    update_query = "UPDATE shows SET title = :title WHERE show_date = :show_date"
+                    conn.execute(str(text(update_query)), {"show_date": show_date_str, "title": title})
+                    conn.commit()
+                    return existing[0]
+                else:
+                    # Insert new show
+                    insert_query = "INSERT INTO shows (show_date, title) VALUES (:show_date, :title)"
+                    conn.execute(str(text(insert_query)), {"show_date": show_date_str, "title": title})
+                    conn.commit()
+                    
+                    # Get the inserted ID
+                    id_result = conn.execute(str(text("SELECT id FROM shows WHERE show_date = :show_date")), {"show_date": show_date_str})
+                    return id_result.fetchone()[0]
         else:
             with self.get_connection() as conn:
                 cursor = conn.execute(
