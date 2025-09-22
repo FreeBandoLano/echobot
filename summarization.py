@@ -85,7 +85,10 @@ class RadioSummarizer:
                     for word, weight in topics:
                         try:
                             tid = db.upsert_topic(word)
-                            db.link_topic_to_block(block_id, tid, float(weight))
+                            if tid is not None:
+                                db.link_topic_to_block(block_id, tid, float(weight))
+                            else:
+                                logger.warning(f"Topic '{word}' could not be created, skipping link")
                         except Exception as inner_e:
                             logger.warning(f"Topic link error for '{word}': {inner_e}")
                 except Exception as te:

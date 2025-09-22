@@ -2,6 +2,7 @@
 
 import sqlite3
 import os
+import time
 from datetime import datetime, date
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -932,28 +933,45 @@ class Database:
                         id_result = conn.execute(str(text("SELECT id FROM topics WHERE normalized_name = :norm")), {"norm": norm})
                         return id_result.fetchone()[0]
                     except Exception as e:
-                        # If UNIQUE constraint violation due to NULL values, try emergency cleanup
-                        if "UNIQUE KEY constraint" in str(e) and "NULL" in str(e):
-                            logger.warning(f"🔧 Emergency cleanup triggered for topic '{name}' due to NULL constraint")
-                            try:
-                                # Clean up any remaining NULL normalized_name values
-                                conn.execute(str(text("""
-                                    UPDATE topics 
-                                    SET normalized_name = LOWER(REPLACE(COALESCE(name, 'topic_' + CAST(id AS NVARCHAR)), ' ', ''))
-                                    WHERE normalized_name IS NULL
-                                """)))
-                                conn.commit()
-                                
-                                # Retry the insert
-                                conn.execute(str(text(insert_query)), {"name": name.strip(), "norm": norm})
-                                conn.commit()
-                                
-                                id_result = conn.execute(str(text("SELECT id FROM topics WHERE normalized_name = :norm")), {"norm": norm})
-                                return id_result.fetchone()[0]
-                            except Exception as retry_e:
-                                logger.error(f"❌ Emergency cleanup failed for topic '{name}': {retry_e}")
-                                raise e
+                        # If UNIQUE constraint violation, the topic likely already exists
+                        if "UNIQUE KEY constraint" in str(e):
+                            logger.warning(f"🔧 Topic '{name}' already exists, fetching existing ID")
+                            # Try to find the existing topic again (race condition handling)
+                            existing_retry = conn.execute(str(text(check_query)), {"norm": norm}).fetchone()
+                            if existing_retry:
+                                return existing_retry[0]
+                            else:
+                                # Emergency cleanup: fix any NULL normalized_name values
+                                logger.warning(f"🔧 Emergency cleanup triggered for topic '{name}' due to constraint violation")
+                                try:
+                                    conn.execute(str(text("""
+                                        UPDATE topics 
+                                        SET normalized_name = LOWER(REPLACE(COALESCE(name, 'topic_' + CAST(id AS NVARCHAR)), ' ', ''))
+                                        WHERE normalized_name IS NULL OR normalized_name = ''
+                                    """)))
+                                    conn.commit()
+                                    
+                                    # Try finding the topic one more time
+                                    final_check = conn.execute(str(text(check_query)), {"norm": norm}).fetchone()
+                                    if final_check:
+                                        return final_check[0]
+                                    else:
+                                        # Last resort: create with unique suffix to avoid further conflicts
+                                        unique_norm = f"{norm}_{int(time.time())}"
+                                        conn.execute(str(text("INSERT INTO topics (name, normalized_name) VALUES (:name, :norm)")), 
+                                                   {"name": f"{name.strip()} (auto-fixed)", "norm": unique_norm})
+                                        conn.commit()
+                                        
+                                        final_result = conn.execute(str(text("SELECT id FROM topics WHERE normalized_name = :norm")), 
+                                                                   {"norm": unique_norm}).fetchone()
+                                        logger.warning(f"⚠️ Created fallback topic '{name}' with unique ID {final_result[0]}")
+                                        return final_result[0]
+                                except Exception as cleanup_e:
+                                    logger.error(f"❌ Emergency cleanup failed for topic '{name}': {cleanup_e}")
+                                    # Re-raise the original exception instead of returning None
+                                    raise e
                         else:
+                            logger.error(f"❌ Unexpected error creating topic '{name}': {e}")
                             raise e
         else:
             with self.get_connection() as conn:
