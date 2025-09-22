@@ -331,13 +331,24 @@ class Database:
                     conn.execute(str(text("UPDATE topics SET name = word, normalized_name = LOWER(REPLACE(word, ' ', ''))")))
                     conn.commit()
                     
-                    # Drop old column (optional - can be done later for safety)
-                    # conn.execute("ALTER TABLE topics DROP COLUMN word", ())
+                    # CRITICAL: Make old 'word' column nullable to prevent INSERT errors
+                    conn.execute("ALTER TABLE topics ALTER COLUMN word NVARCHAR(200) NULL", ())
+                    conn.commit()
                     
                     logger.info("✅ Successfully migrated topics table schema")
                 except Exception as e:
                     logger.error(f"❌ Failed to migrate topics table: {e}")
                     # Continue anyway - the new table creation will handle it
+            
+            # Handle case where both schemas exist (partial migration)
+            elif 'word' in topics_columns and 'name' in topics_columns:
+                logger.info("🔄 Detected partial topics migration - making 'word' column nullable...")
+                try:
+                    conn.execute("ALTER TABLE topics ALTER COLUMN word NVARCHAR(200) NULL", ())
+                    conn.commit()
+                    logger.info("✅ Made 'word' column nullable")
+                except Exception as e:
+                    logger.info(f"Word column might already be nullable: {e}")
             
             # For the large table creation query, ensure it's a string
             tables_query = """
