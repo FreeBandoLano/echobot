@@ -374,15 +374,33 @@ class Database:
     
     def create_show(self, show_date: date, title: str = "Down to Brass Tacks") -> int:
         """Create a new show record."""
-        # Convert date object to string for SQLite compatibility (Python 3.12+ requirement)
+        # Convert date object to string for database compatibility (Python 3.12+ requirement)
         show_date_str = show_date.strftime('%Y-%m-%d')
         
-        with self.get_connection() as conn:
-            cursor = conn.execute(
-                "INSERT OR REPLACE INTO shows (show_date, title) VALUES (?, ?)",
-                (show_date_str, title)
-            )
-            return cursor.lastrowid
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                # Use SQL Server MERGE syntax for INSERT OR REPLACE equivalent
+                query = """
+                MERGE shows AS target
+                USING (VALUES (:show_date, :title)) AS source (show_date, title)
+                ON target.show_date = source.show_date
+                WHEN MATCHED THEN 
+                    UPDATE SET title = source.title
+                WHEN NOT MATCHED THEN
+                    INSERT (show_date, title) VALUES (source.show_date, source.title);
+                SELECT SCOPE_IDENTITY() AS id;
+                """
+                result = conn.execute(str(text(query)), {"show_date": show_date_str, "title": title})
+                # For MERGE, we need to get the ID differently
+                id_result = conn.execute(str(text("SELECT id FROM shows WHERE show_date = :show_date")), {"show_date": show_date_str})
+                return id_result.fetchone()[0]
+        else:
+            with self.get_connection() as conn:
+                cursor = conn.execute(
+                    "INSERT OR REPLACE INTO shows (show_date, title) VALUES (?, ?)",
+                    (show_date_str, title)
+                )
+                return cursor.lastrowid
     
     def get_show(self, show_date: date) -> Optional[Dict]:
         """Get show by date."""
@@ -415,18 +433,40 @@ class Database:
         logger.info(f"🔍 create_block DEBUG - Database type: {'Azure SQL' if self.use_azure_sql else 'SQLite'}")
         
         try:
-            with self.get_connection() as conn:
-                params = (show_id, block_code, start_time_str, end_time_str, duration_minutes)
-                logger.info(f"🔍 create_block DEBUG - Parameters tuple: {params} (types: {[type(p) for p in params]})")
-                
-                cursor = conn.execute("""
-                    INSERT OR REPLACE INTO blocks 
-                    (show_id, block_code, start_time, end_time, duration_minutes, status)
-                    VALUES (?, ?, ?, ?, ?, 'scheduled')
-                """, params)
-                block_id = cursor.lastrowid
-                logger.info(f"🔍 create_block DEBUG - Successfully created block_id: {block_id}")
-                return block_id
+            if self.use_azure_sql:
+                with self.get_connection() as conn:
+                    # Use SQL Server MERGE syntax for INSERT OR REPLACE equivalent
+                    query = """
+                    MERGE blocks AS target
+                    USING (VALUES (:show_id, :block_code, :start_time, :end_time, :duration_minutes, 'scheduled')) AS source (show_id, block_code, start_time, end_time, duration_minutes, status)
+                    ON target.show_id = source.show_id AND target.block_code = source.block_code
+                    WHEN MATCHED THEN 
+                        UPDATE SET start_time = source.start_time, end_time = source.end_time, duration_minutes = source.duration_minutes, status = source.status
+                    WHEN NOT MATCHED THEN
+                        INSERT (show_id, block_code, start_time, end_time, duration_minutes, status) VALUES (source.show_id, source.block_code, source.start_time, source.end_time, source.duration_minutes, source.status);
+                    """
+                    params = {"show_id": show_id, "block_code": block_code, "start_time": start_time_str, "end_time": end_time_str, "duration_minutes": duration_minutes}
+                    logger.info(f"🔍 create_block DEBUG - Azure SQL parameters dict: {params}")
+                    conn.execute(str(text(query)), params)
+                    # Get the block ID
+                    id_result = conn.execute(str(text("SELECT id FROM blocks WHERE show_id = :show_id AND block_code = :block_code")), 
+                                           {"show_id": show_id, "block_code": block_code})
+                    block_id = id_result.fetchone()[0]
+                    logger.info(f"🔍 create_block DEBUG - Successfully created block_id: {block_id}")
+                    return block_id
+            else:
+                with self.get_connection() as conn:
+                    params = (show_id, block_code, start_time_str, end_time_str, duration_minutes)
+                    logger.info(f"🔍 create_block DEBUG - SQLite parameters tuple: {params} (types: {[type(p) for p in params]})")
+                    
+                    cursor = conn.execute("""
+                        INSERT OR REPLACE INTO blocks 
+                        (show_id, block_code, start_time, end_time, duration_minutes, status)
+                        VALUES (?, ?, ?, ?, ?, 'scheduled')
+                    """, params)
+                    block_id = cursor.lastrowid
+                    logger.info(f"🔍 create_block DEBUG - Successfully created block_id: {block_id}")
+                    return block_id
         except Exception as e:
             logger.error(f"🔍 create_block DEBUG - Exception in database operation: {e} (type: {type(e)})")
             logger.error(f"🔍 create_block DEBUG - Full exception details: {repr(e)}")
@@ -553,16 +593,33 @@ class Database:
     
     def create_daily_digest(self, show_date: date, digest_text: str, total_blocks: int, total_callers: int) -> int:
         """Create daily digest."""
-        # Convert date object to string for SQLite compatibility (Python 3.12+ requirement)
+        # Convert date object to string for database compatibility (Python 3.12+ requirement)
         show_date_str = show_date.strftime('%Y-%m-%d')
         
-        with self.get_connection() as conn:
-            cursor = conn.execute("""
-                INSERT OR REPLACE INTO daily_digests 
-                (show_date, digest_text, total_blocks, total_callers)
-                VALUES (?, ?, ?, ?)
-            """, (show_date_str, digest_text, total_blocks, total_callers))
-            return cursor.lastrowid
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                # Use SQL Server MERGE syntax for INSERT OR REPLACE equivalent
+                query = """
+                MERGE daily_digests AS target
+                USING (VALUES (:show_date, :digest_text, :total_blocks, :total_callers)) AS source (show_date, digest_text, total_blocks, total_callers)
+                ON target.show_date = source.show_date
+                WHEN MATCHED THEN 
+                    UPDATE SET digest_text = source.digest_text, total_blocks = source.total_blocks, total_callers = source.total_callers
+                WHEN NOT MATCHED THEN
+                    INSERT (show_date, digest_text, total_blocks, total_callers) VALUES (source.show_date, source.digest_text, source.total_blocks, source.total_callers);
+                """
+                conn.execute(str(text(query)), {"show_date": show_date_str, "digest_text": digest_text, "total_blocks": total_blocks, "total_callers": total_callers})
+                # For MERGE, we need to get the ID differently
+                id_result = conn.execute(str(text("SELECT id FROM daily_digests WHERE show_date = :show_date")), {"show_date": show_date_str})
+                return id_result.fetchone()[0]
+        else:
+            with self.get_connection() as conn:
+                cursor = conn.execute("""
+                    INSERT OR REPLACE INTO daily_digests 
+                    (show_date, digest_text, total_blocks, total_callers)
+                    VALUES (?, ?, ?, ?)
+                """, (show_date_str, digest_text, total_blocks, total_callers))
+                return cursor.lastrowid
     
     def get_daily_digest(self, show_date: date) -> Optional[Dict]:
         """Get daily digest by date."""
