@@ -140,21 +140,26 @@ class TaskManager:
         )
         
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute('''
-                INSERT INTO tasks (task_type, block_id, show_date, parameters, 
-                                 status, created_at, max_retries)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                task.task_type.value,
-                task.block_id,
-                task.show_date,
-                json.dumps(task.parameters),
-                task.status.value,
-                task.created_at.isoformat(),
-                task.max_retries
-            ))
-            task_id = cursor.lastrowid
-            conn.commit()
+            try:
+                cursor = conn.execute('''
+                    INSERT INTO tasks (task_type, block_id, show_date, parameters, 
+                                     status, created_at, max_retries)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    task.task_type.value,
+                    task.block_id,
+                    task.show_date,
+                    json.dumps(task.parameters),
+                    task.status.value,
+                    task.created_at.isoformat(),
+                    task.max_retries
+                ))
+                task_id = cursor.lastrowid
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"Failed to create task {task_type.value}: {e}")
+                conn.rollback()
+                raise e
         
         logger.info(f"Added task {task_id}: {task_type.value}")
         return task_id

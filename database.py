@@ -550,12 +550,21 @@ class Database:
                 else:
                     # Insert new show
                     insert_query = "INSERT INTO shows (show_date, title) VALUES (:show_date, :title)"
-                    conn.execute(str(text(insert_query)), {"show_date": show_date_str, "title": title})
-                    conn.commit()
-                    
-                    # Get the inserted ID
-                    id_result = conn.execute(str(text("SELECT id FROM shows WHERE show_date = :show_date")), {"show_date": show_date_str})
-                    return id_result.fetchone()[0]
+                    try:
+                        conn.execute(str(text(insert_query)), {"show_date": show_date_str, "title": title})
+                        conn.commit()
+                        
+                        # Get the inserted ID
+                        id_result = conn.execute(str(text("SELECT id FROM shows WHERE show_date = :show_date")), {"show_date": show_date_str})
+                        return id_result.fetchone()[0]
+                    except Exception as e:
+                        logger.warning(f"Failed to create show for {show_date_str}: {e}")
+                        # Try to find existing show in case of race condition
+                        existing_check = conn.execute(str(text("SELECT id FROM shows WHERE show_date = :show_date")), {"show_date": show_date_str})
+                        existing = existing_check.fetchone()
+                        if existing:
+                            return existing[0]
+                        raise e
         else:
             with self.get_connection() as conn:
                 cursor = conn.execute(
@@ -635,15 +644,25 @@ class Database:
                         INSERT INTO blocks (show_id, block_code, start_time, end_time, duration_minutes, status) 
                         VALUES (:show_id, :block_code, :start_time, :end_time, :duration_minutes, 'scheduled')
                         """
-                        conn.execute(str(text(insert_query)), params)
-                        conn.commit()
-                        
-                        # Get the inserted ID
-                        id_result = conn.execute(str(text("SELECT id FROM blocks WHERE show_id = :show_id AND block_code = :block_code")), 
-                                               {"show_id": show_id, "block_code": block_code})
-                        block_id = id_result.fetchone()[0]
-                        logger.info(f"🔍 create_block DEBUG - Successfully created block_id: {block_id}")
-                        return block_id
+                        try:
+                            conn.execute(str(text(insert_query)), params)
+                            conn.commit()
+                            
+                            # Get the inserted ID
+                            id_result = conn.execute(str(text("SELECT id FROM blocks WHERE show_id = :show_id AND block_code = :block_code")), 
+                                                   {"show_id": show_id, "block_code": block_code})
+                            block_id = id_result.fetchone()[0]
+                            logger.info(f"🔍 create_block DEBUG - Successfully created block_id: {block_id}")
+                            return block_id
+                        except Exception as e:
+                            logger.warning(f"Failed to create block {block_code} for show {show_id}: {e}")
+                            # Try to find existing block in case of race condition
+                            existing_check = conn.execute(str(text("SELECT id FROM blocks WHERE show_id = :show_id AND block_code = :block_code")), 
+                                                       {"show_id": show_id, "block_code": block_code})
+                            existing = existing_check.fetchone()
+                            if existing:
+                                return existing[0]
+                            raise e
             else:
                 with self.get_connection() as conn:
                     params = (show_id, block_code, start_time_str, end_time_str, duration_minutes)
@@ -771,12 +790,21 @@ class Database:
                     INSERT INTO summaries (block_id, summary_text, key_points, entities, caller_count, quotes, raw_json)
                     VALUES (:block_id, :summary_text, :key_points, :entities, :caller_count, :quotes, :raw_json)
                     """
-                    conn.execute(str(text(insert_query)), params)
-                    conn.commit()
-                    
-                    # Get the inserted ID
-                    id_result = conn.execute(str(text("SELECT id FROM summaries WHERE block_id = :block_id")), {"block_id": block_id})
-                    return id_result.fetchone()[0]
+                    try:
+                        conn.execute(str(text(insert_query)), params)
+                        conn.commit()
+                        
+                        # Get the inserted ID
+                        id_result = conn.execute(str(text("SELECT id FROM summaries WHERE block_id = :block_id")), {"block_id": block_id})
+                        return id_result.fetchone()[0]
+                    except Exception as e:
+                        logger.warning(f"Failed to create summary for block {block_id}: {e}")
+                        # Try to find existing summary in case of race condition
+                        existing_check = conn.execute(str(text("SELECT id FROM summaries WHERE block_id = :block_id")), {"block_id": block_id})
+                        existing = existing_check.fetchone()
+                        if existing:
+                            return existing[0]
+                        raise e
         else:
             with self.get_connection() as conn:
                 cursor = conn.execute("""
@@ -868,17 +896,26 @@ class Database:
                     INSERT INTO daily_digests (show_date, digest_text, total_blocks, total_callers) 
                     VALUES (:show_date, :digest_text, :total_blocks, :total_callers)
                     """
-                    conn.execute(str(text(insert_query)), {
-                        "show_date": show_date_str, 
-                        "digest_text": digest_text, 
-                        "total_blocks": total_blocks, 
-                        "total_callers": total_callers
-                    })
-                    conn.commit()
-                    
-                    # Get the inserted ID
-                    id_result = conn.execute(str(text("SELECT id FROM daily_digests WHERE show_date = :show_date")), {"show_date": show_date_str})
-                    return id_result.fetchone()[0]
+                    try:
+                        conn.execute(str(text(insert_query)), {
+                            "show_date": show_date_str, 
+                            "digest_text": digest_text, 
+                            "total_blocks": total_blocks, 
+                            "total_callers": total_callers
+                        })
+                        conn.commit()
+                        
+                        # Get the inserted ID
+                        id_result = conn.execute(str(text("SELECT id FROM daily_digests WHERE show_date = :show_date")), {"show_date": show_date_str})
+                        return id_result.fetchone()[0]
+                    except Exception as e:
+                        logger.warning(f"Failed to create daily digest for {show_date_str}: {e}")
+                        # Try to find existing digest in case of race condition
+                        existing_check = conn.execute(str(text("SELECT id FROM daily_digests WHERE show_date = :show_date")), {"show_date": show_date_str})
+                        existing = existing_check.fetchone()
+                        if existing:
+                            return existing[0]
+                        raise e
         else:
             with self.get_connection() as conn:
                 cursor = conn.execute("""
