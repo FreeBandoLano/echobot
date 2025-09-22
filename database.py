@@ -993,23 +993,15 @@ class Database:
                                     if final_check:
                                         return final_check[0]
                                     else:
-                                        # Last resort: create with unique suffix to avoid further conflicts
-                                        unique_norm = f"{norm}_{int(time.time())}"
-                                        conn.execute(str(text("INSERT INTO topics (name, normalized_name) VALUES (:name, :norm)")), 
-                                                   {"name": f"{name.strip()} (auto-fixed)", "norm": unique_norm})
-                                        conn.commit()
-                                        
-                                        final_result = conn.execute(str(text("SELECT id FROM topics WHERE normalized_name = :norm")), 
-                                                                   {"norm": unique_norm}).fetchone()
-                                        logger.warning(f"⚠️ Created fallback topic '{name}' with unique ID {final_result[0]}")
-                                        return final_result[0]
+                                        # If still not found, just skip this topic to avoid further conflicts
+                                        logger.warning(f"⚠️ Skipping topic '{name}' to avoid constraint violations")
+                                        return None
                                 except Exception as cleanup_e:
                                     logger.error(f"❌ Emergency cleanup failed for topic '{name}': {cleanup_e}")
-                                    # Re-raise the original exception instead of returning None
-                                    raise e
+                                    return None
                         else:
                             logger.error(f"❌ Unexpected error creating topic '{name}': {e}")
-                            raise e
+                            return None
         else:
             with self.get_connection() as conn:
                 row = conn.execute("SELECT id FROM topics WHERE normalized_name = ?", (norm,)).fetchone()
