@@ -920,18 +920,19 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             logger.info(f"Rendering structured digest with keys: {list(digest_data.keys())}")
             
             header = f"""
-ENHANCED DAILY INTELLIGENCE BRIEFING
-DOWN TO BRASS TACKS RADIO PROGRAM ANALYSIS
+🏛️  ENHANCED DAILY INTELLIGENCE BRIEFING
+📻  DOWN TO BRASS TACKS RADIO PROGRAM ANALYSIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Date: {show_date}
-Program Duration: 10:00 AM - 2:00 PM AST
-Blocks Analyzed: {num_blocks}
-Total Public Callers: {total_callers}
-Analysis Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-Target Audience: Prime Minister's Office, Senior Civil Servants
-Classification: INTERNAL GOVERNMENT USE
+📅 Date: {show_date}
+⏰ Program Duration: 10:00 AM - 2:00 PM AST  
+📊 Blocks Analyzed: {num_blocks}
+🗣️  Total Public Callers: {total_callers}
+🕐 Analysis Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+🎯 Target Audience: Prime Minister's Office, Senior Civil Servants
+🔒 Classification: INTERNAL GOVERNMENT USE
 
-{'='*80}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
             
             content = header
@@ -952,7 +953,7 @@ Classification: INTERNAL GOVERNMENT USE
                 if section_key in digest_data and digest_data[section_key]:
                     if section_key == "topics_overview" and isinstance(digest_data[section_key], dict):
                         # Handle structured topics format
-                        content += f"\n\n## {section_title}\n\n"
+                        content += f"\n\n🔹 {section_title}\n{'─'*60}\n\n"
                         topics_data = digest_data[section_key]
                         
                         if "introduction" in topics_data:
@@ -961,7 +962,7 @@ Classification: INTERNAL GOVERNMENT USE
                         if "themes" in topics_data and isinstance(topics_data["themes"], list):
                             for i, theme in enumerate(topics_data["themes"], 1):
                                 if isinstance(theme, dict):
-                                    content += f"### {i}. {theme.get('title', 'Theme')}\n\n"
+                                    content += f"▓ {i}. {theme.get('title', 'Theme')}\n{'━'*40}\n\n"
                                     
                                     if theme.get('core_issue'):
                                         content += f"**Core Issue**: {theme['core_issue']}\n\n"
@@ -986,35 +987,35 @@ Classification: INTERNAL GOVERNMENT USE
                                                 speaker = quote.get('speaker', 'Unknown')
                                                 text = quote.get('text', '')
                                                 context = quote.get('context', '')
-                                                content += f"- **{speaker}**: \"{text}\""
+                                                content += f"💬 **{speaker}**: \"{text}\""
                                                 if context:
-                                                    content += f" ({context})"
-                                                content += "\n"
+                                                    content += f"\n   📍 Context: {context}"
+                                                content += "\n\n"
                                         content += "\n"
                     else:
                         # Handle regular string sections
-                        content += f"\n\n## {section_title}\n\n{digest_data[section_key]}"
+                        content += f"\n\n🔹 {section_title}\n{'─'*60}\n\n{digest_data[section_key]}"
             
             # Add key insights
             if "key_insights" in digest_data and digest_data["key_insights"]:
-                content += f"\n\n## KEY INSIGHTS\n"
+                content += f"\n\n🔹 KEY INSIGHTS\n{'─'*60}\n"
                 for i, insight in enumerate(digest_data["key_insights"], 1):
-                    content += f"\n{i}. {insight}"
+                    content += f"\n🔸 {insight}\n"
             
             # Add priority actions
             if "priority_actions" in digest_data and digest_data["priority_actions"]:
-                content += f"\n\n## PRIORITY ACTIONS\n"
+                content += f"\n\n🔹 PRIORITY ACTIONS\n{'─'*60}\n"
                 for i, action in enumerate(digest_data["priority_actions"], 1):
-                    content += f"\n{i}. {action}"
+                    content += f"\n🎯 {action}\n"
             
             # Add metadata footer
             if "metadata" in digest_data:
                 metadata = digest_data["metadata"]
-                content += f"\n\n## ANALYSIS METADATA\n"
-                content += f"Word Count: {metadata.get('word_count', 'N/A')}\n"
-                content += f"Generation Timestamp: {metadata.get('generation_timestamp', 'N/A')}\n"
+                content += f"\n\n🔹 ANALYSIS METADATA\n{'─'*60}\n"
+                content += f"📊 Word Count: {metadata.get('word_count', 'N/A')}\n"
+                content += f"🕐 Generation Timestamp: {metadata.get('generation_timestamp', 'N/A')}\n"
             
-            content += f"\n\n{'='*80}\nEND OF BRIEFING"
+            content += f"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📋 END OF BRIEFING"
             
             return content
             
