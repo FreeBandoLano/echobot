@@ -815,10 +815,15 @@ Focus on intelligence value for government decision-making. Be thorough, analyti
             
             digest_content = response.choices[0].message.content
             
+            logger.info(f"Raw LLM response preview: {digest_content[:200]}...")
+            logger.info(f"Enhanced mode: {enhanced}, Structured output enabled: {Config.ENABLE_STRUCTURED_OUTPUT}")
+            
             # Handle enhanced vs standard formatting
             if enhanced and Config.ENABLE_STRUCTURED_OUTPUT:
+                logger.info("Processing as enhanced digest...")
                 return self._format_enhanced_digest(digest_content, show_date, num_blocks, total_callers)
             else:
+                logger.info("Processing as standard digest...")
                 return self._format_standard_digest(digest_content, show_date, num_blocks, total_callers)
             
         except Exception as e:
@@ -845,25 +850,74 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                                num_blocks: int, total_callers: int) -> str:
         """Format enhanced digest from JSON structure."""
         try:
-            # Try to parse as JSON first
-            if digest_content.strip().startswith('{'):
-                digest_data = json.loads(digest_content)
-                return self._render_structured_digest(digest_data, show_date, num_blocks, total_callers)
+            # Clean and extract JSON from the content
+            json_content = self._extract_json_from_content(digest_content)
+            
+            if json_content:
+                logger.info("Parsing enhanced digest JSON structure...")
+                digest_data = json.loads(json_content)
+                rendered_digest = self._render_structured_digest(digest_data, show_date, num_blocks, total_callers)
+                logger.info(f"Successfully rendered enhanced digest: {len(rendered_digest)} characters")
+                return rendered_digest
             else:
-                # Fallback to standard formatting if not JSON
-                logger.warning("Enhanced digest not in JSON format, using standard formatting")
+                # Fallback to standard formatting if no JSON found
+                logger.warning("No valid JSON found in enhanced digest, using standard formatting")
                 return self._format_standard_digest(digest_content, show_date, num_blocks, total_callers)
-        except json.JSONDecodeError:
-            logger.warning("Failed to parse enhanced digest JSON, using standard formatting")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse enhanced digest JSON: {e}")
+            logger.error(f"Raw content preview: {digest_content[:200]}...")
             return self._format_standard_digest(digest_content, show_date, num_blocks, total_callers)
+        except Exception as e:
+            logger.error(f"Unexpected error formatting enhanced digest: {e}")
+            return self._format_standard_digest(digest_content, show_date, num_blocks, total_callers)
+    
+    def _extract_json_from_content(self, content: str) -> str:
+        """Extract JSON content from potentially mixed format response."""
+        try:
+            content = content.strip()
+            
+            # If it starts with JSON, return as is
+            if content.startswith('{'):
+                return content
+            
+            # Look for JSON block in the content
+            json_start = content.find('{')
+            if json_start == -1:
+                return None
+            
+            # Find the matching closing brace
+            brace_count = 0
+            json_end = -1
+            
+            for i in range(json_start, len(content)):
+                if content[i] == '{':
+                    brace_count += 1
+                elif content[i] == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_end = i + 1
+                        break
+            
+            if json_end > json_start:
+                json_content = content[json_start:json_end]
+                logger.info(f"Extracted JSON from position {json_start} to {json_end}")
+                return json_content
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error extracting JSON from content: {e}")
+            return None
     
     def _render_structured_digest(self, digest_data: dict, show_date: datetime.date, 
                                  num_blocks: int, total_callers: int) -> str:
         """Render structured digest from parsed JSON data."""
         try:
             if not isinstance(digest_data, dict):
-                logger.warning("digest_data is not a dictionary, falling back to standard format")
+                logger.warning(f"digest_data is not a dictionary (type: {type(digest_data)}), falling back to standard format")
                 return self._format_standard_digest(str(digest_data), show_date, num_blocks, total_callers)
+            
+            logger.info(f"Rendering structured digest with keys: {list(digest_data.keys())}")
             
             header = f"""
 ENHANCED DAILY INTELLIGENCE BRIEFING
