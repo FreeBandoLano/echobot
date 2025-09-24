@@ -308,6 +308,12 @@ class TaskManager:
     def _check_schedule_daily_digest(self, show_date: str):
         """Check if all blocks are complete and schedule daily digest."""
         from datetime import date
+        from config import Config
+        
+        # Skip if daily digest is disabled
+        if not Config.ENABLE_DAILY_DIGEST:
+            logger.info(f"Daily digest is disabled, skipping digest creation for {show_date}")
+            return
         
         # Get all blocks for the date
         date_obj = datetime.strptime(show_date, '%Y-%m-%d').date()
