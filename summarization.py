@@ -631,8 +631,9 @@ REQUIREMENTS:
 - Target 4000 words (approximately 24,000-28,000 characters)
 - Structured, professional analysis suitable for executive briefing
 - Focus on policy implications, public sentiment, and actionable intelligence
-- Include conversation evolution tracking and deep topic analysis
-- Provide structured JSON metadata alongside narrative analysis
+- Include extensive quotes and caller-moderator exchanges when contextually relevant (no artificial limits)
+- Break down dense topics into organized bullet points with clear sub-headings
+- Provide concrete details and specific examples rather than vague generalizations
 
 Date: {show_date}
 Total Program Blocks: {len(block_summaries)}
@@ -645,17 +646,31 @@ Detailed Block Analysis:
 REQUIRED STRUCTURE (4000 words total):
 
 ## PREAMBLE (300 words)
-Brief introduction to the program, date context, overall participation levels, and significance for government monitoring.
+Focus specifically on how the moderator opened the program - their framing statements, agenda-setting, and introductory remarks that shaped the day's discourse. Include direct quotes from the moderator's opening when available.
 
 ## EXECUTIVE SUMMARY (500 words)
 Comprehensive overview of main themes, critical issues, overall public sentiment, and immediate government concerns.
 
 ## TOPICS OVERVIEW (800 words)
-Detailed analysis of all major topics discussed:
-- Topic prioritization by public engagement
-- Cross-block topic evolution
-- Sentiment analysis per topic
-- Policy implications for each major theme
+Break this into organized thematic clusters with clear structure:
+
+### 1. [First Major Theme - e.g., Economic Sovereignty & Corporate Governance]
+- **Core Issue**: [specific problem discussed]
+- **Caller Positions**: [what callers said, with quotes when impactful]
+- **Moderator Response**: [how host engaged/steered discussion]
+- **Policy Implications**: [concrete government considerations]
+- **Notable Exchanges**: [key caller-moderator dialogue that reveals deeper concerns]
+
+### 2. [Second Major Theme]
+[Same structured format]
+
+### 3. [Third Major Theme] 
+[Same structured format]
+
+### 4. [Fourth Major Theme]
+[Same structured format]
+
+For each theme, include as many direct quotes, paraphrased exchanges, and specific details as needed to fully capture the discussion dynamics. Don't limit yourself to 1-2 quotes if the context warrants more extensive dialogue coverage.
 
 ## CONVERSATION EVOLUTION (600 words)
 Track how discussions evolved throughout the program:
@@ -687,7 +702,7 @@ Actionable intelligence for government response:
 - Potential political risks or advantages
 
 ## NOTABLE QUOTES & EVIDENCE (300 words)
-Key statements that capture public mood or reveal important insights, with context and analysis.
+Key statements that capture public mood or reveal important insights, with context and analysis. Include as many quotes as necessary to paint a complete picture of public discourse.
 
 Return the analysis in this EXACT JSON structure:
 {{
@@ -698,9 +713,28 @@ Return the analysis in this EXACT JSON structure:
         "total_callers": {total_callers},
         "generation_timestamp": "<ISO_timestamp>"
     }},
-    "preamble": "<300_word_introduction>",
+    "preamble": "<300_word_moderator_opening_focus>",
     "executive_summary": "<500_word_overview>",
-    "topics_overview": "<800_word_topic_analysis>",
+    "topics_overview": {{
+        "introduction": "<brief_intro_to_thematic_clusters>",
+        "themes": [
+            {{
+                "title": "<theme_name>",
+                "core_issue": "<specific_problem_discussed>",
+                "caller_positions": "<what_callers_said_with_quotes>",
+                "moderator_response": "<how_host_engaged>",
+                "policy_implications": "<concrete_government_considerations>",
+                "notable_exchanges": "<key_dialogue_sections>",
+                "quotes": [
+                    {{
+                        "speaker": "<caller_name_or_moderator>",
+                        "text": "<exact_or_paraphrased_quote>",
+                        "context": "<when_and_why_said>"
+                    }}
+                ]
+            }}
+        ]
+    }},
     "conversation_evolution": "<600_word_evolution_tracking>",
     "moderator_analysis": "<400_word_moderator_influence>",
     "sentiment_analysis": "<600_word_public_sentiment>",
@@ -848,7 +882,7 @@ Classification: INTERNAL GOVERNMENT USE
             
             content = header
             
-            # Add each section
+            # Add each section with special handling for structured topics
             sections = [
                 ("PREAMBLE", "preamble"),
                 ("EXECUTIVE SUMMARY", "executive_summary"),
@@ -862,7 +896,50 @@ Classification: INTERNAL GOVERNMENT USE
             
             for section_title, section_key in sections:
                 if section_key in digest_data and digest_data[section_key]:
-                    content += f"\n\n## {section_title}\n\n{digest_data[section_key]}"
+                    if section_key == "topics_overview" and isinstance(digest_data[section_key], dict):
+                        # Handle structured topics format
+                        content += f"\n\n## {section_title}\n\n"
+                        topics_data = digest_data[section_key]
+                        
+                        if "introduction" in topics_data:
+                            content += f"{topics_data['introduction']}\n\n"
+                        
+                        if "themes" in topics_data and isinstance(topics_data["themes"], list):
+                            for i, theme in enumerate(topics_data["themes"], 1):
+                                if isinstance(theme, dict):
+                                    content += f"### {i}. {theme.get('title', 'Theme')}\n\n"
+                                    
+                                    if theme.get('core_issue'):
+                                        content += f"**Core Issue**: {theme['core_issue']}\n\n"
+                                    
+                                    if theme.get('caller_positions'):
+                                        content += f"**Caller Positions**: {theme['caller_positions']}\n\n"
+                                    
+                                    if theme.get('moderator_response'):
+                                        content += f"**Moderator Response**: {theme['moderator_response']}\n\n"
+                                    
+                                    if theme.get('policy_implications'):
+                                        content += f"**Policy Implications**: {theme['policy_implications']}\n\n"
+                                    
+                                    if theme.get('notable_exchanges'):
+                                        content += f"**Notable Exchanges**: {theme['notable_exchanges']}\n\n"
+                                    
+                                    # Add quotes if present
+                                    if theme.get('quotes') and isinstance(theme['quotes'], list):
+                                        content += f"**Key Quotes**:\n"
+                                        for quote in theme['quotes']:
+                                            if isinstance(quote, dict):
+                                                speaker = quote.get('speaker', 'Unknown')
+                                                text = quote.get('text', '')
+                                                context = quote.get('context', '')
+                                                content += f"- **{speaker}**: \"{text}\""
+                                                if context:
+                                                    content += f" ({context})"
+                                                content += "\n"
+                                        content += "\n"
+                    else:
+                        # Handle regular string sections
+                        content += f"\n\n## {section_title}\n\n{digest_data[section_key]}"
             
             # Add key insights
             if "key_insights" in digest_data and digest_data["key_insights"]:
