@@ -978,27 +978,9 @@ class Database:
                             if existing_retry:
                                 return existing_retry[0]
                             else:
-                                # Emergency cleanup: fix any NULL normalized_name values
-                                logger.warning(f"🔧 Emergency cleanup triggered for topic '{name}' due to constraint violation")
-                                try:
-                                    conn.execute(str(text("""
-                                        UPDATE topics 
-                                        SET normalized_name = LOWER(REPLACE(COALESCE(name, 'topic_' + CAST(id AS NVARCHAR)), ' ', ''))
-                                        WHERE normalized_name IS NULL OR normalized_name = ''
-                                    """)))
-                                    conn.commit()
-                                    
-                                    # Try finding the topic one more time
-                                    final_check = conn.execute(str(text(check_query)), {"norm": norm}).fetchone()
-                                    if final_check:
-                                        return final_check[0]
-                                    else:
-                                        # If still not found, just skip this topic to avoid further conflicts
-                                        logger.warning(f"⚠️ Skipping topic '{name}' to avoid constraint violations")
-                                        return None
-                                except Exception as cleanup_e:
-                                    logger.error(f"❌ Emergency cleanup failed for topic '{name}': {cleanup_e}")
-                                    return None
+                                # Skip emergency cleanup to reduce database load
+                                logger.debug(f"⚠️ Skipping topic '{name}' to avoid constraint violations")
+                                return None
                         else:
                             logger.error(f"❌ Unexpected error creating topic '{name}': {e}")
                             return None

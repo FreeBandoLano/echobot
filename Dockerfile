@@ -1,5 +1,5 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim
+# Use Python 3.11 slim image from Microsoft Container Registry (no auth required)
+FROM mcr.microsoft.com/mirror/docker/library/python:3.11-slim
 
 # Build arguments (must come after FROM)
 ARG GIT_COMMIT=unknown

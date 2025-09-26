@@ -124,6 +124,17 @@ class TaskManager:
         if parameters is None:
             parameters = {}
         
+        # Check for duplicate tasks to prevent race conditions
+        with sqlite3.connect(self.db_path) as conn:
+            existing = conn.execute('''
+                SELECT id FROM tasks 
+                WHERE task_type = ? AND block_id = ? AND status IN ('pending', 'running', 'retry')
+            ''', (task_type.value, block_id)).fetchone()
+            
+            if existing:
+                logger.info(f"Task {task_type.value} for block {block_id} already exists (id={existing[0]})")
+                return existing[0]
+        
         task = Task(
             id=None,
             task_type=task_type,

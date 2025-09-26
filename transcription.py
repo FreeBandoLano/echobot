@@ -318,8 +318,11 @@ class AudioTranscriber:
                 full_text += " " + chunk_data['text']
                 total_duration += chunk_data['duration']
             
-            # Clean up chunk file
-            chunk_path.unlink()
+            # Clean up chunk file safely
+            try:
+                chunk_path.unlink(missing_ok=True)
+            except Exception as e:
+                logger.warning(f"Could not cleanup chunk file {chunk_path}: {e}")
         
         if all_segments:
             return {

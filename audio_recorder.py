@@ -247,8 +247,16 @@ class AudioRecorder:
                     
             except Exception as e:
                 logger.warning(f"FFmpeg not available for conversion: {e}")
-                # Just rename the raw file
-                temp_file.rename(output_path)
+                # Safely rename the raw file
+                try:
+                    if temp_file.exists():
+                        temp_file.rename(output_path)
+                    else:
+                        logger.error(f"Raw audio file missing: {temp_file}")
+                        return False
+                except Exception as rename_e:
+                    logger.error(f"Failed to rename raw file: {rename_e}")
+                    return False
                 return True
                 
         except requests.exceptions.RequestException as e:
