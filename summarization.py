@@ -815,15 +815,19 @@ Focus on intelligence value for government decision-making. Be thorough, analyti
             
             digest_content = response.choices[0].message.content
             
-            logger.info(f"Raw LLM response preview: {digest_content[:200]}...")
-            logger.info(f"Enhanced mode: {enhanced}, Structured output enabled: {Config.ENABLE_STRUCTURED_OUTPUT}")
+            logger.info(f"🔍 Raw LLM response preview: {digest_content[:200]}...")
+            logger.info(f"⚙️ Enhanced mode: {enhanced}, Structured output enabled: {Config.ENABLE_STRUCTURED_OUTPUT}")
+            logger.info(f"🎯 Response appears to be JSON: {digest_content.strip().startswith('{')}")
             
             # Handle enhanced vs standard formatting
             if enhanced and Config.ENABLE_STRUCTURED_OUTPUT:
-                logger.info("Processing as enhanced digest...")
-                return self._format_enhanced_digest(digest_content, show_date, num_blocks, total_callers)
+                logger.info("🎨 Processing as enhanced digest...")
+                formatted_result = self._format_enhanced_digest(digest_content, show_date, num_blocks, total_callers)
+                logger.info(f"📝 Enhanced formatting result type: {type(formatted_result)}")
+                logger.info(f"📏 Final formatted length: {len(formatted_result) if formatted_result else 0} characters")
+                return formatted_result
             else:
-                logger.info("Processing as standard digest...")
+                logger.info("📄 Processing as standard digest...")
                 return self._format_standard_digest(digest_content, show_date, num_blocks, total_callers)
             
         except Exception as e:
@@ -854,18 +858,23 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             json_content = self._extract_json_from_content(digest_content)
             
             if json_content:
-                logger.info("Parsing enhanced digest JSON structure...")
+                logger.info("✅ JSON extraction successful - parsing enhanced digest JSON structure...")
+                logger.info(f"🔍 Extracted JSON length: {len(json_content)} characters")
                 digest_data = json.loads(json_content)
+                logger.info(f"📋 Parsed digest keys: {list(digest_data.keys())}")
                 rendered_digest = self._render_structured_digest(digest_data, show_date, num_blocks, total_callers)
-                logger.info(f"Successfully rendered enhanced digest: {len(rendered_digest)} characters")
+                logger.info(f"✅ Successfully rendered enhanced digest: {len(rendered_digest)} characters")
+                logger.info(f"🎨 Rendered digest preview: {rendered_digest[:200]}...")
                 return rendered_digest
             else:
                 # Fallback to standard formatting if no JSON found
-                logger.warning("No valid JSON found in enhanced digest, using standard formatting")
+                logger.warning("❌ No valid JSON found in enhanced digest, using standard formatting")
+                logger.warning(f"🔍 Raw digest content preview: {digest_content[:300]}...")
                 return self._format_standard_digest(digest_content, show_date, num_blocks, total_callers)
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse enhanced digest JSON: {e}")
-            logger.error(f"Raw content preview: {digest_content[:200]}...")
+            logger.error(f"❌ Failed to parse enhanced digest JSON: {e}")
+            logger.error(f"🔍 Raw content causing JSON error: {digest_content[:500]}...")
+            logger.error("💡 This suggests the LLM response format needs adjustment")
             return self._format_standard_digest(digest_content, show_date, num_blocks, total_callers)
         except Exception as e:
             logger.error(f"Unexpected error formatting enhanced digest: {e}")
