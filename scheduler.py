@@ -49,6 +49,7 @@ class RadioScheduler:
         schedule.clear()
         
         # Schedule each block (convert Barbados time to UTC for the schedule library)
+        # Only schedule for weekdays (Monday-Friday), skip weekends
         for block_code, block_config in Config.BLOCKS.items():
             start_time = block_config['start_time']
             end_time = block_config['end_time']
@@ -56,8 +57,20 @@ class RadioScheduler:
             # Convert Barbados times to UTC for scheduling
             utc_start_time = self._convert_barbados_to_utc_time(start_time)
             
-            # Schedule recording start (in UTC)
-            schedule.every().day.at(utc_start_time).do(
+            # Schedule recording start (in UTC) - WEEKDAYS ONLY
+            schedule.every().monday.at(utc_start_time).do(
+                self._start_block_recording, block_code
+            ).tag(f'record_{block_code}')
+            schedule.every().tuesday.at(utc_start_time).do(
+                self._start_block_recording, block_code
+            ).tag(f'record_{block_code}')
+            schedule.every().wednesday.at(utc_start_time).do(
+                self._start_block_recording, block_code
+            ).tag(f'record_{block_code}')
+            schedule.every().thursday.at(utc_start_time).do(
+                self._start_block_recording, block_code
+            ).tag(f'record_{block_code}')
+            schedule.every().friday.at(utc_start_time).do(
                 self._start_block_recording, block_code
             ).tag(f'record_{block_code}')
             
@@ -66,15 +79,41 @@ class RadioScheduler:
             process_time = (end_datetime + timedelta(minutes=2)).strftime('%H:%M')
             utc_process_time = self._convert_barbados_to_utc_time(process_time)
             
-            schedule.every().day.at(utc_process_time).do(
+            # Schedule processing (in UTC) - WEEKDAYS ONLY
+            schedule.every().monday.at(utc_process_time).do(
+                self._process_block, block_code
+            ).tag(f'process_{block_code}')
+            schedule.every().tuesday.at(utc_process_time).do(
+                self._process_block, block_code
+            ).tag(f'process_{block_code}')
+            schedule.every().wednesday.at(utc_process_time).do(
+                self._process_block, block_code
+            ).tag(f'process_{block_code}')
+            schedule.every().thursday.at(utc_process_time).do(
+                self._process_block, block_code
+            ).tag(f'process_{block_code}')
+            schedule.every().friday.at(utc_process_time).do(
                 self._process_block, block_code
             ).tag(f'process_{block_code}')
             
-            logger.info(f"   ✅ Block {block_code}: Record at {start_time} Barbados ({utc_start_time} UTC), Process at {process_time} Barbados ({utc_process_time} UTC)")
+            logger.info(f"   ✅ Block {block_code}: Record at {start_time} Barbados ({utc_start_time} UTC), Process at {process_time} Barbados ({utc_process_time} UTC) [WEEKDAYS ONLY]")
         
         # Schedule daily digest creation (15 minutes after show ends) - convert to UTC
+        # Only create digests for weekdays (Monday-Friday)
         utc_digest_time = self._convert_barbados_to_utc_time("10:15")
-        schedule.every().day.at(utc_digest_time).do(
+        schedule.every().monday.at(utc_digest_time).do(
+            self._create_daily_digest
+        ).tag('daily_digest')
+        schedule.every().tuesday.at(utc_digest_time).do(
+            self._create_daily_digest
+        ).tag('daily_digest')
+        schedule.every().wednesday.at(utc_digest_time).do(
+            self._create_daily_digest
+        ).tag('daily_digest')
+        schedule.every().thursday.at(utc_digest_time).do(
+            self._create_daily_digest
+        ).tag('daily_digest')
+        schedule.every().friday.at(utc_digest_time).do(
             self._create_daily_digest
         ).tag('daily_digest')
         
@@ -179,6 +218,12 @@ class RadioScheduler:
         """Start recording a specific block."""
         
         today = get_local_date()
+        
+        # Skip recording on weekends (Saturday=5, Sunday=6)
+        if today.weekday() >= 5:
+            logger.info(f"🚫 Skipping Block {block_code} recording - Weekend ({today.strftime('%A')})")
+            return
+        
         logger.info(f"Starting scheduled recording for Block {block_code}")
         
         try:
@@ -279,6 +324,12 @@ class RadioScheduler:
         """Create and email daily digest after all blocks are processed."""
         
         today = get_local_date()
+        
+        # Skip digest creation on weekends (Saturday=5, Sunday=6)
+        if today.weekday() >= 5:
+            logger.info(f"🚫 Skipping daily digest creation - Weekend ({today.strftime('%A')})")
+            return
+        
         logger.info(f"📧 Creating and emailing daily digest for {today}")
         
         try:
