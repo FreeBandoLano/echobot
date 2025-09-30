@@ -189,7 +189,7 @@ Structured outputs emphasize:
 * **Embeddings**: `text-embedding-3-small` for clustering hints
 * **Clustering**: Greedy centroid grouping with similarity threshold
 * **Web Interface**: FastAPI + themed templates (dashboard, archive, analytics, block detail)
-* **Database**: SQLite (shows, blocks, segments, chapters, summaries raw_json, topics, block_topics, daily_digests, llm_daily_usage)
+* **Database**: SQLite/AzureSQL (shows, blocks, segments, chapters, summaries raw_json, topics, block_topics, daily_digests, llm_daily_usage) 
 * **LLM Governance**: Usage counters (internal only)
 * **Scheduling**: Internal scheduler (timed blocks) + manual overrides
 * **Email**: SMTP (plaintext + HTML multipart)

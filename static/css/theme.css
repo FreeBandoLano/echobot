@@ -447,6 +447,22 @@ body::after {
 }
 
 /* Mobile adjustments */
+/* Urgency badge styles */
+.urgency-high {
+  background: rgba(220,53,69,0.2);
+  border-color: rgba(220,53,69,0.5);
+}
+
+.urgency-medium {
+  background: rgba(255,193,7,0.2);
+  border-color: rgba(255,193,7,0.5);
+}
+
+.urgency-low {
+  background: rgba(40,167,69,0.2);
+  border-color: rgba(40,167,69,0.5);
+}
+
 @media (max-width: 650px) {
   .hub-wrapper { width: 300px; height: 300px; }
   :root { --hub-size: 150px; --orbit-size: 68px; }

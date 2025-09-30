@@ -338,7 +338,7 @@
                                     <span style="font-weight:600; color:var(--text-primary); min-width:fit-content;">{{ action.who }}:</span>
                                     <span style="flex:1;">{{ action.what }}</span>
                                     {% if action.urgency %}
-                                        <span class="mini-badge" style="background: {% if action.urgency == 'high' %}rgba(220,53,69,0.2); border-color: rgba(220,53,69,0.5){% elif action.urgency == 'medium' %}rgba(255,193,7,0.2); border-color: rgba(255,193,7,0.5){% else %}rgba(40,167,69,0.2); border-color: rgba(40,167,69,0.5){% endif %};">{{ action.urgency|upper }}</span>
+                                        <span class="mini-badge urgency-{{ action.urgency }}">{{ action.urgency|upper }}</span>
                                     {% endif %}
                                 </li>
                             {% endfor %}
