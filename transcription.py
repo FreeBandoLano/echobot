@@ -73,6 +73,17 @@ class AudioTranscriber:
             # Update database
             db.update_block_status(block_id, 'transcribed', transcript_file_path=transcript_path)
             
+            # ✅ TIMELINE FIX: Insert segments into database for timeline feature
+            try:
+                if transcript_data.get('segments'):
+                    db.insert_segments_from_transcript(block_id, transcript_data['segments'])
+                    inserted_count = len(transcript_data['segments'])
+                    logger.info(f"✅ Inserted {inserted_count} segments into database for timeline")
+                    print(f"📊 {inserted_count} segments saved to database")
+            except Exception as seg_err:
+                logger.warning(f"⚠️ Failed to insert segments for block {block_id}: {seg_err}")
+                # Don't fail transcription if segment insert fails
+            
             print(f"✅ Silence transcription completed for block {block_id}")
             logger.info(f"Silence transcription completed for block {block_id}")
             return transcript_data
@@ -547,28 +558,78 @@ class AudioTranscriber:
         return len(caller_ids)
     
     def _extract_quotes(self, segments: List[Dict], max_quotes: int = 5) -> List[Dict]:
-        """Extract notable quotes from segments, prioritizing caller quotes."""
+        """Extract notable quotes with improved specificity detection (surgical fix for quote quality)."""
+        
+        # ✅ ENHANCED: Specific topic indicators (not generic)
+        specific_topics = [
+            'healthcare', 'hospital', 'doctor', 'clinic', 'health', 'medical', 'nurse', 'patient',
+            'education', 'school', 'teacher', 'student', 'university', 'college', 'exam',
+            'road', 'transport', 'traffic', 'bus', 'highway', 'vehicle', 'accident',
+            'water', 'sewage', 'pipe', 'leak', 'supply', 'drainage',
+            'electricity', 'power', 'outage', 'light', 'cable', 'blackout',
+            'crime', 'police', 'theft', 'murder', 'robbery', 'assault', 'security',
+            'jobs', 'employment', 'unemployment', 'work', 'salary', 'wage', 'hire',
+            'housing', 'rent', 'mortgage', 'house', 'home', 'apartment', 'property',
+            'price', 'cost', 'expensive', 'afford', 'inflation', 'dollar',
+            'tax', 'budget', 'revenue', 'spending', 'subsidy', 'vat', 'duty',
+            'minister', 'prime minister', 'pm', 'parliament', 'government', 'constituency',
+            'bridgetown', 'barbados', 'bajan', 'caribbean', 'caricom',
+            'pandemic', 'covid', 'vaccine', 'quarantine', 'lockdown',
+            'tourism', 'hotel', 'beach', 'airport', 'cruise',
+            'pension', 'nis', 'social security', 'welfare'
+        ]
+        
+        # ✅ ENHANCED: Entity indicators (proper nouns, organizations)
+        entity_indicators = [
+            'minister', 'government', 'parliament', 'central bank',
+            'barbados light & power', 'bl&p', 'blp', 'transport board',
+            'qeh', 'queen elizabeth hospital', 'polyclinic', 'university',
+            'company', 'corporation', 'authority', 'board', 'commission',
+            'prime minister', 'opposition', 'senator', 'representative'
+        ]
+        
+        # ✅ ENHANCED: Generic phrases that REDUCE score (filler language)
+        generic_phrases = [
+            'from where i sit', 'as i said before', 'i think that',
+            'what we must be discussing', 'as we go forward',
+            'in this regard', 'at the end of the day', 'you know',
+            'like i said', 'to be honest', 'in my opinion',
+            'i believe', 'i feel', 'i would say', 'basically',
+            'you see', 'let me tell you', 'the thing is'
+        ]
         
         quotes = []
         
         for segment in segments:
             text = segment['text'].strip()
             speaker = segment.get('speaker', 'Unknown')
+            text_lower = text.lower()
             
             # Skip music and very short segments
             if speaker == 'Music' or len(text) < 20:
                 continue
             
-            # Look for interesting quotes (questions, strong statements, etc.)
-            # Prioritize caller quotes over host quotes
+            # Calculate relevance score with improved specificity
             relevance_score = 0
             
-            # Content relevance
-            if any(indicator in text.lower() for indicator in [
-                '?', 'important', 'problem', 'issue', 'concern',
-                'government', 'minister', 'policy', 'community', 'why', 'how'
-            ]):
-                relevance_score += 2
+            # ✅ BONUS: Contains specific topic (high value)
+            topic_matches = sum(1 for topic in specific_topics if topic in text_lower)
+            if topic_matches > 0:
+                relevance_score += min(topic_matches * 2, 4)  # Cap at +4
+            
+            # ✅ BONUS: Contains entity/proper noun (medium value)
+            entity_matches = sum(1 for entity in entity_indicators if entity in text_lower)
+            if entity_matches > 0:
+                relevance_score += min(entity_matches * 2, 3)  # Cap at +3
+            
+            # ✅ BONUS: Question marks (specific inquiry, small value)
+            if '?' in text:
+                relevance_score += 1
+            
+            # ✅ PENALTY: Contains generic filler phrases (negative value)
+            generic_count = sum(1 for phrase in generic_phrases if phrase in text_lower)
+            if generic_count > 0:
+                relevance_score -= (generic_count * 2)  # -2 per generic phrase
             
             # Speaker type bonus (prefer caller quotes)
             if speaker.startswith('Caller'):
@@ -577,10 +638,13 @@ class AudioTranscriber:
                 relevance_score += 1
             
             # Length preference (not too short, not too long)
-            if 30 <= len(text) <= 120:
+            if 40 <= len(text) <= 150:
                 relevance_score += 1
             
-            if relevance_score >= 2 and len(text) <= 150:
+            # ✅ REQUIRE minimum specificity: Must have topic OR entity OR be a question
+            has_content = topic_matches > 0 or entity_matches > 0 or '?' in text
+            
+            if has_content and relevance_score >= 3 and len(text) <= 200:
                 quote = {
                     'start_time': segment['start'],
                     'speaker': speaker,

@@ -363,6 +363,22 @@ https://echobot-docker-app.azurewebsites.net/
     
     def send_daily_digest(self, show_date: date) -> bool:
         """Send daily digest email to stakeholders with 4000 char optimization."""
+        
+        # ✅ DUPLICATE EMAIL FIX: Check if already sent
+        try:
+            import time
+            cache_file = Config.WEB_DIR / f".digest_email_sent_{show_date}.lock"
+            
+            if cache_file.exists():
+                # Check if lock is recent (within last 2 hours)
+                lock_age = time.time() - cache_file.stat().st_mtime
+                if lock_age < 7200:  # 2 hours
+                    logger.info(f"⏭️  Digest email for {show_date} already sent {int(lock_age/60)} minutes ago, skipping")
+                    return True  # Return True to indicate "success" (email already sent)
+        except Exception as lock_err:
+            logger.warning(f"Failed to check email lock: {lock_err}")
+            # Continue anyway - better to send duplicate than not send at all
+        
         try:
             # Get daily digest
             digest = db.get_daily_digest(show_date)
@@ -393,6 +409,14 @@ https://echobot-docker-app.azurewebsites.net/
             success = self._send_email(subject, body_text, body_html)
             if success:
                 logger.info(f"📧 Daily digest email delivered to {len(self.email_to)} recipients")
+                
+                # ✅ DUPLICATE EMAIL FIX: Create lock file after successful send
+                try:
+                    cache_file = Config.WEB_DIR / f".digest_email_sent_{show_date}.lock"
+                    cache_file.touch()
+                    logger.info(f"✅ Created email-sent lock for {show_date}")
+                except Exception as lock_err:
+                    logger.warning(f"Failed to create email lock (non-critical): {lock_err}")
             
             return success
             

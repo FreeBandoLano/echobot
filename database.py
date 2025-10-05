@@ -863,6 +863,108 @@ class Database:
                     return summary
                 return None
     
+    def try_acquire_digest_lock(self, show_date: date) -> bool:
+        """
+        ✅ DUPLICATE EMAIL FIX: Try to acquire exclusive lock for digest creation.
+        Returns True if lock acquired (caller should proceed).
+        Returns False if lock already held (caller should skip).
+        
+        Uses database UNIQUE constraint as atomic lock mechanism.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            show_date_str = show_date.strftime('%Y-%m-%d')
+            
+            with self.get_connection() as conn:
+                # Check if digest already exists
+                if self.use_azure_sql:
+                    result = conn.execute(
+                        str(text("SELECT id, created_at FROM daily_digests WHERE show_date = :date")),
+                        {"date": show_date_str}
+                    ).fetchone()
+                else:
+                    result = conn.execute(
+                        "SELECT id, created_at FROM daily_digests WHERE show_date = ?",
+                        (show_date_str,)
+                    ).fetchone()
+                
+                if result:
+                    if self.use_azure_sql:
+                        created_at = dict(result._mapping).get('created_at', 'unknown')
+                    else:
+                        created_at = dict(result).get('created_at', 'unknown')
+                    logger.info(f"🔒 Digest lock already held for {show_date} (created at {created_at})")
+                    return False
+                
+                # Create placeholder row to claim lock
+                if self.use_azure_sql:
+                    conn.execute(
+                        str(text("""
+                            INSERT INTO daily_digests (show_date, digest_text, total_blocks, total_callers) 
+                            VALUES (:date, :text, 0, 0)
+                        """)),
+                        {"date": show_date_str, "text": "CREATING..."}
+                    )
+                else:
+                    conn.execute(
+                        """
+                        INSERT INTO daily_digests (show_date, digest_text, total_blocks, total_callers) 
+                        VALUES (?, ?, 0, 0)
+                        """,
+                        (show_date_str, "CREATING...")
+                    )
+                conn.commit()
+                
+                logger.info(f"✅ Acquired digest lock for {show_date}")
+                return True
+                
+        except Exception as e:
+            error_str = str(e).lower()
+            # UNIQUE constraint violation means someone else got the lock
+            if 'unique' in error_str or 'duplicate' in error_str or 'constraint' in error_str:
+                logger.info(f"🔒 Digest lock race lost for {show_date} (another process got it first)")
+                return False
+            else:
+                logger.error(f"Error acquiring digest lock: {e}")
+                return False
+    
+    def update_daily_digest_content(self, show_date: date, digest_text: str, total_blocks: int, total_callers: int):
+        """
+        ✅ DUPLICATE EMAIL FIX: Update existing digest placeholder with actual content.
+        Called after digest generation completes.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            show_date_str = show_date.strftime('%Y-%m-%d')
+            
+            with self.get_connection() as conn:
+                if self.use_azure_sql:
+                    conn.execute(
+                        str(text("""
+                            UPDATE daily_digests 
+                            SET digest_text = :text, total_blocks = :blocks, total_callers = :callers
+                            WHERE show_date = :date
+                        """)),
+                        {"text": digest_text, "blocks": total_blocks, "callers": total_callers, "date": show_date_str}
+                    )
+                else:
+                    conn.execute(
+                        """
+                        UPDATE daily_digests 
+                        SET digest_text = ?, total_blocks = ?, total_callers = ?
+                        WHERE show_date = ?
+                        """,
+                        (digest_text, total_blocks, total_callers, show_date_str)
+                    )
+                conn.commit()
+                logger.info(f"✅ Updated digest content for {show_date}")
+        except Exception as e:
+            logger.error(f"Error updating digest content: {e}")
+    
     def create_daily_digest(self, show_date: date, digest_text: str, total_blocks: int, total_callers: int) -> int:
         """Create daily digest."""
         # Convert date object to string for database compatibility (Python 3.12+ requirement)

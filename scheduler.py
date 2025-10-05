@@ -323,6 +323,11 @@ class RadioScheduler:
     def _create_daily_digest(self):
         """Create and email daily digest after all blocks are processed."""
         
+        # Check if scheduler should handle digest creation
+        if Config.DIGEST_CREATOR not in ['scheduler', 'both']:
+            logger.info(f"🚫 Scheduler skipping digest creation (DIGEST_CREATOR={Config.DIGEST_CREATOR})")
+            return
+        
         today = get_local_date()
         
         # Skip digest creation on weekends (Saturday=5, Sunday=6)

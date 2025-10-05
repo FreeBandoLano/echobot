@@ -466,6 +466,12 @@ Rules:
     
     def create_daily_digest(self, show_date: datetime.date) -> Optional[str]:
         """Create a daily digest combining all blocks."""
+        
+        # ✅ DUPLICATE EMAIL FIX: Try to acquire lock first
+        if not db.try_acquire_digest_lock(show_date):
+            logger.info(f"⏭️  Digest for {show_date} already created by another process, skipping")
+            return None
+        
         # Increment request counter
         self.usage['daily_digest_requests'] += 1
 
@@ -507,9 +513,9 @@ Rules:
         # Generate daily digest
         digest_text = self._generate_daily_digest(show_date, block_summaries, total_callers, list(all_entities), day_topics)
         
-        # Save to database
+        # ✅ DUPLICATE EMAIL FIX: Update placeholder instead of creating new
         if digest_text:
-            db.create_daily_digest(show_date, digest_text, len(completed_blocks), total_callers)
+            db.update_daily_digest_content(show_date, digest_text, len(completed_blocks), total_callers)
             
             # Save to file
             digest_filename = f"{show_date}_daily_digest.txt"
@@ -517,6 +523,7 @@ Rules:
             
             with open(digest_path, 'w', encoding='utf-8') as f:
                 f.write(digest_text)
+
             
             logger.info(f"Daily digest created: {digest_path}")
         
