@@ -5,7 +5,7 @@ FROM mcr.microsoft.com/mirror/docker/library/python:3.11-slim
 ARG GIT_COMMIT=unknown
 ARG BUILD_TIME=unknown
 
-# Install system dependencies including full ODBC setup with verification
+# Install system dependencies including full ODBC setup with verification and SSH
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
@@ -16,6 +16,8 @@ RUN apt-get update && apt-get install -y \
     libodbc2 \
     libodbccr2 \
     libgssapi-krb5-2 \
+    dialog \
+    openssh-server \
     && mkdir -p /etc/apt/sources.list.d/ \
     && curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/microsoft-prod.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql-release.list \
@@ -23,6 +25,7 @@ RUN apt-get update && apt-get install -y \
     && ACCEPT_EULA=Y apt-get install -y msodbcsql17 \
     && odbcinst -q -d -n "ODBC Driver 17 for SQL Server" \
     && if [ -z "$(odbcinst -q -d -n 'ODBC Driver 17 for SQL Server')" ]; then echo "❌ ODBC Driver not found!"; exit 1; else echo "✅ ODBC Driver 17 verified"; fi \
+    && echo "root:Docker!" | chpasswd \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -36,6 +39,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY . .
 
+# Copy SSH configuration files and set permissions
+COPY sshd_config /etc/ssh/
+COPY entrypoint.sh ./
+RUN chmod u+x ./entrypoint.sh
+
 # Expose build metadata inside container
 ENV GIT_COMMIT_SHA=${GIT_COMMIT} \
 	BUILD_TIME=${BUILD_TIME} \
@@ -46,8 +54,8 @@ LABEL org.opencontainers.image.revision=${GIT_COMMIT} \
 	  org.opencontainers.image.created=${BUILD_TIME} \
 	  org.opencontainers.image.source="https://example.com/echobot"
 
-# Expose the port the application will run on
-EXPOSE 8000
+# Expose the port the application will run on (8000) and SSH port (2222)
+EXPOSE 8000 2222
 
-# Define the command to run the full system (automation + web dashboard)
-CMD ["python", "main.py", "run"]
+# Define the command to run using the entrypoint script
+ENTRYPOINT ["./entrypoint.sh"]
