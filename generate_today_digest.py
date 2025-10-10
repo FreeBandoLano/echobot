@@ -5,11 +5,24 @@ Run this in Azure container via SSH to create and email today's digest.
 """
 
 import sys
+import os
 from datetime import date
 from pathlib import Path
 
 # Ensure we're using the app directory
 sys.path.insert(0, '/app')
+
+# Check for required environment variables before importing
+required_vars = ['OPENAI_API_KEY', 'AZURE_SQL_CONNECTION_STRING']
+missing_vars = [var for var in required_vars if not os.getenv(var)]
+
+if missing_vars:
+    print(f"\n❌ ERROR: Missing required environment variables:")
+    for var in missing_vars:
+        print(f"   - {var}")
+    print(f"\nThis script must be run in the Azure container where these are configured.")
+    print(f"Connect via: az webapp ssh --name echobot-docker-app --resource-group echobot-rg")
+    sys.exit(1)
 
 from database import db
 from summarization import summarizer
