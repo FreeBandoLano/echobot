@@ -20,7 +20,6 @@
             <a href="/" class="app-nav__link app-nav__link--active">Today</a>
             <a href="/archive" class="app-nav__link">Archive</a>
             <a href="/analytics" class="app-nav__link">Analytics</a>
-            <a href="/timeline" class="app-nav__link">Timeline</a>
         </nav>
         <div class="app-date">
             <i class="bi bi-calendar3"></i> {{ view_date.strftime('%B %d, %Y') }}
@@ -103,28 +102,6 @@
 
         <section class="panel" id="panel-blocks" aria-labelledby="heading-blocks" data-active="false">
             <h2 id="heading-blocks"><i class="bi bi-list-ul"></i> Program Blocks</h2>
-            {% if is_today %}
-            <div style="margin:.75rem 0 1.25rem; padding:.75rem 1rem; background:var(--color-panel-alt); border:1px solid var(--color-border); border-radius:var(--radius-md);">
-                <div style="display:flex; flex-wrap:wrap; gap:.85rem; align-items:flex-end;">
-                    <div style="flex:1 1 100%; font-size:.6rem; letter-spacing:.12em; color:var(--text-tertiary); font-weight:600;">TEST RECORDING (Temporary)</div>
-                    {% for code in ['A','B','C','D'] %}
-                    <form method="post" action="/api/manual-record-duration" style="display:flex; flex-direction:column; gap:.35rem; background:var(--color-overlay); padding:.6rem .7rem .7rem; border:1px solid var(--color-border); border-radius:var(--radius-sm); min-width:140px;">
-                        <input type="hidden" name="block_code" value="{{ code }}">
-                        <div style="font-size:.65rem; font-weight:600; letter-spacing:.08em;">Block {{ code }}</div>
-                        <label style="font-size:.55rem; letter-spacing:.08em; opacity:.75;">Duration</label>
-                        <select name="duration_minutes" style="font-size:.65rem; padding:.15rem .25rem; border:1px solid var(--color-border); background:var(--color-panel-alt); border-radius: var(--radius-sm);">
-                            <option value="1" selected>1 min</option>
-                            <option value="2">2 min</option>
-                            <option value="5">5 min</option>
-                            <option value="30">30 min</option>
-                            <option value="60">60 min</option>
-                        </select>
-                        <button type="submit" style="margin-top:.2rem; font-size:.55rem; letter-spacing:.12em; font-weight:600; padding:.4rem .5rem; border:none; border-radius:var(--radius-pill); background:var(--grad-active); color:var(--text-inverse); cursor:pointer;">START</button>
-                    </form>
-                        {% endfor %}
-                    </div>
-                </div>
-            {% endif %}
                 {% for block in blocks %}
             <div class="block-summary" data-collapsed="true">
                 <div class="block-header">
@@ -287,7 +264,6 @@
             <button data-nav="blocks"><i class="bi bi-list-ul"></i><span>Blocks</span></button>
             {% if digest %}<button data-nav="digest"><i class="bi bi-file-text"></i><span>Digest</span></button>{% endif %}
             <button data-nav="archive"><i class="bi bi-archive"></i><span>Archive</span></button>
-            <button onclick="location.href='/timeline'"><i class="bi bi-activity"></i><span>Timeline</span></button>
             <button data-refresh><i class="bi bi-arrow-repeat"></i><span>Refresh</span></button>
         </nav>
 

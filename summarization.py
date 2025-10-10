@@ -371,7 +371,7 @@ Required JSON schema (compact):
   "block": "{block_code}",
   "key_themes": [{{"title": "...", "summary_bullets": ["- ..."], "callers": 0}}],
   "positions": [{{"actor": "Host|Caller k|Official", "stance": "=>|<=", "claim": "..."}}],
-  "quotes": [{{"t": "HH:MM", "speaker": "Caller k", "text": "<20 words"}}],
+  "quotes": [{{"t": "HH:MM", "speaker": "Caller k or Host", "text": "<80 words max - impactful statement>", "context": "<why this matters>"}}],
   "entities": ["..."],
   "actions": [{{"who": "...", "what": "...", "when": "..."}}]
 }}
@@ -414,13 +414,14 @@ Rules:
                 first = bullets[0].lstrip('- ').lstrip('• ').strip()
                 key_points.append(f"{theme.get('title','Theme')}: {first}")
         entities = data.get('entities', [])[:20]
-        quotes_json = data.get('quotes', [])[:3]
+        quotes_json = data.get('quotes', [])[:5]  # Increased from 3 to 5 quotes
         quotes = []
         for q in quotes_json:
             quotes.append({
-                'text': q.get('text','')[:120],
+                'text': q.get('text','')[:400],  # Increased from 120 to 400 characters
                 'speaker': q.get('speaker','Unknown'),
-                'timestamp': q.get('t','00:00')
+                'timestamp': q.get('t','00:00'),
+                'context': q.get('context', '')[:200]  # New: include context for why quote matters
             })
         # Build human-readable narrative summary instead of raw JSON blob
         lines = []
@@ -432,13 +433,18 @@ Rules:
                 bullets = t.get('summary_bullets', [])
                 first = bullets[0].lstrip('- ').strip() if bullets else ''
                 callers = t.get('callers')
-                callers_part = f" (callers: {callers})" if callers is not None else ''
+                callers_part = f" (callers: {callers})" if callers is not none else ''
                 lines.append(f"- {title}{callers_part}: {first}")
         if quotes:
             lines.append("")
-            lines.append("Notable Quotes:")
+            lines.append("💬 Notable Quotes & Context:")
             for q in quotes:
-                lines.append(f"- [{q['timestamp']}] {q['speaker']}: \"{q['text']}\"")
+                # Enhanced quote display with context
+                quote_text = q['text']
+                context = q.get('context', '')
+                lines.append(f"- [{q['timestamp']}] {q['speaker']}: \"{quote_text}\"")
+                if context:
+                    lines.append(f"  → Context: {context}")
         if entities:
             lines.append("")
             lines.append("Entities Mentioned: " + ", ".join(entities[:25]))

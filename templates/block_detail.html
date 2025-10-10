@@ -203,7 +203,6 @@
                 <a href="/">DASHBOARD</a>
                 {% if show_date %}<a href="/?date_param={{ show_date }}">VIEW DAY</a>{% endif %}
                 <a href="/archive">ARCHIVE</a>
-                {% if show_date %}<a href="/timeline?date={{ show_date }}#block-{{ block.id }}">TIMELINE</a>{% else %}<a href="/timeline?days=1#block-{{ block.id }}">TIMELINE</a>{% endif %}
             </div>
             <h2><i class="bi bi-list-ul"></i> Block {{ block.block_code }} – {{ block.block_name }}</h2>
             <div class="detail-meta">
@@ -231,11 +230,16 @@
                     </ul>
                 {% endif %}
                 {% if block.summary.quotes %}
-                    <h3 class="sub-heading">Notable Quotes</h3>
+                    <h3 class="sub-heading">💬 Notable Quotes & Context</h3>
                     {% for quote in block.summary.quotes %}
                         <div class="quote">
-                            “{{ quote.text }}”
+                            "{{ quote.text }}"
                             <footer>— {{ quote.speaker }}{% if quote.timestamp %} @ {{ quote.timestamp }}{% endif %}</footer>
+                            {% if quote.context %}
+                                <div style="margin-top:.5rem; padding-top:.5rem; border-top:1px solid var(--color-border); font-size:.7rem; color:var(--text-secondary); font-style:italic;">
+                                    → {{ quote.context }}
+                                </div>
+                            {% endif %}
                         </div>
                     {% endfor %}
                 {% endif %}
@@ -379,36 +383,6 @@
                             {% endfor %}
                         </div>
                     {% endif %}
-
-                    <!-- Enhanced Summary Data (Production View) -->
-                    {% if block.emergent %}
-                    <div style="margin-top:2rem; padding-top:1rem; border-top:1px solid var(--color-border);">
-                        <h4>Enhanced Analysis</h4>
-                        <div class="enhanced-summary">
-                            {% if block.emergent.key_themes %}
-                            <div class="summary-section">
-                                <h5>Key Themes</h5>
-                                <ul>
-                                    {% for theme in block.emergent.key_themes %}
-                                    <li><strong>{{ theme.title }}:</strong> {{ theme.description }}</li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                            {% endif %}
-                            
-                            {% if block.emergent.entities %}
-                            <div class="summary-section">
-                                <h5>Key Entities</h5>
-                                <div class="entity-tags">
-                                    {% for entity in block.emergent.entities %}
-                                    <span class="entity-tag">{{ entity }}</span>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endif %}
             {% endif %}
             {% if block.transcript %}
                 <h3 class="sub-heading" style="margin-top:2rem;">Transcript</h3>
@@ -545,7 +519,6 @@
             <button onclick="location.href='/'"><i class="bi bi-house"></i><span>Home</span></button>
             <button onclick="location.href='/archive'"><i class="bi bi-archive"></i><span>Archive</span></button>
             <button onclick="location.href='/analytics'"><i class="bi bi-graph-up"></i><span>Analytics</span></button>
-            <button onclick="location.href='/timeline'"><i class="bi bi-activity"></i><span>Timeline</span></button>
             <button onclick="window.history.back()"><i class="bi bi-arrow-left"></i><span>Back</span></button>
         </nav>
 </body>
