@@ -1,4 +1,4 @@
-"""Task queue manager for automated pipeline processing."""
+"""Task queue manager for automated pipeline processing - now using shared database."""
 
 import logging
 import threading
@@ -8,11 +8,10 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Callable
 from enum import Enum
 from dataclasses import dataclass
-import sqlite3
-from pathlib import Path
 
 from config import Config
 from database import db
+from sqlalchemy import text
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -56,34 +55,8 @@ class TaskManager:
         self.running = False
         self.worker_thread = None
         self.task_handlers = {}
-        self.db_path = Config.BASE_DIR / 'task_queue.db'
-        self._init_database()
+        # Use shared database connection - tables created in database.py
         self._register_handlers()
-    
-    def _init_database(self):
-        """Initialize task queue database."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    task_type TEXT NOT NULL,
-                    block_id INTEGER,
-                    show_date TEXT,
-                    parameters TEXT,
-                    status TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    started_at TEXT,
-                    completed_at TEXT,
-                    retry_count INTEGER DEFAULT 0,
-                    max_retries INTEGER DEFAULT 3,
-                    error_message TEXT
-                )
-            ''')
-            conn.execute('''
-                CREATE INDEX IF NOT EXISTS idx_status_created 
-                ON tasks (status, created_at)
-            ''')
-            conn.commit()
     
     def _register_handlers(self):
         """Register task type handlers."""
@@ -124,53 +97,71 @@ class TaskManager:
         if parameters is None:
             parameters = {}
         
-        # Check for duplicate tasks to prevent race conditions
-        with sqlite3.connect(self.db_path) as conn:
-            existing = conn.execute('''
-                SELECT id FROM tasks 
-                WHERE task_type = ? AND block_id = ? AND status IN ('pending', 'running', 'retry')
-            ''', (task_type.value, block_id)).fetchone()
+        with db.get_connection() as conn:
+            # Check for duplicate tasks to prevent race conditions
+            if db.use_azure_sql:
+                query = text("""
+                    SELECT id FROM tasks 
+                    WHERE task_type = :task_type AND block_id = :block_id 
+                    AND status IN ('pending', 'running', 'retry')
+                """)
+                result = conn.execute(query, {
+                    'task_type': task_type.value,
+                    'block_id': block_id
+                }).fetchone()
+            else:
+                query = """
+                    SELECT id FROM tasks 
+                    WHERE task_type = ? AND block_id = ? 
+                    AND status IN ('pending', 'running', 'retry')
+                """
+                result = conn.execute(query, (task_type.value, block_id)).fetchone()
             
-            if existing:
-                logger.info(f"Task {task_type.value} for block {block_id} already exists (id={existing[0]})")
-                return existing[0]
-        
-        task = Task(
-            id=None,
-            task_type=task_type,
-            block_id=block_id,
-            show_date=show_date,
-            parameters=parameters,
-            status=TaskStatus.PENDING,
-            created_at=datetime.now(),
-            started_at=None,
-            completed_at=None,
-            retry_count=0,
-            max_retries=max_retries,
-            error_message=None
-        )
-        
-        with sqlite3.connect(self.db_path) as conn:
-            try:
-                cursor = conn.execute('''
+            if result:
+                existing_id = result[0]
+                logger.info(f"Task {task_type.value} for block {block_id} already exists (id={existing_id})")
+                return existing_id
+            
+            # Insert new task
+            created_at = datetime.now()
+            
+            if db.use_azure_sql:
+                query = text("""
+                    INSERT INTO tasks (task_type, block_id, show_date, parameters, 
+                                     status, created_at, max_retries)
+                    VALUES (:task_type, :block_id, :show_date, :parameters, 
+                           :status, :created_at, :max_retries)
+                """)
+                conn.execute(query, {
+                    'task_type': task_type.value,
+                    'block_id': block_id,
+                    'show_date': show_date,
+                    'parameters': json.dumps(parameters),
+                    'status': TaskStatus.PENDING.value,
+                    'created_at': created_at,
+                    'max_retries': max_retries
+                })
+                # Get last inserted ID
+                result = conn.execute(text("SELECT SCOPE_IDENTITY()")).fetchone()
+                task_id = int(result[0])
+            else:
+                query = """
                     INSERT INTO tasks (task_type, block_id, show_date, parameters, 
                                      status, created_at, max_retries)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    task.task_type.value,
-                    task.block_id,
-                    task.show_date,
-                    json.dumps(task.parameters),
-                    task.status.value,
-                    task.created_at.isoformat(),
-                    task.max_retries
+                """
+                cursor = conn.execute(query, (
+                    task_type.value,
+                    block_id,
+                    show_date,
+                    json.dumps(parameters),
+                    TaskStatus.PENDING.value,
+                    created_at.isoformat(),
+                    max_retries
                 ))
                 task_id = cursor.lastrowid
-                conn.commit()
-            except Exception as e:
-                logger.warning(f"Failed to create task {task_type.value}: {e}")
-                conn.rollback()
-                raise e
+            
+            conn.commit()
         
         logger.info(f"Added task {task_id}: {task_type.value}")
         return task_id
@@ -196,18 +187,28 @@ class TaskManager:
     
     def _get_next_task(self) -> Optional[Task]:
         """Get the next pending task from the queue."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute('''
-                SELECT * FROM tasks 
-                WHERE status IN ('pending', 'retry')
-                ORDER BY created_at ASC
-                LIMIT 1
-            ''')
-            row = cursor.fetchone()
+        with db.get_connection() as conn:
+            if db.use_azure_sql:
+                query = text("""
+                    SELECT TOP 1 * FROM tasks 
+                    WHERE status IN ('pending', 'retry')
+                    ORDER BY created_at ASC
+                """)
+                result = conn.execute(query).fetchone()
+            else:
+                query = """
+                    SELECT * FROM tasks 
+                    WHERE status IN ('pending', 'retry')
+                    ORDER BY created_at ASC
+                    LIMIT 1
+                """
+                result = conn.execute(query).fetchone()
             
-            if not row:
+            if not result:
                 return None
+            
+            # Convert row to Task object
+            row = dict(result._mapping) if hasattr(result, '_mapping') else dict(zip(result.keys(), result))
             
             return Task(
                 id=row['id'],
@@ -216,9 +217,9 @@ class TaskManager:
                 show_date=row['show_date'],
                 parameters=json.loads(row['parameters']) if row['parameters'] else {},
                 status=TaskStatus(row['status']),
-                created_at=datetime.fromisoformat(row['created_at']),
-                started_at=datetime.fromisoformat(row['started_at']) if row['started_at'] else None,
-                completed_at=datetime.fromisoformat(row['completed_at']) if row['completed_at'] else None,
+                created_at=row['created_at'] if isinstance(row['created_at'], datetime) else datetime.fromisoformat(str(row['created_at'])),
+                started_at=row['started_at'] if not row['started_at'] or isinstance(row['started_at'], datetime) else datetime.fromisoformat(str(row['started_at'])),
+                completed_at=row['completed_at'] if not row['completed_at'] or isinstance(row['completed_at'], datetime) else datetime.fromisoformat(str(row['completed_at'])),
                 retry_count=row['retry_count'],
                 max_retries=row['max_retries'],
                 error_message=row['error_message']
@@ -286,19 +287,25 @@ class TaskManager:
         updates = {'status': status.value}
         
         if started_at:
-            updates['started_at'] = started_at.isoformat()
+            updates['started_at'] = started_at
         if completed_at:
-            updates['completed_at'] = completed_at.isoformat()
+            updates['completed_at'] = completed_at
         if error_message:
             updates['error_message'] = error_message
         if retry_count is not None:
             updates['retry_count'] = retry_count
         
-        set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
-        values = list(updates.values()) + [task_id]
-        
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(f"UPDATE tasks SET {set_clause} WHERE id = ?", tuple(values))
+        with db.get_connection() as conn:
+            if db.use_azure_sql:
+                set_clause = ', '.join([f"{k} = :{k}" for k in updates.keys()])
+                query = text(f"UPDATE tasks SET {set_clause} WHERE id = :task_id")
+                updates['task_id'] = task_id
+                conn.execute(query, updates)
+            else:
+                set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
+                query = f"UPDATE tasks SET {set_clause} WHERE id = ?"
+                conn.execute(query, tuple(list(updates.values()) + [task_id]))
+            
             conn.commit()
     
     def _schedule_next_pipeline_task(self, completed_task: Task):
@@ -339,15 +346,32 @@ class TaskManager:
         # If all blocks are completed, schedule daily digest
         if len(completed_blocks) == len(blocks) and len(blocks) > 0:
             # Check if digest task already exists
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.execute('''
-                    SELECT COUNT(*) FROM tasks 
-                    WHERE task_type = ? AND show_date = ? 
-                    AND status NOT IN ('failed')
-                ''', (TaskType.CREATE_DAILY_DIGEST.value, show_date))
+            with db.get_connection() as conn:
+                if db.use_azure_sql:
+                    query = text("""
+                        SELECT COUNT(*) as count FROM tasks 
+                        WHERE task_type = :task_type AND show_date = :show_date 
+                        AND status NOT IN ('failed')
+                    """)
+                    result = conn.execute(query, {
+                        'task_type': TaskType.CREATE_DAILY_DIGEST.value,
+                        'show_date': show_date
+                    }).fetchone()
+                    count = result[0]
+                else:
+                    query = """
+                        SELECT COUNT(*) FROM tasks 
+                        WHERE task_type = ? AND show_date = ? 
+                        AND status NOT IN ('failed')
+                    """
+                    result = conn.execute(query, (TaskType.CREATE_DAILY_DIGEST.value, show_date)).fetchone()
+                    count = result[0]
                 
-                if cursor.fetchone()[0] == 0:
+                if count == 0:
+                    logger.info(f"✅ All {len(completed_blocks)} blocks complete for {show_date} - scheduling digest creation")
                     self.add_task(TaskType.CREATE_DAILY_DIGEST, show_date=show_date)
+                else:
+                    logger.info(f"Digest task already exists for {show_date}")
     
     # Task Handlers
     def _handle_transcribe_block(self, task: Task) -> bool:
@@ -409,37 +433,60 @@ class TaskManager:
     
     def get_task_status(self, task_id: int) -> Optional[Dict]:
         """Get status of a specific task."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute('SELECT * FROM tasks WHERE id = ?', (task_id,))
-            row = cursor.fetchone()
+        with db.get_connection() as conn:
+            if db.use_azure_sql:
+                query = text("SELECT * FROM tasks WHERE id = :task_id")
+                result = conn.execute(query, {'task_id': task_id}).fetchone()
+            else:
+                query = "SELECT * FROM tasks WHERE id = ?"
+                result = conn.execute(query, (task_id,)).fetchone()
             
-            if row:
-                return dict(row)
+            if result:
+                return dict(result._mapping) if hasattr(result, '_mapping') else dict(zip(result.keys(), result))
         return None
     
     def get_pending_tasks(self) -> List[Dict]:
         """Get all pending tasks."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute('''
-                SELECT * FROM tasks 
-                WHERE status IN ('pending', 'running', 'retry')
-                ORDER BY created_at ASC
-            ''')
-            return [dict(row) for row in cursor.fetchall()]
+        with db.get_connection() as conn:
+            if db.use_azure_sql:
+                query = text("""
+                    SELECT * FROM tasks 
+                    WHERE status IN ('pending', 'running', 'retry')
+                    ORDER BY created_at ASC
+                """)
+                results = conn.execute(query).fetchall()
+            else:
+                query = """
+                    SELECT * FROM tasks 
+                    WHERE status IN ('pending', 'running', 'retry')
+                    ORDER BY created_at ASC
+                """
+                results = conn.execute(query).fetchall()
+            
+            return [dict(row._mapping) if hasattr(row, '_mapping') else dict(zip(row.keys(), row)) for row in results]
     
     def clear_old_tasks(self, days: int = 30):
         """Clear completed/failed tasks older than specified days."""
         cutoff_date = datetime.now() - timedelta(days=days)
         
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute('''
-                DELETE FROM tasks 
-                WHERE status IN ('completed', 'failed') 
-                AND created_at < ?
-            ''', (cutoff_date.isoformat(),))
-            deleted_count = cursor.rowcount
+        with db.get_connection() as conn:
+            if db.use_azure_sql:
+                query = text("""
+                    DELETE FROM tasks 
+                    WHERE status IN ('completed', 'failed') 
+                    AND created_at < :cutoff_date
+                """)
+                result = conn.execute(query, {'cutoff_date': cutoff_date})
+                deleted_count = result.rowcount
+            else:
+                query = """
+                    DELETE FROM tasks 
+                    WHERE status IN ('completed', 'failed') 
+                    AND created_at < ?
+                """
+                result = conn.execute(query, (cutoff_date.isoformat(),))
+                deleted_count = result.rowcount
+            
             conn.commit()
         
         logger.info(f"Cleared {deleted_count} old tasks")

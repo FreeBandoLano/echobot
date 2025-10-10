@@ -245,6 +245,25 @@ class Database:
                     PRIMARY KEY (date, model)
                 );
                 CREATE INDEX IF NOT EXISTS idx_llm_daily_usage_date ON llm_daily_usage(date);
+                
+                /* Task queue for automated pipeline processing */
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_type TEXT NOT NULL,
+                    block_id INTEGER REFERENCES blocks(id) ON DELETE CASCADE,
+                    show_date TEXT,
+                    parameters TEXT,
+                    status TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL,
+                    started_at TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    retry_count INTEGER DEFAULT 0,
+                    max_retries INTEGER DEFAULT 3,
+                    error_message TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_tasks_status_created ON tasks(status, created_at);
+                CREATE INDEX IF NOT EXISTS idx_tasks_block ON tasks(block_id);
+                CREATE INDEX IF NOT EXISTS idx_tasks_type_status ON tasks(task_type, status);
             """)
             # Lightweight migrations
     
@@ -503,6 +522,22 @@ class Database:
                     PRIMARY KEY (date, model)
                 );
 
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[tasks]') AND type in (N'U'))
+                CREATE TABLE tasks (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    task_type NVARCHAR(50) NOT NULL,
+                    block_id INT REFERENCES blocks(id) ON DELETE CASCADE,
+                    show_date NVARCHAR(20),
+                    parameters NVARCHAR(MAX),
+                    status NVARCHAR(20) NOT NULL,
+                    created_at DATETIME2 NOT NULL,
+                    started_at DATETIME2,
+                    completed_at DATETIME2,
+                    retry_count INT DEFAULT 0,
+                    max_retries INT DEFAULT 3,
+                    error_message NVARCHAR(MAX)
+                );
+
                 -- Create indexes if they don't exist
                 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_blocks_show_date' AND object_id = OBJECT_ID('blocks'))
                 CREATE INDEX idx_blocks_show_date ON blocks(show_id);
@@ -524,6 +559,15 @@ class Database:
 
                 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_llm_daily_usage_date' AND object_id = OBJECT_ID('llm_daily_usage'))
                 CREATE INDEX idx_llm_daily_usage_date ON llm_daily_usage(date);
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_tasks_status_created' AND object_id = OBJECT_ID('tasks'))
+                CREATE INDEX idx_tasks_status_created ON tasks(status, created_at);
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_tasks_block' AND object_id = OBJECT_ID('tasks'))
+                CREATE INDEX idx_tasks_block ON tasks(block_id);
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_tasks_type_status' AND object_id = OBJECT_ID('tasks'))
+                CREATE INDEX idx_tasks_type_status ON tasks(task_type, status);
             """
             conn.execute(str(text(tables_query)))
             conn.commit()
