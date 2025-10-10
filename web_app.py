@@ -961,6 +961,51 @@ async def generate_enhanced_digest(date: str = Form(...)):
         logger.error(f"Enhanced digest generation failed for {date}: {e}")
         raise HTTPException(status_code=500, detail=f"Digest generation failed: {str(e)}")
 
+@app.post("/api/send-digest-email")
+async def send_digest_email(date: str = Form(...)):
+    """Send email for an existing digest."""
+    
+    try:
+        # Parse and validate date
+        from datetime import datetime
+        try:
+            target_date = datetime.strptime(date, '%Y-%m-%d').date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+        
+        # Check if digest exists
+        digest = db.get_daily_digest(target_date)
+        if not digest:
+            return {
+                "success": False,
+                "message": f"No digest found for {target_date}",
+                "date": str(target_date)
+            }
+        
+        # Send email
+        logger.info(f"Sending digest email for {target_date}")
+        from email_service import email_service
+        success = email_service.send_daily_digest(target_date)
+        
+        if success:
+            return {
+                "success": True,
+                "date": str(target_date),
+                "message": f"Digest email sent successfully for {target_date}"
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to send email (email service may be disabled)",
+                "date": str(target_date)
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Email sending failed for {date}: {e}")
+        raise HTTPException(status_code=500, detail=f"Email sending failed: {str(e)}")
+
 @app.post("/api/cleanup-legacy-data")
 async def cleanup_legacy_data():
     """Clean JSON contamination from old summary_text where raw_json is missing."""
@@ -968,6 +1013,7 @@ async def cleanup_legacy_data():
     try:
         # Find summaries with JSON contamination but no raw_json
         if db.use_azure_sql:
+
             query = """
                 SELECT id, summary_text 
                 FROM summaries 
