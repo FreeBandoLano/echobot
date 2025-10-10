@@ -129,10 +129,11 @@ class TaskManager:
                 query = text("""
                     INSERT INTO tasks (task_type, block_id, show_date, parameters, 
                                      status, created_at, max_retries)
+                    OUTPUT INSERTED.id
                     VALUES (:task_type, :block_id, :show_date, :parameters, 
                            :status, :created_at, :max_retries)
                 """)
-                conn.execute(query, {
+                result = conn.execute(query, {
                     'task_type': task_type.value,
                     'block_id': block_id,
                     'show_date': show_date,
@@ -140,10 +141,13 @@ class TaskManager:
                     'status': TaskStatus.PENDING.value,
                     'created_at': created_at,
                     'max_retries': max_retries
-                })
-                # Get last inserted ID
-                result = conn.execute(text("SELECT SCOPE_IDENTITY()")).fetchone()
-                task_id = int(result[0])
+                }).fetchone()
+                if result and result[0] is not None:
+                    task_id = int(result[0])
+                    logger.info(f"Successfully inserted task with OUTPUT INSERTED.id: {task_id}")
+                else:
+                    logger.error("OUTPUT INSERTED.id returned None")
+                    raise Exception("Failed to get task_id from OUTPUT INSERTED.id")
             else:
                 query = """
                     INSERT INTO tasks (task_type, block_id, show_date, parameters, 

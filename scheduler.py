@@ -255,6 +255,11 @@ class RadioScheduler:
     def _process_block(self, block_code: str):
         """Process a recorded block (transcribe and summarize)."""
         
+        # If task_manager is handling processing, don't process here
+        if Config.DIGEST_CREATOR == 'task_manager':
+            logger.info(f"🚫 Scheduler skipping block processing (task_manager handles processing)")
+            return
+        
         today = get_local_date()
         logger.info(f"Starting scheduled processing for Block {block_code}")
         
