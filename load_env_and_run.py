@@ -29,12 +29,13 @@ try:
     critical_vars = [
         'OPENAI_API_KEY',
         'AZURE_SQL_CONNECTION_STRING',
-        'EMAIL_HOST',
-        'EMAIL_PORT',
-        'EMAIL_USER',
-        'EMAIL_PASSWORD',
+        'SMTP_HOST',
+        'SMTP_PORT',
+        'SMTP_USER',
+        'SMTP_PASS',
         'EMAIL_FROM',
         'EMAIL_TO',
+        'ENABLE_EMAIL',
         'RADIO_STREAM_URL',
     ]
     
