@@ -1,124 +1,86 @@
 #!/usr/bin/env python3
 """
-Send email for October 10th digest (already generated but not emailed).
-Connects to Azure SQL to check status and send email.
+Send the Oct 10, 2025 daily digest email that was generated but not sent.
+This script connects to Azure SQL database and sends the digest via email service.
 """
 
-import os
 import sys
+import os
 from datetime import date
-from pathlib import Path
 
-# Add current directory to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add the project root to the Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Load environment from .env if exists (for local testing)
-from dotenv import load_dotenv
-load_dotenv()
+# Set environment variable to force Azure SQL connection
+os.environ['USE_AZURE_SQL'] = 'true'
 
+print("🔧 Environment configuration:")
+print(f"   AZURE_SQL_CONNECTION_STRING: {'SET' if os.getenv('AZURE_SQL_CONNECTION_STRING') else 'NOT SET'}")
+print(f"   OPENAI_API_KEY: {'SET' if os.getenv('OPENAI_API_KEY') else 'NOT SET'}")
+print(f"   USE_AZURE_SQL: {os.getenv('USE_AZURE_SQL')}")
+print()
+
+# Import after path and environment setup
 from database import db
 from email_service import email_service
 from config import Config
 
 def main():
-    print("\n" + "="*60)
-    print("📧 October 10th Digest Email Sender")
-    print("="*60)
+    """Send the Oct 10 digest email from Azure SQL database."""
     
     target_date = date(2025, 10, 10)
     
-    # Check database type
-    print(f"\n📊 Database: {'Azure SQL' if db.use_azure_sql else 'SQLite'}")
-    if db.use_azure_sql:
-        print(f"✅ Connected to Azure SQL Database")
-    else:
-        print(f"⚠️  Using local SQLite - may not have Azure data")
-        print(f"   DB Path: {db.db_path}")
+    print(f"� Checking Azure SQL database for digest on {target_date}...")
+    print(f"🔗 Database connection: {db.engine.url if db.engine else 'NOT CONNECTED'}")
+    print()
     
-    print(f"\n📅 Target Date: {target_date.strftime('%A, %B %d, %Y')}")
-    
-    # Check for blocks
-    print(f"\n🔍 Checking for blocks...")
+    # Check if blocks exist for this date
     blocks = db.get_blocks_by_date(target_date)
+    print(f"📊 Found {len(blocks)} blocks for {target_date}")
     
     if not blocks:
-        print(f"❌ NO BLOCKS FOUND for {target_date}")
-        print(f"   This may be a weekend/holiday or data hasn't synced")
+        print("❌ No blocks found for Oct 10, 2025 in Azure SQL")
         return 1
     
-    print(f"✅ Found {len(blocks)} blocks:")
+    # Show block details
+    print("\n📋 Block details:")
     for block in blocks:
-        status_emoji = {'completed': '✅', 'transcribed': '📝', 'summarizing': '🔄'}.get(block['status'], '❓')
-        print(f"   {status_emoji} Block {block['block_code']}: {block['status']}")
+        print(f"   - Block {block['block_code']}: {block['status']}")
+    print()
     
-    completed = [b for b in blocks if b['status'] == 'completed']
-    print(f"\n📊 Status: {len(completed)}/{len(blocks)} blocks completed")
-    
-    if len(completed) < len(blocks):
-        print(f"⚠️  Warning: Not all blocks completed yet")
-    
-    # Check for digest
-    print(f"\n🔍 Checking for digest...")
+    # Check if digest exists
     digest = db.get_daily_digest(target_date)
     
     if not digest:
-        print(f"❌ NO DIGEST FOUND")
-        print(f"   Digest has not been generated yet")
+        print("❌ No digest found for Oct 10, 2025 in Azure SQL")
+        print("💡 Digest may need to be generated first")
         return 1
     
-    print(f"✅ DIGEST EXISTS")
-    print(f"   Created: {digest.get('created_at', 'unknown')}")
-    print(f"   Blocks: {digest.get('total_blocks', 0)}")
-    print(f"   Callers: {digest.get('total_callers', 0)}")
+    print(f"✅ Found digest for {target_date}")
+    print(f"📝 Digest length: {len(digest.get('content', ''))} characters")
+    print(f"📊 Blocks: {digest.get('total_blocks', 0)}, Callers: {digest.get('total_callers', 0)}")
     
-    # Get digest text
-    digest_text = digest.get('digest_text') or digest.get('summary_text', '')
-    
-    if not digest_text:
-        print(f"❌ Digest exists but has no text content")
-        return 1
-    
-    print(f"   Length: {len(digest_text)} characters")
-    preview = digest_text[:200].replace('\n', ' ')
-    print(f"   Preview: {preview}...")
-    
-    # Check if email was already sent (heuristic: check email_sent field if exists)
+    # Check if email was already sent
     if digest.get('email_sent'):
-        print(f"\n⚠️  Email appears to have been sent already")
-        response = input("Send again anyway? (y/n): ")
-        if response.lower() != 'y':
-            print("Cancelled.")
+        print(f"⚠️  Email already marked as sent at {digest.get('email_sent_at')}")
+        response = input("Send anyway? (yes/no): ")
+        if response.lower() != 'yes':
+            print("❌ Aborted")
             return 0
     
-    # Send email
-    print(f"\n📧 Sending digest email...")
-    print(f"   Recipients: {Config.EMAIL_RECIPIENTS}")
+    # Send the email
+    print(f"\n📧 Sending digest email for {target_date}...")
+    print(f"📬 Recipients: {', '.join(Config.DIGEST_RECIPIENTS)}")
     
-    try:
-        success = email_service.send_daily_digest(target_date, digest_text)
-        
-        if success:
-            print(f"✅ EMAIL SENT SUCCESSFULLY!")
-            print(f"\n📬 Check these inboxes:")
-            for recipient in Config.EMAIL_RECIPIENTS:
-                print(f"   - {recipient}")
-        else:
-            print(f"❌ Email send failed - check email service configuration")
-            print(f"   SMTP Host: {Config.SMTP_HOST}")
-            print(f"   SMTP Port: {Config.SMTP_PORT}")
-            print(f"   From: {Config.EMAIL_FROM}")
-            return 1
-            
-    except Exception as e:
-        print(f"❌ Error sending email: {e}")
-        import traceback
-        traceback.print_exc()
+    success = email_service.send_daily_digest(target_date)
+    
+    if success:
+        print("✅ Email sent successfully!")
+        return 0
+    else:
+        print("❌ Failed to send email")
+        print("💡 Check email_service logs for details")
         return 1
-    
-    print(f"\n{'='*60}")
-    print("✅ OPERATION COMPLETE")
-    print(f"{'='*60}\n")
-    return 0
 
 if __name__ == "__main__":
     sys.exit(main())
