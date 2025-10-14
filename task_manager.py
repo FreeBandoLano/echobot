@@ -316,7 +316,7 @@ class TaskManager:
         """Schedule the next task in the processing pipeline."""
         if completed_task.task_type == TaskType.TRANSCRIBE_BLOCK:
             # After transcription, schedule summarization
-            self.add_task(TaskType.SUMMARIZE_BLOCK, block_id=completed_task.block_id)
+            self.add_task(TaskType.SUMMARIZE_BLOCK, block_id=completed_task.block_id, show_date=completed_task.show_date)
             
         elif completed_task.task_type == TaskType.SUMMARIZE_BLOCK:
             # After summarization, NO LONGER schedule individual block emails
