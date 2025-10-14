@@ -17,6 +17,7 @@ import re
 import logging
 
 from config import Config
+from openai import OpenAI
 from database import db
 
 logger = logging.getLogger(__name__)
@@ -105,29 +106,32 @@ def summarize_window(window: Dict[str, Any]) -> Dict[str, Any]:
     if not api_key:
         return {"summary": ' '.join(fallback_bullets[:3]), "bullets": fallback_bullets, "source_chars": len(text), "llm": False}
     try:
-        import openai
-        client = openai.OpenAI(api_key=api_key)
+        client = OpenAI(api_key=api_key)
         prompt = (
             "You are a radio show rolling summarizer. Given recent caller/host dialogue, "
             "produce a concise paragraph (<=90 words) capturing main evolving themes, then concise bullet points (<=6) of actionable or disputed items.\n\nTEXT:\n" + text[:DEFAULT_CHAR_BUDGET]
         )
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.4
-        )
-        content = resp.choices[0].message.content.strip()
-        try:
-            usage = getattr(resp, 'usage', None)
-            if usage and hasattr(usage, 'prompt_tokens'):
-                p_tokens = usage.prompt_tokens
-                c_tokens = getattr(usage, 'completion_tokens', 0)
-            else:
-                # Removed cost tracking
-                p_tokens = max(1, len(prompt) // 4)
-                c_tokens = max(1, len(content) // 4)
-        except Exception:
-            pass
+        # Prefer gpt-4.1-mini then fall back to 4o-mini
+        models = [getattr(Config, 'SUMMARIZATION_MODEL', 'gpt-4.1-mini'), 'gpt-4.1-mini', 'gpt-4o-mini']
+        content = None
+        last_err = None
+        for m in models:
+            try:
+                # Use corrected Chat Completions parameters
+                kwargs = {"model": m, "messages": [{"role": "user", "content": prompt}], "max_completion_tokens": 600}
+                # Don't set temperature for nano/mini models
+                if not (m.startswith('gpt-5') or m.startswith('gpt-4o-mini') or m.startswith('gpt-4.1-mini')):
+                    kwargs['temperature'] = 0.4
+
+                resp = client.chat.completions.create(**kwargs)
+                content = resp.choices[0].message.content.strip()
+                if content:
+                    break
+            except Exception as e:
+                last_err = e
+                continue
+        if not content:
+            raise RuntimeError(f"No model succeeded: {last_err}")
         # Attempt to split bullets
         lines = content.splitlines()
         para_lines = []

@@ -61,7 +61,7 @@ class RadioSummarizer:
 
             # Update status
             db.update_block_status(block_id, 'summarizing')
-            print(f"🔄 Generating AI summary using GPT-5 Nano...")
+            print(f"🔄 Generating AI summary using {Config.SUMMARIZATION_MODEL}...")
 
             # Generate summary
             summary_data = self._generate_summary(block, transcript_data, block_id)
@@ -221,7 +221,8 @@ RULES:
             except Exception as e:
                 return None, e
 
-        model_order = [getattr(Config, 'SUMMARIZATION_MODEL', 'gpt-5-nano-2025-08-07'), 'gpt-4.1-mini', 'gpt-4o-mini']
+        # Prioritize the stable model gpt-4.1-mini and include 4o-mini as fallback
+        model_order = [getattr(Config, 'SUMMARIZATION_MODEL', 'gpt-4.1-mini'), 'gpt-4.1-mini', 'gpt-4o-mini']
         attempt_log: List[str] = []
         content = None
         model_used = None
@@ -433,7 +434,7 @@ Rules:
                 bullets = t.get('summary_bullets', [])
                 first = bullets[0].lstrip('- ').strip() if bullets else ''
                 callers = t.get('callers')
-                callers_part = f" (callers: {callers})" if callers is not none else ''
+                callers_part = f" (callers: {callers})" if callers is not None else ''
                 lines.append(f"- {title}{callers_part}: {first}")
         if quotes:
             lines.append("")
@@ -780,7 +781,8 @@ Focus on intelligence value for government decision-making. Be thorough, analyti
                 return None
             
             # Adaptive daily digest generation (reuse fallback logic)
-            dd_models = [getattr(Config, 'SUMMARIZATION_MODEL', 'gpt-5-nano-2025-08-07'), 'gpt-4.1-mini', 'gpt-4o-mini']
+            # Prioritize gpt-4.1-mini for daily digest as well
+            dd_models = [getattr(Config, 'SUMMARIZATION_MODEL', 'gpt-4.1-mini'), 'gpt-4.1-mini', 'gpt-4o-mini']
             response = None
             last_err = None
             

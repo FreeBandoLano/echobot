@@ -73,7 +73,8 @@ class Config:
     # LLM Feature Flag
     ENABLE_LLM = os.getenv('ENABLE_LLM', 'true').lower() in ('1','true','yes','on')
     # Summarization model (adaptive fallback handled in code if incompatible)
-    SUMMARIZATION_MODEL = os.getenv('SUMMARIZATION_MODEL', 'gpt-5-nano-2025-08-07')
+    # Default to the previously stable model unless overridden by env
+    SUMMARIZATION_MODEL = os.getenv('SUMMARIZATION_MODEL', 'gpt-4.1-mini')
     
     # Enhanced Summarization Configuration
     ENABLE_DAILY_DIGEST = os.getenv('ENABLE_DAILY_DIGEST', 'true').lower() == 'true'
