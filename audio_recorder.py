@@ -357,10 +357,10 @@ class AudioRecorder:
         end_time = datetime.strptime(f"{show_date} {end_time_str}", "%Y-%m-%d %H:%M")
         end_time = Config.TIMEZONE.localize(end_time)
         
-        # Always create a new show for scheduled recordings (avoids stale references)
-        # This prevents foreign key issues after database resets during deployments
+        # Get or create show for this date (reuses existing show for all blocks on same day)
+        # This ensures all blocks (A, B, C, D) belong to the same show_id
         show_id = db.create_show(show_date)
-        logger.info(f"Created new show for scheduled recording: show_id={show_id}")
+        logger.info(f"Using show_id={show_id} for Block {block_code} on {show_date}")
         
         return self.record_block(block_code, start_time, end_time, show_id)
     

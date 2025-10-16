@@ -347,8 +347,15 @@ class TaskManager:
         blocks = db.get_blocks_by_date(date_obj)
         completed_blocks = [b for b in blocks if b['status'] == 'completed']
         
-        # If all blocks are completed, schedule daily digest
-        if len(completed_blocks) == len(blocks) and len(blocks) > 0:
+        # Expected number of blocks for a full show day (A, B, C, D)
+        expected_block_count = len(Config.BLOCKS)
+        
+        # Check if all EXPECTED blocks are completed
+        # This prevents premature digest creation when only some blocks have been recorded
+        logger.info(f"📊 Digest check for {show_date}: {len(completed_blocks)}/{expected_block_count} blocks completed ({len(blocks)} exist)")
+        
+        # Only schedule digest if we have all expected blocks AND they're all completed
+        if len(completed_blocks) >= expected_block_count and len(completed_blocks) == len(blocks):
             # Check if digest task already exists
             with db.get_connection() as conn:
                 if db.use_azure_sql:
