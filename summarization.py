@@ -486,11 +486,23 @@ Rules:
         blocks = db.get_blocks_by_date(show_date)
         completed_blocks = [b for b in blocks if b['status'] == 'completed']
 
+        # ✅ PREMATURE DIGEST FIX: Ensure ALL blocks are completed before creating digest
+        expected_block_count = len(Config.BLOCKS)  # Should be 4 (A, B, C, D)
+        
+        if len(blocks) < expected_block_count:
+            logger.warning(f"⏳ Only {len(blocks)}/{expected_block_count} blocks exist for {show_date} - waiting for all blocks to be scheduled")
+            return None
+        
+        if len(completed_blocks) < len(blocks):
+            logger.warning(f"⏳ Only {len(completed_blocks)}/{len(blocks)} blocks completed for {show_date} - waiting for all blocks to finish")
+            logger.info(f"   Incomplete blocks: {', '.join([b['block_code'] for b in blocks if b['status'] != 'completed'])}")
+            return None
+
         if not completed_blocks:
             logger.warning(f"No completed blocks found for {show_date}")
             return None
 
-        logger.info(f"Creating daily digest for {show_date} with {len(completed_blocks)} blocks")
+        logger.info(f"✅ Creating daily digest for {show_date} with ALL {len(completed_blocks)}/{expected_block_count} blocks completed")
 
         # Collect all summaries
         block_summaries = []

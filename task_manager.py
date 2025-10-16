@@ -328,7 +328,12 @@ class TaskManager:
                 self._check_schedule_daily_digest(completed_task.show_date)
     
     def _check_schedule_daily_digest(self, show_date: str):
-        """Check if all blocks are complete and schedule daily digest."""
+        """Check if all blocks are complete and schedule daily digest.
+        
+        ✅ PREMATURE DIGEST PREVENTION:
+        This method ensures digest is ONLY created when ALL blocks for the day are completed.
+        Even if triggered early, the create_daily_digest method has additional validation.
+        """
         from datetime import date
         from config import Config
         
@@ -354,7 +359,8 @@ class TaskManager:
         # This prevents premature digest creation when only some blocks have been recorded
         logger.info(f"📊 Digest check for {show_date}: {len(completed_blocks)}/{expected_block_count} blocks completed ({len(blocks)} exist)")
         
-        # Only schedule digest if we have all expected blocks AND they're all completed
+        # ✅ CRITICAL CHECK: Only schedule digest when ALL blocks are completed
+        # Must have all expected blocks AND they must all be completed
         if len(completed_blocks) >= expected_block_count and len(completed_blocks) == len(blocks):
             # Check if digest task already exists
             with db.get_connection() as conn:
