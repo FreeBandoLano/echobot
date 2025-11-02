@@ -162,7 +162,13 @@
                     <div class="card-body">
                         <div class="d-grid gap-3">
                             {% for prog_key in programs %}
-                                <h6 class="text-primary">{{ program_names[prog_key] }}</h6>
+                                {% if not loop.first %}
+                                    <hr class="my-3">
+                                {% endif %}
+                                <h6 class="text-primary mb-3">
+                                    <i class="bi bi-broadcast"></i> {{ program_names[prog_key] }}
+                                    <small class="text-muted">({{ config.PROGRAMS[prog_key].station }})</small>
+                                </h6>
                                 {% set prog_blocks = config.PROGRAMS[prog_key].blocks %}
                                 {% for code, block_cfg in prog_blocks.items() %}
                                     <div class="border rounded p-3">
