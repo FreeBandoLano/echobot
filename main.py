@@ -100,12 +100,15 @@ def run_web_server():
 
 def run_manual_recording(block_code: str):
     """Run manual recording for a specific block."""
-    if block_code not in Config.BLOCKS:
+    # Find which program this block belongs to
+    program_key, program_config = Config.get_program_by_block(block_code)
+    
+    if not program_key:
         logger.error(f"Invalid block code: {block_code}")
         return False
     
-    logger.info(f"Starting manual recording for Block {block_code}")
-    success = scheduler.run_manual_recording(block_code)
+    logger.info(f"Starting manual recording for Block {block_code} ({program_config['name']})")
+    success = scheduler.run_manual_recording(block_code, program_key)
     
     if success:
         logger.info(f"Recording completed successfully for Block {block_code}")
@@ -116,7 +119,10 @@ def run_manual_recording(block_code: str):
 
 def run_manual_processing(block_code: str, show_date: str = None):
     """Run manual processing for a specific block."""
-    if block_code not in Config.BLOCKS:
+    # Find which program this block belongs to
+    program_key, program_config = Config.get_program_by_block(block_code)
+    
+    if not program_key:
         logger.error(f"Invalid block code: {block_code}")
         return False
     
@@ -130,8 +136,8 @@ def run_manual_processing(block_code: str, show_date: str = None):
     else:
         parsed_date = date.today()
     
-    logger.info(f"Starting manual processing for Block {block_code} on {parsed_date}")
-    success = scheduler.run_manual_processing(block_code, parsed_date)
+    logger.info(f"Starting manual processing for Block {block_code} ({program_config['name']}) on {parsed_date}")
+    success = scheduler.run_manual_processing(block_code, parsed_date, program_key)
     
     if success:
         logger.info(f"Processing completed successfully for Block {block_code}")
@@ -184,11 +190,11 @@ def main():
     
     # Manual recording command
     record_parser = subparsers.add_parser('record', help='Manually record a block')
-    record_parser.add_argument('block_code', choices=['A', 'B', 'C', 'D'], help='Block code to record')
+    record_parser.add_argument('block_code', choices=['A', 'B', 'C', 'D', 'E', 'F'], help='Block code to record')
     
     # Manual processing command
     process_parser = subparsers.add_parser('process', help='Manually process a block')
-    process_parser.add_argument('block_code', choices=['A', 'B', 'C', 'D'], help='Block code to process')
+    process_parser.add_argument('block_code', choices=['A', 'B', 'C', 'D', 'E', 'F'], help='Block code to process')
     process_parser.add_argument('--date', help='Date in YYYY-MM-DD format (default: today)')
     
     # Daily digest command

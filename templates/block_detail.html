@@ -20,6 +20,11 @@
 
     <div class="container mt-4">
         <h2>Block {{ block.block_code }} - {{ block.block_name }}</h2>
+        <p class="lead">{{ block.program_name }} ({{ block.station }})</p>
+        <p class="text-muted">
+            Status: <span class="badge bg-{{ 'success' if block.status == 'completed' else 'secondary' }}">{{ block.status }}</span>
+            {% if block.start_time %} | {{ block.start_time }} - {{ block.end_time }}{% endif %}
+        </p>
         
         {% if block.summary %}
             <div class="card mb-4">

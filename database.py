@@ -26,16 +26,20 @@ class Database:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS shows (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    show_date DATE UNIQUE NOT NULL,
+                    show_date DATE NOT NULL,
                     title TEXT DEFAULT 'Down to Brass Tacks',
+                    program_name TEXT DEFAULT 'Down to Brass Tacks',
+                    station_name TEXT DEFAULT 'VOB',
                     total_callers INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(show_date, program_name)
                 );
                 
                 CREATE TABLE IF NOT EXISTS blocks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     show_id INTEGER REFERENCES shows(id),
-                    block_code TEXT CHECK (block_code IN ('A','B','C','D')),
+                    block_code TEXT CHECK (block_code IN ('A','B','C','D','E','F')),
+                    program_name TEXT DEFAULT 'Down to Brass Tacks',
                     start_time TIMESTAMP,
                     end_time TIMESTAMP,
                     audio_file_path TEXT,
@@ -63,6 +67,7 @@ class Database:
                     digest_text TEXT,
                     total_blocks INTEGER,
                     total_callers INTEGER,
+                    programs_included TEXT,  -- JSON array of program names included
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 
@@ -71,33 +76,51 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_summaries_block ON summaries(block_id);
             """)
     
-    def create_show(self, show_date: date, title: str = "Down to Brass Tacks") -> int:
+    def create_show(self, show_date: date, title: str = "Down to Brass Tacks", 
+                    program_name: str = "Down to Brass Tacks", station_name: str = "VOB") -> int:
         """Create a new show record."""
         with self.get_connection() as conn:
             cursor = conn.execute(
-                "INSERT OR REPLACE INTO shows (show_date, title) VALUES (?, ?)",
-                (show_date, title)
+                "INSERT OR REPLACE INTO shows (show_date, title, program_name, station_name) VALUES (?, ?, ?, ?)",
+                (show_date, title, program_name, station_name)
             )
             return cursor.lastrowid
     
-    def get_show(self, show_date: date) -> Optional[Dict]:
-        """Get show by date."""
+    def get_show(self, show_date: date, program_name: str = None) -> Optional[Dict]:
+        """Get show by date and optionally program name."""
         with self.get_connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM shows WHERE show_date = ?", (show_date,)
-            ).fetchone()
+            if program_name:
+                row = conn.execute(
+                    "SELECT * FROM shows WHERE show_date = ? AND program_name = ?", 
+                    (show_date, program_name)
+                ).fetchone()
+            else:
+                # Return first show for the date if no program specified
+                row = conn.execute(
+                    "SELECT * FROM shows WHERE show_date = ? LIMIT 1", (show_date,)
+                ).fetchone()
             return dict(row) if row else None
     
-    def create_block(self, show_id: int, block_code: str, start_time: datetime, end_time: datetime) -> int:
+    def get_shows_by_date(self, show_date: date) -> List[Dict]:
+        """Get all shows for a specific date (multiple programs)."""
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM shows WHERE show_date = ? ORDER BY program_name", 
+                (show_date,)
+            ).fetchall()
+            return [dict(row) for row in rows]
+    
+    def create_block(self, show_id: int, block_code: str, start_time: datetime, end_time: datetime, 
+                     program_name: str = "Down to Brass Tacks") -> int:
         """Create a new block record."""
         duration_minutes = int((end_time - start_time).total_seconds() / 60)
         
         with self.get_connection() as conn:
             cursor = conn.execute("""
                 INSERT OR REPLACE INTO blocks 
-                (show_id, block_code, start_time, end_time, duration_minutes, status)
-                VALUES (?, ?, ?, ?, ?, 'scheduled')
-            """, (show_id, block_code, start_time, end_time, duration_minutes))
+                (show_id, block_code, start_time, end_time, duration_minutes, status, program_name)
+                VALUES (?, ?, ?, ?, ?, 'scheduled', ?)
+            """, (show_id, block_code, start_time, end_time, duration_minutes, program_name))
             return cursor.lastrowid
     
     def update_block_status(self, block_id: int, status: str, **kwargs):
@@ -126,15 +149,23 @@ class Database:
             ).fetchone()
             return dict(row) if row else None
     
-    def get_blocks_by_date(self, show_date: date) -> List[Dict]:
-        """Get all blocks for a specific date."""
+    def get_blocks_by_date(self, show_date: date, program_name: str = None) -> List[Dict]:
+        """Get all blocks for a specific date, optionally filtered by program."""
         with self.get_connection() as conn:
-            rows = conn.execute("""
-                SELECT b.* FROM blocks b
-                JOIN shows s ON b.show_id = s.id
-                WHERE s.show_date = ?
-                ORDER BY b.block_code
-            """, (show_date,)).fetchall()
+            if program_name:
+                rows = conn.execute("""
+                    SELECT b.* FROM blocks b
+                    JOIN shows s ON b.show_id = s.id
+                    WHERE s.show_date = ? AND b.program_name = ?
+                    ORDER BY b.start_time, b.block_code
+                """, (show_date, program_name)).fetchall()
+            else:
+                rows = conn.execute("""
+                    SELECT b.* FROM blocks b
+                    JOIN shows s ON b.show_id = s.id
+                    WHERE s.show_date = ?
+                    ORDER BY b.start_time, b.block_code
+                """, (show_date,)).fetchall()
             return [dict(row) for row in rows]
     
     def create_summary(self, block_id: int, summary_text: str, key_points: List[str], 
@@ -170,14 +201,17 @@ class Database:
                 return summary
             return None
     
-    def create_daily_digest(self, show_date: date, digest_text: str, total_blocks: int, total_callers: int) -> int:
+    def create_daily_digest(self, show_date: date, digest_text: str, total_blocks: int, 
+                           total_callers: int, programs_included: List[str] = None) -> int:
         """Create daily digest."""
+        programs_included = programs_included or ["Down to Brass Tacks"]
+        
         with self.get_connection() as conn:
             cursor = conn.execute("""
                 INSERT OR REPLACE INTO daily_digests 
-                (show_date, digest_text, total_blocks, total_callers)
-                VALUES (?, ?, ?, ?)
-            """, (show_date, digest_text, total_blocks, total_callers))
+                (show_date, digest_text, total_blocks, total_callers, programs_included)
+                VALUES (?, ?, ?, ?, ?)
+            """, (show_date, digest_text, total_blocks, total_callers, json.dumps(programs_included)))
             return cursor.lastrowid
     
     def get_daily_digest(self, show_date: date) -> Optional[Dict]:
@@ -186,7 +220,14 @@ class Database:
             row = conn.execute(
                 "SELECT * FROM daily_digests WHERE show_date = ?", (show_date,)
             ).fetchone()
-            return dict(row) if row else None
+            
+            if row:
+                digest = dict(row)
+                # Parse JSON field
+                if digest.get('programs_included'):
+                    digest['programs_included'] = json.loads(digest['programs_included'])
+                return digest
+            return None
 
 # Global database instance
 db = Database()

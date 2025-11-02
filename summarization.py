@@ -302,9 +302,9 @@ Maintain objectivity and focus on factual content relevant to government decisio
         }
     
     def create_daily_digest(self, show_date: datetime.date) -> Optional[str]:
-        """Create a daily digest combining all blocks."""
+        """Create a daily digest combining all blocks from all programs."""
         
-        # Get all completed blocks for the date
+        # Get all completed blocks for the date (across all programs)
         blocks = db.get_blocks_by_date(show_date)
         completed_blocks = [b for b in blocks if b['status'] == 'completed']
         
@@ -312,36 +312,57 @@ Maintain objectivity and focus on factual content relevant to government decisio
             logger.warning(f"No completed blocks found for {show_date}")
             return None
         
-        logger.info(f"Creating daily digest for {show_date} with {len(completed_blocks)} blocks")
+        logger.info(f"Creating combined daily digest for {show_date} with {len(completed_blocks)} blocks from all programs")
         
-        # Collect all summaries
-        block_summaries = []
+        # Collect all summaries, grouped by program
+        programs_data = {}
         total_callers = 0
         all_entities = set()
+        all_blocks = Config.get_all_blocks()
         
         for block in completed_blocks:
             summary = db.get_summary(block['id'])
             if summary:
-                block_summaries.append({
-                    'block_code': block['block_code'],
-                    'block_name': Config.BLOCKS[block['block_code']]['name'],
+                program_name = block.get('program_name', 'Down to Brass Tacks')
+                
+                # Initialize program data if needed
+                if program_name not in programs_data:
+                    programs_data[program_name] = {
+                        'blocks': [],
+                        'callers': 0,
+                        'entities': set()
+                    }
+                
+                # Get block info from config
+                block_code = block['block_code']
+                block_info = all_blocks.get(block_code, {})
+                block_name = block_info.get('name', f'Block {block_code}')
+                
+                programs_data[program_name]['blocks'].append({
+                    'block_code': block_code,
+                    'block_name': block_name,
                     'summary': summary['summary_text'],
                     'key_points': summary['key_points'],
                     'entities': summary['entities'],
                     'caller_count': summary['caller_count']
                 })
+                
+                programs_data[program_name]['callers'] += summary['caller_count']
+                programs_data[program_name]['entities'].update(summary['entities'])
+                
                 total_callers += summary['caller_count']
                 all_entities.update(summary['entities'])
         
-        if not block_summaries:
+        if not programs_data:
             return None
         
         # Generate daily digest
-        digest_text = self._generate_daily_digest(show_date, block_summaries, total_callers, list(all_entities))
+        programs_included = list(programs_data.keys())
+        digest_text = self._generate_daily_digest(show_date, programs_data, total_callers, list(all_entities))
         
         # Save to database
         if digest_text:
-            db.create_daily_digest(show_date, digest_text, len(completed_blocks), total_callers)
+            db.create_daily_digest(show_date, digest_text, len(completed_blocks), total_callers, programs_included)
             
             # Save to file
             digest_filename = f"{show_date}_daily_digest.txt"
@@ -354,43 +375,60 @@ Maintain objectivity and focus on factual content relevant to government decisio
         
         return digest_text
     
-    def _generate_daily_digest(self, show_date: datetime.date, block_summaries: List[Dict], 
+    def _generate_daily_digest(self, show_date: datetime.date, programs_data: Dict, 
                               total_callers: int, entities: List[str]) -> Optional[str]:
-        """Generate daily digest using GPT."""
+        """Generate combined daily digest using GPT for all programs."""
         
-        # Prepare content
-        blocks_content = ""
-        for block_summary in block_summaries:
-            blocks_content += f"\n\n=== {block_summary['block_code']} - {block_summary['block_name']} ===\n"
-            blocks_content += f"Callers: {block_summary['caller_count']}\n"
-            blocks_content += block_summary['summary']
+        # Prepare content grouped by program
+        programs_content = ""
+        total_blocks = 0
+        
+        for program_name, prog_data in programs_data.items():
+            programs_content += f"\n\n{'='*60}\n"
+            programs_content += f"PROGRAM: {program_name}\n"
+            programs_content += f"Callers: {prog_data['callers']}\n"
+            programs_content += f"Blocks: {len(prog_data['blocks'])}\n"
+            programs_content += f"{'='*60}\n"
+            
+            for block_summary in prog_data['blocks']:
+                programs_content += f"\n--- Block {block_summary['block_code']} - {block_summary['block_name']} ---\n"
+                programs_content += f"Callers: {block_summary['caller_count']}\n"
+                programs_content += block_summary['summary']
+                total_blocks += 1
+        
+        programs_list = ', '.join(programs_data.keys())
         
         prompt = f"""
-Create a daily digest for government civil servants based on today's "Down to Brass Tacks" radio program.
+Create a comprehensive daily digest for government civil servants based on today's call-in radio programs.
 
 Date: {show_date}
-Total Blocks: {len(block_summaries)}
+Programs Covered: {programs_list}
+Total Blocks: {total_blocks}
 Total Callers: {total_callers}
-Key Entities: {', '.join(entities[:15])}
+Key Entities: {', '.join(entities[:20])}
 
-Block Summaries:
-{blocks_content}
+Program Summaries:
+{programs_content}
 
-Please create a comprehensive daily digest with:
+Please create a comprehensive daily digest that AMALGAMATES insights from ALL programs with:
 
-1. EXECUTIVE SUMMARY (3-4 sentences covering the day's most important content)
+1. EXECUTIVE SUMMARY (4-5 sentences covering the most important content across both programs)
 
-2. KEY THEMES & ISSUES (ranked by importance and government relevance)
+2. KEY THEMES & ISSUES (ranked by importance and prevalence across programs)
+   - Highlight topics that appeared in multiple programs
+   - Note program-specific concerns
 
-3. PUBLIC SENTIMENT & CONCERNS (what citizens are saying)
+3. PUBLIC SENTIMENT & CONCERNS (what citizens are saying across all programs)
+   - Cross-program themes
+   - Demographic/community differences if apparent
 
-4. POLICY IMPLICATIONS (potential areas requiring government attention)
+4. POLICY IMPLICATIONS (areas requiring government attention)
 
-5. NOTABLE QUOTES & STATEMENTS
+5. NOTABLE QUOTES & STATEMENTS (from all programs)
 
 6. RECOMMENDED FOLLOW-UP ACTIONS (if any)
 
-Format: Professional government briefing style. Focus on actionable intelligence and public concerns requiring attention.
+Format: Professional government briefing style. Focus on synthesizing insights across programs to provide a comprehensive view of public sentiment and concerns for the day.
 """
         
         try:
@@ -399,7 +437,7 @@ Format: Professional government briefing style. Focus on actionable intelligence
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a senior government analyst creating daily briefings for civil servants and ministers. Focus on policy-relevant content, public concerns, and actionable intelligence."
+                        "content": "You are a senior government analyst creating daily briefings for civil servants and ministers. You specialize in synthesizing insights from multiple sources to provide comprehensive intelligence on public sentiment and concerns."
                     },
                     {
                         "role": "user",
@@ -407,21 +445,21 @@ Format: Professional government briefing style. Focus on actionable intelligence
                     }
                 ],
                 temperature=0.2,
-                max_tokens=2000
+                max_tokens=2500
             )
             
             digest_text = response.choices[0].message.content
             
             # Add header with metadata
             header = f"""
-DAILY RADIO SYNOPSIS - DOWN TO BRASS TACKS
+DAILY RADIO SYNOPSIS - COMBINED PUBLIC SENTIMENT REPORT
 Date: {show_date}
-Program Time: 10:00 AM - 2:00 PM AST
-Blocks Processed: {len(block_summaries)}
+Programs Analyzed: {programs_list}
+Total Blocks Processed: {total_blocks}
 Total Callers: {total_callers}
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-{'='*60}
+{'='*80}
 """
             
             return header + digest_text

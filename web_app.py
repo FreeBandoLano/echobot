@@ -52,7 +52,8 @@ static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request, date_param: Optional[str] = None, message: Optional[str] = None, error: Optional[str] = None):
+async def dashboard(request: Request, date_param: Optional[str] = None, program: Optional[str] = None, 
+                   message: Optional[str] = None, error: Optional[str] = None):
     """Main dashboard showing today's or specified date's results."""
     
     # Parse date parameter or use today
@@ -64,26 +65,38 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
     else:
         view_date = date.today()
     
-    # Get show and blocks data
-    show = db.get_show(view_date)
-    blocks = db.get_blocks_by_date(view_date)
+    # Get show and blocks data (optionally filtered by program)
+    shows = db.get_shows_by_date(view_date)
+    blocks = db.get_blocks_by_date(view_date, program)
+    
+    # Get all available programs
+    available_programs = list(Config.PROGRAMS.keys())
+    program_names = {key: Config.PROGRAMS[key]['name'] for key in available_programs}
+    
+    # Get all blocks configuration
+    all_blocks = Config.get_all_blocks()
     
     # Get summaries for each block
     block_data = []
     for block in blocks:
         summary = db.get_summary(block['id'])
+        block_code = block['block_code']
+        block_config = all_blocks.get(block_code, {})
+        
         block_info = {
             **block,
             'summary': summary,
-            'block_name': Config.BLOCKS[block['block_code']]['name'],
+            'block_name': block_config.get('name', f'Block {block_code}'),
+            'program_name': block.get('program_name', 'Unknown'),
+            'station': block_config.get('station', 'Unknown'),
             'duration_display': f"{block['duration_minutes']} min" if block['duration_minutes'] else "N/A"
         }
         block_data.append(block_info)
     
-    # Sort blocks by code
-    block_data.sort(key=lambda x: x['block_code'])
+    # Sort blocks by start time
+    block_data.sort(key=lambda x: (x.get('start_time', ''), x['block_code']))
     
-    # Get daily digest
+    # Get daily digest (combined across programs)
     digest = db.get_daily_digest(view_date)
     
     # Calculate statistics
@@ -102,7 +115,8 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "view_date": view_date,
-        "show": show,
+        "show": shows[0] if shows else None,
+        "shows": shows,
         "blocks": block_data,
         "digest": digest,
         "stats": {
@@ -115,7 +129,10 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
         "is_today": view_date == date.today(),
         "message": message,
         "error": error,
-        "config": Config
+        "config": Config,
+        "programs": available_programs,
+        "program_names": program_names,
+        "selected_program": program
     })
 
 @app.get("/block/{block_id}", response_class=HTMLResponse)
@@ -137,16 +154,24 @@ async def block_detail(request: Request, block_id: int):
         except:
             pass
     
+    # Get block configuration
+    all_blocks = Config.get_all_blocks()
+    block_code = block['block_code']
+    block_config = all_blocks.get(block_code, {})
+    
     block_info = {
         **block,
-        'block_name': Config.BLOCKS[block['block_code']]['name'],
+        'block_name': block_config.get('name', f'Block {block_code}'),
+        'program_name': block.get('program_name', 'Unknown'),
+        'station': block_config.get('station', 'Unknown'),
         'summary': summary,
         'transcript': transcript_data
     }
     
     return templates.TemplateResponse("block_detail.html", {
         "request": request,
-        "block": block_info
+        "block": block_info,
+        "config": Config
     })
 
 @app.get("/archive", response_class=HTMLResponse)
