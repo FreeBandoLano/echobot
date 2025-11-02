@@ -621,7 +621,9 @@ async def api_backfill_segments(run: bool = False, rebuild: bool = False, limit:
 async def manual_record(block_code: str = Form(...)):
     """Manually trigger recording for a block."""
     
-    if block_code not in Config.BLOCKS:
+    # Check if block exists in any program
+    all_blocks = Config.get_all_blocks()
+    if block_code not in all_blocks:
         raise HTTPException(status_code=400, detail="Invalid block code")
     
     try:
@@ -642,7 +644,9 @@ async def manual_record_duration(
 ):
     """Manually trigger recording for a specific duration (ignoring scheduled times)."""
     
-    if block_code not in Config.BLOCKS:
+    # Check if block exists in any program
+    all_blocks = Config.get_all_blocks()
+    if block_code not in all_blocks:
         raise HTTPException(status_code=400, detail="Invalid block code")
     
     if duration_minutes < 1 or duration_minutes > 120:

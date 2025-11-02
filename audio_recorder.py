@@ -371,6 +371,15 @@ class AudioRecorder:
     def record_live_duration(self, block_code: str, duration_minutes: int = 5) -> Optional[Path]:
         """Record a block for a specific duration starting now (ignoring scheduled times)."""
         
+        # Get program key from block code
+        program_key = Config.get_program_by_block(block_code)
+        if not program_key:
+            logger.error(f"No program found for block {block_code}")
+            return None
+        
+        prog_config = Config.get_program_config(program_key)
+        prog_name = prog_config['name'] if prog_config else 'Unknown'
+        
         now = datetime.now(Config.TIMEZONE)
         duration_seconds = duration_minutes * 60
         
@@ -378,14 +387,14 @@ class AudioRecorder:
         start_time = now
         end_time = now + timedelta(seconds=duration_seconds)
         
-        logger.info(f"Starting immediate recording for Block {block_code}")
+        logger.info(f"Starting immediate recording for Block {block_code} ({prog_name})")
         logger.info(f"Duration: {duration_minutes} minutes ({duration_seconds} seconds)")
         # Get current date
         today = now.date()
         
         # Always create a new show for manual recordings (they're typically one-off)
         # This avoids issues with stale show references after database resets
-        show_id = db.create_show(today)
+        show_id = db.create_show(today, program_key)
         logger.info(f"Created new show for manual recording: show_id={show_id}")
         
         # Generate filename with current timestamp
@@ -399,8 +408,8 @@ class AudioRecorder:
         block_id = db.create_block(show_id, block_code, start_time, end_time)
         logger.info(f"🔍 record_live_duration DEBUG - create_block successful, block_id={block_id}")
         
-        logger.info(f"Starting live recording for Block {block_code}: {audio_filename}")
-        print(f"🎙️  RECORDING INITIATED: Block {block_code} for {duration_minutes} minutes")
+        logger.info(f"Starting live recording for Block {block_code} ({prog_name}): {audio_filename}")
+        print(f"🎙️  RECORDING INITIATED: Block {block_code} ({prog_name}) for {duration_minutes} minutes")
         print(f"📁 Output file: {audio_filename}")
         print(f"⏰ Start: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"⏰ End: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
