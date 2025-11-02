@@ -58,85 +58,78 @@ class RadioScheduler:
                 start_time = block_config['start_time']
                 end_time = block_config['end_time']
                 
-                # Convert Barbados times to UTC for scheduling
-                utc_start_time = self._convert_barbados_to_utc_time(start_time)
+                # Use Barbados times directly (TZ env var sets container timezone to America/Barbados)
+                # No UTC conversion needed - schedule library uses system timezone
                 
-                # Schedule recording start (in UTC) - SUNDAY-FRIDAY (skip Saturday only)
-                schedule.every().sunday.at(utc_start_time).do(
+                # Schedule recording start - SUNDAY-FRIDAY (skip Saturday only)
+                schedule.every().sunday.at(start_time).do(
                     self._start_block_recording, block_code, prog_key
                 ).tag(f'record_{block_code}_{prog_key}')
-                schedule.every().monday.at(utc_start_time).do(
+                schedule.every().monday.at(start_time).do(
                     self._start_block_recording, block_code, prog_key
                 ).tag(f'record_{block_code}_{prog_key}')
-                schedule.every().tuesday.at(utc_start_time).do(
+                schedule.every().tuesday.at(start_time).do(
                     self._start_block_recording, block_code, prog_key
                 ).tag(f'record_{block_code}_{prog_key}')
-                schedule.every().wednesday.at(utc_start_time).do(
+                schedule.every().wednesday.at(start_time).do(
                     self._start_block_recording, block_code, prog_key
                 ).tag(f'record_{block_code}_{prog_key}')
-                schedule.every().thursday.at(utc_start_time).do(
+                schedule.every().thursday.at(start_time).do(
                     self._start_block_recording, block_code, prog_key
                 ).tag(f'record_{block_code}_{prog_key}')
-                schedule.every().friday.at(utc_start_time).do(
-                    self._start_block_recording, block_code, prog_key
-                ).tag(f'record_{block_code}_{prog_key}')
-            
-                schedule.every().friday.at(utc_start_time).do(
+                schedule.every().friday.at(start_time).do(
                     self._start_block_recording, block_code, prog_key
                 ).tag(f'record_{block_code}_{prog_key}')
                 
                 # Schedule processing after recording ends (2 minutes after end time)
                 end_datetime = datetime.strptime(end_time, '%H:%M')
                 process_time = (end_datetime + timedelta(minutes=2)).strftime('%H:%M')
-                utc_process_time = self._convert_barbados_to_utc_time(process_time)
                 
-                # Schedule processing (in UTC) - SUNDAY-FRIDAY (skip Saturday only)
-                schedule.every().sunday.at(utc_process_time).do(
+                # Schedule processing - SUNDAY-FRIDAY (skip Saturday only)
+                schedule.every().sunday.at(process_time).do(
                     self._process_block, block_code, prog_key
                 ).tag(f'process_{block_code}_{prog_key}')
-                schedule.every().monday.at(utc_process_time).do(
+                schedule.every().monday.at(process_time).do(
                     self._process_block, block_code, prog_key
                 ).tag(f'process_{block_code}_{prog_key}')
-                schedule.every().tuesday.at(utc_process_time).do(
+                schedule.every().tuesday.at(process_time).do(
                     self._process_block, block_code, prog_key
                 ).tag(f'process_{block_code}_{prog_key}')
-                schedule.every().wednesday.at(utc_process_time).do(
+                schedule.every().wednesday.at(process_time).do(
                     self._process_block, block_code, prog_key
                 ).tag(f'process_{block_code}_{prog_key}')
-                schedule.every().thursday.at(utc_process_time).do(
+                schedule.every().thursday.at(process_time).do(
                     self._process_block, block_code, prog_key
                 ).tag(f'process_{block_code}_{prog_key}')
-                schedule.every().friday.at(utc_process_time).do(
+                schedule.every().friday.at(process_time).do(
                     self._process_block, block_code, prog_key
                 ).tag(f'process_{block_code}_{prog_key}')
                 
-                logger.info(f"   ✅ Block {block_code} ({program_name}): Record at {start_time} Barbados ({utc_start_time} UTC), Process at {process_time} Barbados ({utc_process_time} UTC) [SUNDAY-FRIDAY]")
+                logger.info(f"   ✅ Block {block_code} ({program_name}): Record at {start_time} Barbados, Process at {process_time} Barbados [SUNDAY-FRIDAY]")
         
-        # Schedule daily digest creation (30 minutes after last block ends at 2:00 PM) - convert to UTC
+        # Schedule daily digest creation (30 minutes after last block ends at 2:00 PM)
         # Create digests Sunday-Friday (skip Saturday only)
-        utc_digest_time = self._convert_barbados_to_utc_time("14:30")
-        schedule.every().sunday.at(utc_digest_time).do(
+        schedule.every().sunday.at("14:30").do(
             self._create_daily_digest
         ).tag('daily_digest')
-        schedule.every().monday.at(utc_digest_time).do(
+        schedule.every().monday.at("14:30").do(
             self._create_daily_digest
         ).tag('daily_digest')
-        schedule.every().tuesday.at(utc_digest_time).do(
+        schedule.every().tuesday.at("14:30").do(
             self._create_daily_digest
         ).tag('daily_digest')
-        schedule.every().wednesday.at(utc_digest_time).do(
+        schedule.every().wednesday.at("14:30").do(
             self._create_daily_digest
         ).tag('daily_digest')
-        schedule.every().thursday.at(utc_digest_time).do(
+        schedule.every().thursday.at("14:30").do(
             self._create_daily_digest
         ).tag('daily_digest')
-        schedule.every().friday.at(utc_digest_time).do(
+        schedule.every().friday.at("14:30").do(
             self._create_daily_digest
         ).tag('daily_digest')
         
-        # Schedule cleanup (remove old files, keep 30 days) - convert to UTC
-        utc_cleanup_time = self._convert_barbados_to_utc_time("23:00")
-        schedule.every().day.at(utc_cleanup_time).do(
+        # Schedule cleanup (remove old files, keep 30 days)
+        schedule.every().day.at("23:00").do(
             self._cleanup_old_files
         ).tag('cleanup')
         
