@@ -237,6 +237,9 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
     show = db.get_show(view_date)
     blocks = db.get_blocks_by_date(view_date)
     
+    # Get all blocks configuration for name lookup
+    all_blocks_config = Config.get_all_blocks()
+    
     # Get summaries for each block
     block_data = []
     for block in blocks:
@@ -255,10 +258,15 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
             except:
                 pass
         
+        # Get block config from all programs
+        block_code = block['block_code']
+        block_config = all_blocks_config.get(block_code, {})
+        
         block_info = {
             **block,
             'summary': summary,
-            'block_name': Config.BLOCKS[block['block_code']]['name'],
+            'block_name': block_config.get('name', f'Block {block_code}'),
+            'program_name': block.get('program_name', block_config.get('program_name', 'Down to Brass Tacks')),
             'duration_display': f"{block['duration_minutes']} min" if block['duration_minutes'] else "N/A",
             'emergent_themes': emergent_themes
         }
@@ -298,6 +306,10 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
     if next_date > today_local:
         next_date = None
     
+    # Get program information for multi-program support
+    programs = list(Config.PROGRAMS.keys())
+    program_names = {k: v['name'] for k, v in Config.PROGRAMS.items()}
+    
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "view_date": view_date,
@@ -316,8 +328,10 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
         "is_today": view_date == get_local_date(),
         "message": message,
         "error": error,
-    "config": Config,
-    "filler_today": filler_today
+        "config": Config,
+        "filler_today": filler_today,
+        "programs": programs,
+        "program_names": program_names
     })
 
 @app.get("/block/{block_id}", response_class=HTMLResponse)

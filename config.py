@@ -38,7 +38,59 @@ class Config:
     # Allow Azure's injected PORT to act as fallback if API_PORT not explicitly set
     API_PORT = int(os.getenv('API_PORT') or os.getenv('PORT', 8001))
     
-    # Schedule Configuration (times in Barbados timezone)
+    # Multi-Program Configuration
+    PROGRAMS = {
+        'VOB_BRASS_TACKS': {
+            'name': 'Down to Brass Tacks',
+            'station': 'Voice of Barbados (VOB)',
+            'stream_url': os.getenv('VOB_STREAM_URL', os.getenv('RADIO_STREAM_URL')),
+            'target_audience': 'government civil servants and policy makers',
+            'content_focus': 'public policy, governance, and citizen concerns',
+            'blocks': {
+                'A': {
+                    'start_time': os.getenv('VOB_BLOCK_A_START', '10:00'),
+                    'end_time': os.getenv('VOB_BLOCK_A_END', '12:00'),
+                    'name': 'Morning Block'
+                },
+                'B': {
+                    'start_time': os.getenv('VOB_BLOCK_B_START', '12:05'), 
+                    'end_time': os.getenv('VOB_BLOCK_B_END', '12:30'),
+                    'name': 'News Summary Block'
+                },
+                'C': {
+                    'start_time': os.getenv('VOB_BLOCK_C_START', '12:40'),
+                    'end_time': os.getenv('VOB_BLOCK_C_END', '13:30'), 
+                    'name': 'Major Newscast Block'
+                },
+                'D': {
+                    'start_time': os.getenv('VOB_BLOCK_D_START', '13:35'),
+                    'end_time': os.getenv('VOB_BLOCK_D_END', '14:00'),
+                    'name': 'History Block'
+                }
+            }
+        },
+        'CBC_LETS_TALK': {
+            'name': "Let's Talk About It",
+            'station': 'CBC Q100.7 FM',
+            'stream_url': os.getenv('CBC_STREAM_URL', 'http://108.178.16.190:8000/1007fm.mp3'),
+            'target_audience': 'general community members',
+            'content_focus': 'community issues, local concerns, and public discourse',
+            'blocks': {
+                'E': {
+                    'start_time': os.getenv('CBC_BLOCK_E_START', '09:00'),
+                    'end_time': os.getenv('CBC_BLOCK_E_END', '10:00'),
+                    'name': 'First Hour'
+                },
+                'F': {
+                    'start_time': os.getenv('CBC_BLOCK_F_START', '10:00'),
+                    'end_time': os.getenv('CBC_BLOCK_F_END', '11:00'),
+                    'name': 'Second Hour'
+                }
+            }
+        }
+    }
+    
+    # Legacy BLOCKS configuration (for backward compatibility - points to VOB blocks)
     BLOCKS = {
         'A': {
             'start_time': os.getenv('BLOCK_A_START', '10:00'),
@@ -97,6 +149,33 @@ class Config:
     
     # Expose cost endpoint flag (env-driven)
     EXPOSE_COST_ENDPOINT = os.getenv('EXPOSE_COST_ENDPOINT', 'true').lower() in ('1','true','yes','on')
+    
+    @classmethod
+    def get_program_config(cls, program_key: str):
+        """Get configuration for a specific program."""
+        return cls.PROGRAMS.get(program_key)
+    
+    @classmethod
+    def get_program_by_block(cls, block_code: str):
+        """Find which program a block belongs to."""
+        for prog_key, prog_config in cls.PROGRAMS.items():
+            if block_code in prog_config['blocks']:
+                return prog_key
+        return None
+    
+    @classmethod
+    def get_all_blocks(cls):
+        """Get all blocks across all programs with program metadata."""
+        all_blocks = {}
+        for prog_key, prog_config in cls.PROGRAMS.items():
+            for block_code, block_config in prog_config['blocks'].items():
+                all_blocks[block_code] = {
+                    **block_config,
+                    'program_key': prog_key,
+                    'program_name': prog_config['name'],
+                    'station': prog_config['station']
+                }
+        return all_blocks
     
     @classmethod
     def validate(cls):

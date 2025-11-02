@@ -4,7 +4,7 @@ import subprocess
 import threading
 import time
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
 from typing import Optional
 from config import Config
@@ -23,8 +23,11 @@ class AudioRecorder:
         self.is_recording = False
     
     def record_block(self, block_code: str, start_time: datetime, end_time: datetime, 
-                    show_id: int) -> Optional[Path]:
+                    show_id: int, program_key: str = 'VOB_BRASS_TACKS') -> Optional[Path]:
         """Record a specific time block."""
+        
+        prog_config = Config.get_program_config(program_key)
+        prog_name = prog_config['name'] if prog_config else 'Unknown'
         
         # Create block in database
         block_id = db.create_block(show_id, block_code, start_time, end_time)
@@ -34,7 +37,7 @@ class AudioRecorder:
         audio_filename = f"{date_str}_block_{block_code}.wav"
         audio_path = Config.AUDIO_DIR / audio_filename
         
-        logger.info(f"Starting recording for Block {block_code}: {start_time} to {end_time}")
+        logger.info(f"Starting recording for Block {block_code} ({prog_name}): {start_time} to {end_time}")
         
         try:
             # Update status to recording
@@ -57,7 +60,7 @@ class AudioRecorder:
             if success and actual_audio_path.exists():
                 # Update database with completed recording
                 db.update_block_status(block_id, 'recorded', audio_file_path=actual_audio_path)
-                logger.info(f"Successfully recorded Block {block_code} to {actual_audio_path}")
+                logger.info(f"Successfully recorded Block {block_code} ({prog_name}) to {actual_audio_path}")
                 
                 # Schedule automatic transcription task
                 try:
@@ -75,7 +78,7 @@ class AudioRecorder:
             else:
                 # Mark as failed
                 db.update_block_status(block_id, 'failed')
-                logger.error(f"Failed to record Block {block_code}")
+                logger.error(f"Failed to record Block {block_code} ({prog_name})")
                 return None
                 
         except Exception as e:
@@ -341,10 +344,11 @@ class AudioRecorder:
             logger.error(f"Silence recording failed: {process.stderr}")
             return False
     
-    def record_live_block(self, block_code: str, show_date: datetime.date) -> Optional[Path]:
+    def record_live_block(self, block_code: str, show_date: date, program_key: str) -> Optional[Path]:
         """Record a block starting now (for manual triggering)."""
         
-        block_config = Config.BLOCKS[block_code]
+        prog_config = Config.get_program_config(program_key)
+        block_config = prog_config['blocks'][block_code]
         now = datetime.now(Config.TIMEZONE)
         
         # Parse configured times for today
@@ -359,10 +363,10 @@ class AudioRecorder:
         
         # Get or create show for this date (reuses existing show for all blocks on same day)
         # This ensures all blocks (A, B, C, D) belong to the same show_id
-        show_id = db.create_show(show_date)
-        logger.info(f"Using show_id={show_id} for Block {block_code} on {show_date}")
+        show_id = db.create_show(show_date, program_key)
+        logger.info(f"Using show_id={show_id} for Block {block_code} ({prog_config['name']}) on {show_date}")
         
-        return self.record_block(block_code, start_time, end_time, show_id)
+        return self.record_block(block_code, start_time, end_time, show_id, program_key)
     
     def record_live_duration(self, block_code: str, duration_minutes: int = 5) -> Optional[Path]:
         """Record a block for a specific duration starting now (ignoring scheduled times)."""

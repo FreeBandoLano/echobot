@@ -573,8 +573,11 @@ class Database:
             conn.commit()
             logger.info("✅ Azure SQL tables initialized successfully")
     
-    def create_show(self, show_date: date, title: str = "Down to Brass Tacks") -> int:
+    def create_show(self, show_date: date, program_key: str = 'VOB_BRASS_TACKS') -> int:
         """Create a new show record."""
+        prog_config = Config.get_program_config(program_key)
+        title = prog_config['name'] if prog_config else "Radio Show"
+        
         # Convert date object to string for database compatibility (Python 3.12+ requirement)
         show_date_str = show_date.strftime('%Y-%m-%d')
         

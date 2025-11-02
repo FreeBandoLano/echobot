@@ -41,72 +41,80 @@ class RadioScheduler:
         signal.signal(signal.SIGTERM, self._signal_handler)
     
     def setup_daily_schedule(self):
-        """Set up the daily recording schedule."""
+        """Set up the daily recording schedule for all programs."""
         
-        logger.info("📋 Setting up daily radio recording schedule...")
+        logger.info("📋 Setting up daily radio recording schedule for all programs...")
         
         # Clear any existing schedule
         schedule.clear()
         
-        # Schedule each block (convert Barbados time to UTC for the schedule library)
-        # Record Sunday-Friday, skip only Saturday
-        for block_code, block_config in Config.BLOCKS.items():
-            start_time = block_config['start_time']
-            end_time = block_config['end_time']
+        # Schedule each program's blocks
+        for prog_key, prog_config in Config.PROGRAMS.items():
+            program_name = prog_config['name']
+            logger.info(f"Scheduling program: {program_name} ({prog_key})")
             
-            # Convert Barbados times to UTC for scheduling
-            utc_start_time = self._convert_barbados_to_utc_time(start_time)
+            # Schedule each block for this program
+            for block_code, block_config in prog_config['blocks'].items():
+                start_time = block_config['start_time']
+                end_time = block_config['end_time']
+                
+                # Convert Barbados times to UTC for scheduling
+                utc_start_time = self._convert_barbados_to_utc_time(start_time)
+                
+                # Schedule recording start (in UTC) - SUNDAY-FRIDAY (skip Saturday only)
+                schedule.every().sunday.at(utc_start_time).do(
+                    self._start_block_recording, block_code, prog_key
+                ).tag(f'record_{block_code}_{prog_key}')
+                schedule.every().monday.at(utc_start_time).do(
+                    self._start_block_recording, block_code, prog_key
+                ).tag(f'record_{block_code}_{prog_key}')
+                schedule.every().tuesday.at(utc_start_time).do(
+                    self._start_block_recording, block_code, prog_key
+                ).tag(f'record_{block_code}_{prog_key}')
+                schedule.every().wednesday.at(utc_start_time).do(
+                    self._start_block_recording, block_code, prog_key
+                ).tag(f'record_{block_code}_{prog_key}')
+                schedule.every().thursday.at(utc_start_time).do(
+                    self._start_block_recording, block_code, prog_key
+                ).tag(f'record_{block_code}_{prog_key}')
+                schedule.every().friday.at(utc_start_time).do(
+                    self._start_block_recording, block_code, prog_key
+                ).tag(f'record_{block_code}_{prog_key}')
             
-            # Schedule recording start (in UTC) - SUNDAY-FRIDAY (skip Saturday only)
-            schedule.every().sunday.at(utc_start_time).do(
-                self._start_block_recording, block_code
-            ).tag(f'record_{block_code}')
-            schedule.every().monday.at(utc_start_time).do(
-                self._start_block_recording, block_code
-            ).tag(f'record_{block_code}')
-            schedule.every().tuesday.at(utc_start_time).do(
-                self._start_block_recording, block_code
-            ).tag(f'record_{block_code}')
-            schedule.every().wednesday.at(utc_start_time).do(
-                self._start_block_recording, block_code
-            ).tag(f'record_{block_code}')
-            schedule.every().thursday.at(utc_start_time).do(
-                self._start_block_recording, block_code
-            ).tag(f'record_{block_code}')
-            schedule.every().friday.at(utc_start_time).do(
-                self._start_block_recording, block_code
-            ).tag(f'record_{block_code}')
-            
-            # Schedule processing after recording ends (2 minutes after end time)
-            end_datetime = datetime.strptime(end_time, '%H:%M')
-            process_time = (end_datetime + timedelta(minutes=2)).strftime('%H:%M')
-            utc_process_time = self._convert_barbados_to_utc_time(process_time)
-            
-            # Schedule processing (in UTC) - SUNDAY-FRIDAY (skip Saturday only)
-            schedule.every().sunday.at(utc_process_time).do(
-                self._process_block, block_code
-            ).tag(f'process_{block_code}')
-            schedule.every().monday.at(utc_process_time).do(
-                self._process_block, block_code
-            ).tag(f'process_{block_code}')
-            schedule.every().tuesday.at(utc_process_time).do(
-                self._process_block, block_code
-            ).tag(f'process_{block_code}')
-            schedule.every().wednesday.at(utc_process_time).do(
-                self._process_block, block_code
-            ).tag(f'process_{block_code}')
-            schedule.every().thursday.at(utc_process_time).do(
-                self._process_block, block_code
-            ).tag(f'process_{block_code}')
-            schedule.every().friday.at(utc_process_time).do(
-                self._process_block, block_code
-            ).tag(f'process_{block_code}')
-            
-            logger.info(f"   ✅ Block {block_code}: Record at {start_time} Barbados ({utc_start_time} UTC), Process at {process_time} Barbados ({utc_process_time} UTC) [SUNDAY-FRIDAY]")
+                schedule.every().friday.at(utc_start_time).do(
+                    self._start_block_recording, block_code, prog_key
+                ).tag(f'record_{block_code}_{prog_key}')
+                
+                # Schedule processing after recording ends (2 minutes after end time)
+                end_datetime = datetime.strptime(end_time, '%H:%M')
+                process_time = (end_datetime + timedelta(minutes=2)).strftime('%H:%M')
+                utc_process_time = self._convert_barbados_to_utc_time(process_time)
+                
+                # Schedule processing (in UTC) - SUNDAY-FRIDAY (skip Saturday only)
+                schedule.every().sunday.at(utc_process_time).do(
+                    self._process_block, block_code, prog_key
+                ).tag(f'process_{block_code}_{prog_key}')
+                schedule.every().monday.at(utc_process_time).do(
+                    self._process_block, block_code, prog_key
+                ).tag(f'process_{block_code}_{prog_key}')
+                schedule.every().tuesday.at(utc_process_time).do(
+                    self._process_block, block_code, prog_key
+                ).tag(f'process_{block_code}_{prog_key}')
+                schedule.every().wednesday.at(utc_process_time).do(
+                    self._process_block, block_code, prog_key
+                ).tag(f'process_{block_code}_{prog_key}')
+                schedule.every().thursday.at(utc_process_time).do(
+                    self._process_block, block_code, prog_key
+                ).tag(f'process_{block_code}_{prog_key}')
+                schedule.every().friday.at(utc_process_time).do(
+                    self._process_block, block_code, prog_key
+                ).tag(f'process_{block_code}_{prog_key}')
+                
+                logger.info(f"   ✅ Block {block_code} ({program_name}): Record at {start_time} Barbados ({utc_start_time} UTC), Process at {process_time} Barbados ({utc_process_time} UTC) [SUNDAY-FRIDAY]")
         
-        # Schedule daily digest creation (15 minutes after show ends) - convert to UTC
+        # Schedule daily digest creation (30 minutes after last block ends at 2:00 PM) - convert to UTC
         # Create digests Sunday-Friday (skip Saturday only)
-        utc_digest_time = self._convert_barbados_to_utc_time("10:15")
+        utc_digest_time = self._convert_barbados_to_utc_time("14:30")
         schedule.every().sunday.at(utc_digest_time).do(
             self._create_daily_digest
         ).tag('daily_digest')
@@ -223,45 +231,50 @@ class RadioScheduler:
                 logger.error(f"Scheduler error: {e}")
                 time.sleep(60)  # Wait a minute before retrying
     
-    def _start_block_recording(self, block_code: str):
-        """Start recording a specific block."""
+    def _start_block_recording(self, block_code: str, program_key: str):
+        """Start recording a specific block for a program."""
         
         today = get_local_date()
+        prog_config = Config.get_program_config(program_key)
+        prog_name = prog_config['name'] if prog_config else 'Unknown'
         
         # Skip recording on Saturday only (weekday=5)
         if today.weekday() == 5:
-            logger.info(f"🚫 Skipping Block {block_code} recording - Saturday")
+            logger.info(f"🚫 Skipping Block {block_code} ({prog_name}) recording - Saturday")
             return
         
-        logger.info(f"Starting scheduled recording for Block {block_code}")
+        logger.info(f"Starting scheduled recording for Block {block_code} ({prog_name})")
         
         try:
             # Record in a separate thread to avoid blocking scheduler
             recording_thread = threading.Thread(
                 target=self._record_block_thread,
-                args=(block_code, today),
+                args=(block_code, today, program_key),
                 daemon=True
             )
             recording_thread.start()
             
         except Exception as e:
-            logger.error(f"Error starting recording for Block {block_code}: {e}")
+            logger.error(f"Error starting recording for Block {block_code} ({prog_name}): {e}")
     
-    def _record_block_thread(self, block_code: str, show_date: date):
+    def _record_block_thread(self, block_code: str, show_date: date, program_key: str = 'VOB_BRASS_TACKS'):
         """Record block in separate thread."""
         
+        prog_config = Config.get_program_config(program_key)
+        prog_name = prog_config['name'] if prog_config else 'Unknown'
+        
         try:
-            audio_path = recorder.record_live_block(block_code, show_date)
+            audio_path = recorder.record_live_block(block_code, show_date, program_key)
             
             if audio_path:
-                logger.info(f"Recording completed for Block {block_code}: {audio_path}")
+                logger.info(f"Recording completed for Block {block_code} ({prog_name}): {audio_path}")
             else:
-                logger.error(f"Recording failed for Block {block_code}")
+                logger.error(f"Recording failed for Block {block_code} ({prog_name})")
                 
         except Exception as e:
-            logger.error(f"Recording thread error for Block {block_code}: {e}")
+            logger.error(f"Recording thread error for Block {block_code} ({prog_name}): {e}")
     
-    def _process_block(self, block_code: str):
+    def _process_block(self, block_code: str, program_key: str):
         """Process a recorded block (transcribe and summarize)."""
         
         # If task_manager is handling processing, don't process here
@@ -270,13 +283,16 @@ class RadioScheduler:
             return
         
         today = get_local_date()
-        logger.info(f"Starting scheduled processing for Block {block_code}")
+        prog_config = Config.get_program_config(program_key)
+        prog_name = prog_config['name'] if prog_config else 'Unknown'
+        
+        logger.info(f"Starting scheduled processing for Block {block_code} ({prog_name})")
         
         try:
             # Process in a separate thread
             processing_thread = threading.Thread(
                 target=self._process_block_thread,
-                args=(block_code, today),
+                args=(block_code, today, program_key),
                 daemon=True
             )
             processing_thread.start()
@@ -288,8 +304,11 @@ class RadioScheduler:
         except Exception as e:
             logger.error(f"Error starting processing for Block {block_code}: {e}")
     
-    def _process_block_thread(self, block_code: str, show_date: date):
+    def _process_block_thread(self, block_code: str, show_date: date, program_key: str):
         """Process block in separate thread."""
+        
+        prog_config = Config.get_program_config(program_key)
+        prog_name = prog_config['name'] if prog_config else 'Unknown'
         
         try:
             # Find the recorded block
@@ -306,30 +325,30 @@ class RadioScheduler:
                 # Try to find any block with that code regardless of status
                 any_block = next((b for b in blocks if b['block_code'] == block_code), None)
                 if any_block:
-                    logger.error(f"Block {block_code} found but status is '{any_block['status']}', not 'recorded'")
+                    logger.error(f"Block {block_code} ({prog_name}) found but status is '{any_block['status']}', not 'recorded'")
                 else:
-                    logger.error(f"No block found for {block_code} on {show_date}")
+                    logger.error(f"No block found for {block_code} ({prog_name}) on {show_date}")
                 return
             
             block_id = block['id']
             
             # Transcribe
-            logger.info(f"Transcribing Block {block_code}...")
+            logger.info(f"Transcribing Block {block_code} ({prog_name})...")
             transcript_data = transcriber.transcribe_block(block_id)
             
             if transcript_data:
-                logger.info(f"Transcription completed for Block {block_code}")
+                logger.info(f"Transcription completed for Block {block_code} ({prog_name})")
                 
                 # Summarize
-                logger.info(f"Summarizing Block {block_code}...")
+                logger.info(f"Summarizing Block {block_code} ({prog_name})...")
                 summary_data = summarizer.summarize_block(block_id)
                 
                 if summary_data:
-                    logger.info(f"Processing completed for Block {block_code}")
+                    logger.info(f"Processing completed for Block {block_code} ({prog_name})")
                 else:
-                    logger.error(f"Summarization failed for Block {block_code}")
+                    logger.error(f"Summarization failed for Block {block_code} ({prog_name})")
             else:
-                logger.error(f"Transcription failed for Block {block_code}")
+                logger.error(f"Transcription failed for Block {block_code} ({prog_name})")
                 
         except Exception as e:
             logger.error(f"Processing thread error for Block {block_code}: {e}")
@@ -435,10 +454,20 @@ class RadioScheduler:
         """Manually trigger recording for a specific block."""
         
         today = get_local_date()
-        logger.info(f"Manual recording triggered for Block {block_code}")
+        
+        # Get program key from block code
+        program_key = Config.get_program_by_block(block_code)
+        if not program_key:
+            logger.error(f"No program found for block {block_code}")
+            return False
+        
+        prog_config = Config.get_program_config(program_key)
+        prog_name = prog_config['name'] if prog_config else 'Unknown'
+        
+        logger.info(f"Manual recording triggered for Block {block_code} ({prog_name})")
         
         try:
-            audio_path = recorder.record_live_block(block_code, today)
+            audio_path = recorder.record_live_block(block_code, today, program_key)
             return audio_path is not None
         except Exception as e:
             logger.error(f"Manual recording failed: {e}")
@@ -450,10 +479,19 @@ class RadioScheduler:
         if show_date is None:
             show_date = get_local_date()
         
-        logger.info(f"Manual processing triggered for Block {block_code} on {show_date}")
+        # Get program key from block code
+        program_key = Config.get_program_by_block(block_code)
+        if not program_key:
+            logger.error(f"No program found for block {block_code}")
+            return False
+        
+        prog_config = Config.get_program_config(program_key)
+        prog_name = prog_config['name'] if prog_config else 'Unknown'
+        
+        logger.info(f"Manual processing triggered for Block {block_code} ({prog_name}) on {show_date}")
         
         try:
-            self._process_block_thread(block_code, show_date)
+            self._process_block_thread(block_code, show_date, program_key)
             return True
         except Exception as e:
             logger.error(f"Manual processing failed: {e}")

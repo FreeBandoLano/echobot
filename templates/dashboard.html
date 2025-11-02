@@ -101,7 +101,18 @@
 
         <section class="panel" id="panel-blocks" aria-labelledby="heading-blocks" data-active="false">
             <h2 id="heading-blocks"><i class="bi bi-list-ul"></i> Program Blocks</h2>
-                {% for block in blocks %}
+            
+            {% for prog_key in programs %}
+                {% set prog_blocks = blocks | selectattr('program_name', 'equalto', config.PROGRAMS[prog_key].name) | list %}
+                {% if prog_blocks %}
+                    <div class="program-section" style="margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="bi bi-broadcast"></i>
+                            <span>{{ config.PROGRAMS[prog_key].name }}</span>
+                            <span style="font-size: 0.75rem; opacity: 0.6; font-weight: normal;">{{ config.PROGRAMS[prog_key].station }}</span>
+                        </h3>
+                        
+                {% for block in prog_blocks %}
             <div class="block-summary" data-collapsed="true">
                 <div class="block-header">
                     <div class="block-title">Block {{ block.block_code }} - {{ block.block_name }}</div>
@@ -197,6 +208,9 @@
                     </div>
                 </div>
                 {% endfor %}
+                    </div>
+                {% endif %}
+            {% endfor %}
         </section>
 
                 {% if digest %}
@@ -212,6 +226,9 @@
                         <span><i class="bi bi-calendar3"></i> {{ view_date.strftime('%B %d, %Y') }}</span>
                         <span><i class="bi bi-people"></i> {{ stats.total_callers }} Callers</span>
                         <span><i class="bi bi-collection"></i> {{ stats.completed_blocks }} Blocks</span>
+                        {% if digest.programs_included %}
+                            <span><i class="bi bi-broadcast"></i> {{ digest.programs_included|length }} Program{{ 's' if digest.programs_included|length > 1 else '' }}</span>
+                        {% endif %}
                     </div>
                 </div>
                 
