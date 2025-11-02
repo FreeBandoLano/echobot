@@ -45,22 +45,15 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+    environment:
+      name: 'Production'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
           name: python-app
-      
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_5ACEE5C52EFE4962ADF645C14DE747DF }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_606E6CD7BD5743A3922FD4827C5D8359 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_0BF20D2091404FBA81CC050F38BFAC1A }}
 
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
@@ -68,4 +61,5 @@ jobs:
         with:
           app-name: 'echobot-docker-app'
           slot-name: 'Production'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_ECHOBOT_DOCKER_APP }}
           
