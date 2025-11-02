@@ -1,0 +1,31 @@
+═══════════════════════════════════════════════════════════════
+  AZURE SSH - DIGEST FIX GUIDE
+═══════════════════════════════════════════════════════════════
+
+STEP 1: Wait for deployment (2-3 minutes)
+   Check: https://github.com/FreeBandoLano/echobot/actions
+
+STEP 2: Connect to Azure container
+   Run this command:
+   
+   az webapp ssh --name echobot-docker-app --resource-group echobot-rg
+
+STEP 3: Once you see "root@[container-id]:~#", run these commands:
+
+   cd /app
+   
+   python manual_digest_fix.py
+
+STEP 4: The script will:
+   ✅ Connect to Azure SQL database
+   ✅ Check for blocks on Oct 6, 7, 8, 9
+   ✅ Generate digests for dates with 4 completed blocks
+   ✅ Send emails to recipients
+
+STEP 5: Exit SSH
+   
+   exit
+
+═══════════════════════════════════════════════════════════════
+IMPORTANT: Make sure you press ENTER after each command!
+═══════════════════════════════════════════════════════════════

@@ -1,0 +1,79 @@
+########################################################################
+# PASTE THIS DIRECTLY INTO THE AZURE SSH SESSION
+# (After running: az webapp ssh --name echobot-docker-app --resource-group echobot-rg)
+########################################################################
+
+cd /app && python3 << 'ENDPYTHON'
+import sys
+import os
+from datetime import date
+
+# Load environment variables from main app process (PID 1)
+sys.path.insert(0, '/app')
+
+try:
+    with open('/proc/1/environ', 'rb') as f:
+        env_data = f.read()
+    for item in env_data.split(b'\x00'):
+        if b'=' in item:
+            key, value = item.split(b'=', 1)
+            key = key.decode('utf-8', errors='ignore')
+            value = value.decode('utf-8', errors='ignore')
+            os.environ[key] = value
+except Exception as e:
+    print(f"Warning: Could not load env from PID 1: {e}")
+
+from database import db
+from summarization import summarizer
+
+def fix_digest(target_date):
+    print(f"\n{'='*70}")
+    print(f"FIXING DIGEST FOR {target_date}")
+    print(f"{'='*70}")
+    print(f"\n📊 Database: {'Azure SQL' if db.use_azure_sql else 'SQLite'}")
+    existing_digest = db.get_daily_digest(target_date)
+    if existing_digest:
+        digest_id = existing_digest.get('id')
+        print(f"   Found digest ID: {digest_id}")
+        print(f"\n🗑️  Deleting corrupted digest...")
+        conn = db.get_connection()
+        if db.use_azure_sql:
+            from sqlalchemy import text
+            conn._conn.execute(text("DELETE FROM daily_digests WHERE id = :id"), {"id": digest_id})
+            conn._conn.commit()
+        else:
+            conn.execute("DELETE FROM daily_digests WHERE id = ?", (digest_id,))
+            conn.commit()
+        conn.close()
+        print(f"   ✅ Deleted")
+    else:
+        print(f"   No existing digest found")
+    blocks = db.get_blocks_by_date(target_date)
+    completed_blocks = [b for b in blocks if b.get('status') == 'completed']
+    print(f"\n📋 Blocks: {len(completed_blocks)} completed")
+    if not completed_blocks:
+        print(f"❌ No completed blocks")
+        return False
+    print(f"\n🔄 Generating clean digest...")
+    digest_text = summarizer.create_daily_digest(target_date)
+    if digest_text:
+        print(f"✅ Digest created: {len(digest_text)} characters")
+        if '"metadata"' in digest_text[:500]:
+            print(f"⚠️  Schema still detected!")
+            return False
+        else:
+            print(f"✅ No schema leakage")
+        return True
+    return False
+
+print("\n" + "="*70)
+print("FIX LEAKED SCHEMA IN DIGESTS")
+print("="*70)
+dates_to_fix = [date(2025, 10, 26), date(2025, 10, 28)]
+results = {d: fix_digest(d) for d in dates_to_fix}
+print(f"\n{'='*70}")
+print("SUMMARY")
+print(f"{'='*70}")
+for target_date, success in results.items():
+    print(f"   {target_date}: {'✅ SUCCESS' if success else '❌ FAILED'}")
+ENDPYTHON

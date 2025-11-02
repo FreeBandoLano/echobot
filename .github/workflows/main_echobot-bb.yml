@@ -2,10 +2,13 @@
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 # More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
 
-name: (Disabled) Legacy code deploy to Azure Web App - echobot-bb
+name: Build and deploy Python app to Azure Web App - echobot-bb
 
 on:
-  workflow_dispatch:  # push trigger removed to avoid conflict with container deployment
+  push:
+    branches:
+      - master
+  workflow_dispatch:
 
 jobs:
   build:
@@ -42,27 +45,21 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+    environment:
+      name: 'Production'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
           name: python-app
-      
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_5ACEE5C52EFE4962ADF645C14DE747DF }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_606E6CD7BD5743A3922FD4827C5D8359 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_0BF20D2091404FBA81CC050F38BFAC1A }}
 
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
         with:
-          app-name: 'echobot-bb'
+          app-name: 'echobot-docker-app'
           slot-name: 'Production'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_ECHOBOT_DOCKER_APP }}
           

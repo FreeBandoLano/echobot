@@ -3,23 +3,17 @@
 import argparse
 import sys
 import logging
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
-
-# REMOVE: from fastapi import FastAPI
 
 from config import Config
 from database import db
 from scheduler import scheduler
-# IMPORT the app from web_app and the start function
 from web_app import app, start_web_server
 from audio_recorder import recorder
 from transcription import transcriber
 from summarization import summarizer
-
-def get_local_date() -> date:
-    """Get today's date in the configured timezone."""
-    return datetime.now(Config.TIMEZONE).date()
+from version import get_version_string, print_version_info
 
 # Set up logging
 logging.basicConfig(
@@ -31,8 +25,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-# REMOVE: app = FastAPI()  -- We now import it from web_app.py
 
 def setup_directories():
     """Ensure all required directories exist."""
@@ -88,24 +80,17 @@ def run_scheduler():
     logger.info("Starting scheduler service...")
     
     try:
-        logger.info("Calling scheduler.start()...")
         scheduler.start()
-        logger.info(f"Scheduler started successfully. Running: {scheduler.running}")
+        logger.info("Scheduler started successfully")
         
         # Keep running
         import time
         while scheduler.running:
-            logger.debug("Scheduler still running, sleeping 60s...")
             time.sleep(60)
             
-        logger.warning("Scheduler loop ended - scheduler.running is False")
-            
-    except Exception as e:
-        logger.error(f"Scheduler error: {e}", exc_info=True)
     except KeyboardInterrupt:
         logger.info("Scheduler interrupted by user")
     finally:
-        logger.info("Stopping scheduler...")
         scheduler.stop()
 
 def run_web_server():
@@ -115,12 +100,15 @@ def run_web_server():
 
 def run_manual_recording(block_code: str):
     """Run manual recording for a specific block."""
-    if block_code not in Config.BLOCKS:
+    # Find which program this block belongs to
+    program_key, program_config = Config.get_program_by_block(block_code)
+    
+    if not program_key:
         logger.error(f"Invalid block code: {block_code}")
         return False
     
-    logger.info(f"Starting manual recording for Block {block_code}")
-    success = scheduler.run_manual_recording(block_code)
+    logger.info(f"Starting manual recording for Block {block_code} ({program_config['name']})")
+    success = scheduler.run_manual_recording(block_code, program_key)
     
     if success:
         logger.info(f"Recording completed successfully for Block {block_code}")
@@ -131,7 +119,10 @@ def run_manual_recording(block_code: str):
 
 def run_manual_processing(block_code: str, show_date: str = None):
     """Run manual processing for a specific block."""
-    if block_code not in Config.BLOCKS:
+    # Find which program this block belongs to
+    program_key, program_config = Config.get_program_by_block(block_code)
+    
+    if not program_key:
         logger.error(f"Invalid block code: {block_code}")
         return False
     
@@ -143,10 +134,10 @@ def run_manual_processing(block_code: str, show_date: str = None):
             logger.error(f"Invalid date format: {show_date}. Use YYYY-MM-DD")
             return False
     else:
-        parsed_date = get_local_date()
+        parsed_date = date.today()
     
-    logger.info(f"Starting manual processing for Block {block_code} on {parsed_date}")
-    success = scheduler.run_manual_processing(block_code, parsed_date)
+    logger.info(f"Starting manual processing for Block {block_code} ({program_config['name']}) on {parsed_date}")
+    success = scheduler.run_manual_processing(block_code, parsed_date, program_key)
     
     if success:
         logger.info(f"Processing completed successfully for Block {block_code}")
@@ -165,7 +156,7 @@ def create_daily_digest(show_date: str = None):
             logger.error(f"Invalid date format: {show_date}. Use YYYY-MM-DD")
             return False
     else:
-        parsed_date = get_local_date()
+        parsed_date = date.today()
     
     logger.info(f"Creating daily digest for {parsed_date}")
     digest = summarizer.create_daily_digest(parsed_date)
@@ -181,26 +172,29 @@ def create_daily_digest(show_date: str = None):
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Radio Synopsis Application")
+    parser.add_argument('--version', action='version', version=get_version_string())
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
     # Setup command
     setup_parser = subparsers.add_parser('setup', help='Set up directories and test system')
     
+    # Version command
+    version_parser = subparsers.add_parser('version', help='Show detailed version information')
+    
     # Scheduler command
     schedule_parser = subparsers.add_parser('schedule', help='Run the scheduler service')
     
     # Web server command
     web_parser = subparsers.add_parser('web', help='Run the web server')
-    web_parser.add_argument('--with-scheduler', action='store_true', help='Start scheduler along with web server')
     
     # Manual recording command
     record_parser = subparsers.add_parser('record', help='Manually record a block')
-    record_parser.add_argument('block_code', choices=['A', 'B', 'C', 'D'], help='Block code to record')
+    record_parser.add_argument('block_code', choices=['A', 'B', 'C', 'D', 'E', 'F'], help='Block code to record')
     
     # Manual processing command
     process_parser = subparsers.add_parser('process', help='Manually process a block')
-    process_parser.add_argument('block_code', choices=['A', 'B', 'C', 'D'], help='Block code to process')
+    process_parser.add_argument('block_code', choices=['A', 'B', 'C', 'D', 'E', 'F'], help='Block code to process')
     process_parser.add_argument('--date', help='Date in YYYY-MM-DD format (default: today)')
     
     # Daily digest command
@@ -225,32 +219,23 @@ def main():
         if success:
             print("\n✓ Setup completed successfully!")
             print(f"Next steps:")
-            print(f"1. Copy config.env.example to .env and configure your settings")
+            print(f"1. Copy .env.example to .env and configure your settings")
             print(f"2. Set your OPENAI_API_KEY in .env")
             print(f"3. Configure RADIO_STREAM_URL or AUDIO_INPUT_DEVICE in .env")
-            print(f"4. Run 'python main.py web' to start the web interface")
-            print(f"5. Run 'python main.py schedule' to start automated recording")
+            print(f"4. Install FFmpeg if not available: apt install ffmpeg (Linux) or brew install ffmpeg (Mac)")
+            print(f"5. Run 'python main.py web' to start the web interface")
+            print(f"6. Run 'python main.py schedule' to start automated recording")
         else:
             print("\n✗ Setup failed. Check the logs for details.")
             sys.exit(1)
+    
+    elif args.command == 'version':
+        print_version_info()
     
     elif args.command == 'schedule':
         run_scheduler()
     
     elif args.command == 'web':
-        # Check if user wants scheduler with web server
-        if hasattr(args, 'with_scheduler') and args.with_scheduler:
-            import threading
-            import time
-            
-            # Start scheduler in background
-            scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-            scheduler_thread.start()
-            
-            # Give scheduler time to start
-            time.sleep(2)
-            logger.info("Web server starting with scheduler enabled")
-        
         run_web_server()
     
     elif args.command == 'record':

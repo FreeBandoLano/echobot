@@ -17,14 +17,16 @@ class AudioTranscriber:
     """Handles audio transcription using OpenAI Whisper API."""
     
     def __init__(self):
-        if not Config.OPENAI_API_KEY:
-            logger.error("OPENAI_API_KEY not configured!")
-            print("❌ OPENAI_API_KEY environment variable is missing!")
-            self.client = None
-        else:
-            logger.info("OpenAI client initialized successfully")
-            print(f"🔑 OpenAI API key configured (ends with: ...{Config.OPENAI_API_KEY[-4:]})")
-            self.client = openai.OpenAI(api_key=Config.OPENAI_API_KEY)
+        self._client = None
+    
+    @property
+    def client(self):
+        """Lazy-load OpenAI client only when needed."""
+        if self._client is None:
+            if not Config.OPENAI_API_KEY:
+                raise ValueError("OPENAI_API_KEY is required for transcription")
+            self._client = openai.OpenAI(api_key=Config.OPENAI_API_KEY)
+        return self._client
     
     def transcribe_block(self, block_id: int) -> Optional[Dict]:
         """Transcribe audio for a specific block."""
@@ -45,13 +47,10 @@ class AudioTranscriber:
             return None
         
         logger.info(f"Starting transcription for block {block_id}: {audio_path}")
-        print(f"🎤 TRANSCRIPTION STARTED: Block {block_id}")
-        print(f"📁 Audio file: {audio_path.name}")
         
         # Check if this is a silence-only file (fallback recording)
         if "_silence" in str(audio_path):
             logger.info(f"Detected silence file, creating empty transcript: {audio_path}")
-            print(f"🔇 Silence file detected - creating minimal transcript")
             # Create a minimal transcript for silence
             transcript_data = {
                 'text': "",
@@ -73,25 +72,12 @@ class AudioTranscriber:
             # Update database
             db.update_block_status(block_id, 'transcribed', transcript_file_path=transcript_path)
             
-            # ✅ TIMELINE FIX: Insert segments into database for timeline feature
-            try:
-                if transcript_data.get('segments'):
-                    db.insert_segments_from_transcript(block_id, transcript_data['segments'])
-                    inserted_count = len(transcript_data['segments'])
-                    logger.info(f"✅ Inserted {inserted_count} segments into database for timeline")
-                    print(f"📊 {inserted_count} segments saved to database")
-            except Exception as seg_err:
-                logger.warning(f"⚠️ Failed to insert segments for block {block_id}: {seg_err}")
-                # Don't fail transcription if segment insert fails
-            
-            print(f"✅ Silence transcription completed for block {block_id}")
             logger.info(f"Silence transcription completed for block {block_id}")
             return transcript_data
         
         try:
             # Update status
             db.update_block_status(block_id, 'transcribing')
-            print(f"🔄 Transcribing audio with OpenAI Whisper...")
             
             # Transcribe audio
             transcript_data = self._transcribe_audio(audio_path)
@@ -106,36 +92,7 @@ class AudioTranscriber:
                 
                 # Update database
                 db.update_block_status(block_id, 'transcribed', transcript_file_path=transcript_path)
-
-                # Phase 1: persist fine-grained segments
-                try:
-                    if transcript_data.get('segments'):
-                        db.insert_segments_from_transcript(block_id, transcript_data['segments'])
-                        print(f"📊 Persisted {len(transcript_data['segments'])} segments to database")
-                except Exception as seg_err:
-                    logger.warning(f"Segment persistence failed for block {block_id}: {seg_err}")
-
-                # Ensure chapter anchors for the parent show (one-time)
-                try:
-                    show_id = block['show_id']
-                    from datetime import datetime as dt
-                    show = db.get_show_by_id(show_id) if hasattr(db, 'get_show_by_id') else None
-                    # Fallback: derive show_date from block start_time
-                    if show:
-                        show_date = show['show_date']
-                    else:
-                        start_ts = block['start_time']
-                        if isinstance(start_ts, str):
-                            show_date = start_ts.split('T')[0]
-                        else:
-                            show_date = dt.fromtimestamp(start_ts.timestamp()).date()
-                    # ensure chapters (idempotent)
-                    if hasattr(db, 'ensure_chapters_for_show'):
-                        db.ensure_chapters_for_show(show_id, show_date)
-                except Exception as ch_err:
-                    logger.warning(f"Chapter ensure failed for block {block_id}: {ch_err}")
                 
-                print(f"✅ Transcription completed: {len(transcript_data['text'])} characters, {transcript_data['caller_count']} callers")
                 logger.info(f"Transcription completed for block {block_id}")
                 return transcript_data
             else:
@@ -177,20 +134,18 @@ class AudioTranscriber:
                 for segment in response.segments:
                     # Handle both dict and object formats for API compatibility
                     if isinstance(segment, dict):
-                        duration = segment['end'] - segment['start']
                         segment_data = {
                             'start': segment['start'],
                             'end': segment['end'],
                             'text': segment['text'].strip(),
-                            'speaker': self._detect_speaker(segment['text'], duration, len(transcript_data['segments']))
+                            'speaker': self._detect_speaker(segment['text'])
                         }
                     else:
-                        duration = segment.end - segment.start
                         segment_data = {
                             'start': segment.start,
                             'end': segment.end,
                             'text': segment.text.strip(),
-                            'speaker': self._detect_speaker(segment.text, duration, len(transcript_data['segments']))
+                            'speaker': self._detect_speaker(segment.text)
                         }
                     transcript_data['segments'].append(segment_data)
             
@@ -209,11 +164,6 @@ class AudioTranscriber:
     
     def _transcribe_audio(self, audio_path: Path) -> Optional[Dict]:
         """Transcribe audio file using OpenAI Whisper API."""
-        
-        if not self.client:
-            logger.error("OpenAI client not initialized - check OPENAI_API_KEY")
-            print("❌ Cannot transcribe: OpenAI client not initialized")
-            return None
         
         try:
             # Check file size (OpenAI has 25MB limit)
@@ -249,49 +199,33 @@ class AudioTranscriber:
                 for segment in response.segments:
                     # Handle both dict and object formats for API compatibility
                     if isinstance(segment, dict):
-                        duration = segment['end'] - segment['start']
                         segment_data = {
                             'start': segment['start'],
                             'end': segment['end'],
                             'text': segment['text'].strip(),
-                            'speaker': self._detect_speaker(segment['text'], duration, len(transcript_data['segments']))
+                            'speaker': self._detect_speaker(segment['text'])
                         }
                     else:
-                        duration = segment.end - segment.start
                         segment_data = {
                             'start': segment.start,
                             'end': segment.end,
                             'text': segment.text.strip(),
-                            'speaker': self._detect_speaker(segment.text, duration, len(transcript_data['segments']))
+                            'speaker': self._detect_speaker(segment.text)
                         }
-                    # Guard band classification (ads / jingles / promos / music)
-                    segment_data['guard_band'] = self._is_guard_band(segment_data['text'])
                     transcript_data['segments'].append(segment_data)
-                
-                # Apply caller ID assignment after all segments are processed
-                transcript_data['segments'] = self._assign_caller_ids(transcript_data['segments'])
             
             # Extract caller information
-            content_segments = [s for s in transcript_data['segments'] if not s.get('guard_band')]
-            transcript_data['caller_count'] = self._count_callers(content_segments)
-            transcript_data['notable_quotes'] = self._extract_quotes(content_segments)
+            transcript_data['caller_count'] = self._count_callers(transcript_data['segments'])
+            transcript_data['notable_quotes'] = self._extract_quotes(transcript_data['segments'])
             
             logger.info(f"Transcription successful: {len(transcript_data['text'])} characters, "
                        f"{len(transcript_data['segments'])} segments, "
                        f"{transcript_data['caller_count']} callers detected")
             
             return transcript_data
-        
+            
         except Exception as e:
-            logger.error(f"Whisper API error: {e}", exc_info=True)
-            print(f"❌ TRANSCRIPTION FAILED: {e}")
-            # Check if it's an API key issue
-            if "authentication" in str(e).lower() or "api_key" in str(e).lower():
-                print(f"🔑 API Key issue detected - check OPENAI_API_KEY configuration")
-            elif "quota" in str(e).lower() or "billing" in str(e).lower():
-                print(f"💳 Billing/quota issue detected - check OpenAI account")
-            elif "file" in str(e).lower() or "format" in str(e).lower():
-                print(f"📁 File format issue detected - check audio file")
+            logger.error(f"Whisper API error: {e}")
             return None
     
     def _transcribe_large_file(self, audio_path: Path) -> Optional[Dict]:
@@ -329,11 +263,8 @@ class AudioTranscriber:
                 full_text += " " + chunk_data['text']
                 total_duration += chunk_data['duration']
             
-            # Clean up chunk file safely
-            try:
-                chunk_path.unlink(missing_ok=True)
-            except Exception as e:
-                logger.warning(f"Could not cleanup chunk file {chunk_path}: {e}")
+            # Clean up chunk file
+            chunk_path.unlink()
         
         if all_segments:
             return {
@@ -383,279 +314,68 @@ class AudioTranscriber:
         
         return chunks
     
-    def _detect_speaker(self, text: str, segment_duration: float = 0, position_in_block: int = 0) -> str:
-        """Enhanced pattern-based speaker detection for Host vs Caller classification."""
+    def _detect_speaker(self, text: str) -> str:
+        """Simple speaker detection based on text patterns."""
         
-        text_lower = text.lower().strip()
+        text_lower = text.lower()
         
-        # Station content/announcements (clearly host/station)
-        station_patterns = [
-            "starcom network", "voice of barbados", "vob", "hot 95.3", "life 97.5", "beat 104.1",
-            "win big", "90 years", "anniversary", "celebration", "prizes", "rotoplastics",
-            "listen to", "stay tuned", "right back", "you're listening", "visit starcomnetwork",
-            "blockchain business", "financial literacy", "bitcoin"
-        ]
-        if any(pattern in text_lower for pattern in station_patterns):
-            return "Host"
-        
-        # Host conversation patterns (traffic, introductions, transitions)
-        host_patterns = [
-            "good evening", "let's say", "thank you", "sir", "brother", 
-            "traffic", "police service", "sergeant", "minutes after", "highway",
-            "heavy traffic", "climbing", "heading to", "final one", "outbound",
-            "music from", "come on home", "beautiful", "escorts"
-        ]
-        if any(pattern in text_lower for pattern in host_patterns):
-            return "Host"
-        
-        # Caller-specific patterns (personal pronouns, problems, questions)
-        caller_patterns = [
-            "i have", "my problem", "i want to", "i need", "can you help", 
-            "what about", "i think", "i believe", "my situation", "my concern",
-            "i'm calling", "my name is", "this is", "i would like", "could you",
-            "why don't", "why can't", "when will", "how can", "i don't understand"
-        ]
-        if any(pattern in text_lower for pattern in caller_patterns):
+        # Look for caller indicators
+        if any(phrase in text_lower for phrase in [
+            "good morning", "good afternoon", "hello", "hi there",
+            "my name is", "this is", "i'm calling", "caller"
+        ]):
             return "Caller"
         
-        # Length-based heuristics
-        if segment_duration > 15:  # Very long segments usually host
-            return "Host"
-        elif segment_duration > 0 and segment_duration < 3:  # Very short bursts often interjections
-            return "Unknown"
-        
-        # Context-based: Traffic reports are always host
-        if any(word in text_lower for word in ["traffic", "road", "highway", "junction", "climbing"]):
+        # Look for host indicators  
+        if any(phrase in text_lower for phrase in [
+            "welcome back", "you're listening", "our next caller",
+            "thank you for calling", "let's hear from", "moving on"
+        ]):
             return "Host"
         
-        # Music/song lyrics detection (comprehensive patterns)
-        music_indicators = [
-            # Love song patterns
-            "love will grow", "forever it will be", "you and me", "ooh", "your love", "my love",
-            "i will love you", "forever", "eternity", "break us", "chain of stars", "hold us",
-            
-            # Common song structures
-            "turn me up", "say mommy", "judgment day", "world war", "destruction and poverty",
-            "homeless on the street", "grand central station", "sleeping with me",
-            "as the years pass", "stay young", "each other's eyes", "as long as i got you",
-            
-            # Musical expressions
-            "ooh", "hey", "baby", "girl", "mommy", "is that right",
-            
-            # Repetitive patterns typical of songs
-            "ooh, ooh", "turn me up, turn me up",
-            
-            # Previous patterns (keep existing)
-            "i'll be", "tonight", "when you're", "hold you", "closely", "true", "lonely"
-        ]
-        
-        # Enhanced detection logic
-        if any(indicator in text_lower for indicator in music_indicators):
-            return "Music"
-        
-        # Repetitive phrase detection (songs often repeat)
-        words = text_lower.split()
-        if len(words) >= 4:
-            # Check for word repetition patterns
-            for i in range(len(words) - 1):
-                if words[i] == words[i + 1] and len(words[i]) > 2:  # Repeated words
-                    return "Music"
-        
-        # Romantic/emotional content patterns (common in love songs)
-        romantic_patterns = ["our love", "your love", "my love", "forever", "eternity", "you and me"]
-        if any(pattern in text_lower for pattern in romantic_patterns):
-            return "Music"
-        
-        # Default for unclassified content
         return "Unknown"
-
-    # ---------------- Guard Band Detection -----------------
-    def _is_guard_band(self, text: str) -> bool:
-        """Heuristic to detect non-content filler (ads, jingles, promos, music cues).
-        Returns True if the segment should be excluded from analytical counts."""
-        tl = text.lower()
-        if len(tl) < 12:  # very short bursts frequently part of jingles
-            return True if any(k in tl for k in ["fm", "am", "news", "live"]) else False
-
-        guard_keywords = [
-            # Advertising / sponsor cues
-            "sponsored by", "brought to you", "paid program", "advertisement", "promotion", "call now", "limited time",
-            # Retail/shopping advertisements
-            "shop for", "shopping", "affordable prices", "duty free", "broad street", "bookstore", 
-            "school shoes", "school bags", "textbooks", "stationery", "back to school",
-            "puma", "nike", "everlast", "herschel", "hush puppies", "total sport",
-            "pick up your", "art supplies", "middle floor", "top floor",
-            # Station IDs / filler
-            "you're listening to", "you are listening to", "stay tuned", "right back", "after the break", "don't go away",
-            "this is the", "weather update", "traffic update", "news update",
-            # Music / jingle indicators
-            "instrumental", "music playing", "theme music",
-            # Song lyrics patterns (common in music segments)
-            "ooh, ooh", "turn me up", "love will grow", "forever it will be", "your love", "my love"
-        ]
-        if any(k in tl for k in guard_keywords):
-            return True
-
-        # Commercial/retail language patterns
-        commercial_patterns = [
-            "make your", "easier", "at affordable prices", "shop for", "stop in at",
-            "pick up your", "for every age", "now you can", "all at"
-        ]
-        if any(pattern in tl for pattern in commercial_patterns):
-            return True
-
-        # Brand/store name detection (if segment mentions multiple brand names, likely an ad)
-        brands_mentioned = sum(1 for brand in ["puma", "nike", "adidas", "herschel", "duty free"] if brand in tl)
-        if brands_mentioned >= 2:
-            return True
-
-        # High ratio of non-alphanumeric (could be lyric fragments or sound effects transcription)
-        letters = sum(c.isalnum() for c in tl)
-        if letters and (len(tl) - letters) / len(tl) > 0.55:
-            return True
-
-        # Generic greeting without substance (avoid classifying real callers) - narrow pattern
-        if tl in {"good morning", "good afternoon", "hello", "hi"}:
-            return True
-
-        return False
-    
-    def _assign_caller_ids(self, segments: List[Dict]) -> List[Dict]:
-        """Assign numbered caller IDs based on speaker transitions."""
-        caller_index = 0
-        prev_was_caller = False
-        current_caller_id = None
-
-        for i, segment in enumerate(segments):
-            speaker = segment.get('speaker')
-            if speaker == 'Caller':
-                # If previous segment was not a caller, increment caller index
-                if not prev_was_caller:
-                    caller_index += 1
-                    current_caller_id = caller_index
-                # Assign current caller id
-                segment['speaker'] = f"Caller {current_caller_id}" if current_caller_id else 'Caller 1'
-                prev_was_caller = True
-            elif speaker in ['Host', 'Music']:
-                prev_was_caller = False
-                current_caller_id = None
-            # Keep 'Unknown' speakers as-is for now
-        return segments
     
     def _count_callers(self, segments: List[Dict]) -> int:
-        """Count unique callers based on speaker transitions, excluding host/music/station content."""
-        # Filter out non-caller segments first
-        caller_segments = [s for s in segments if s.get('speaker', '').startswith('Caller')]
+        """Count unique callers in the transcript."""
         
-        # Reapply caller ID assignment defensively on a shallow copy
-        segments_with_ids = [s.copy() for s in caller_segments]
-        self._assign_caller_ids(segments_with_ids)
+        caller_segments = [s for s in segments if s.get('speaker') == 'Caller']
         
-        caller_ids = {
-            s['speaker'] for s in segments_with_ids
-            if s.get('speaker', '').startswith('Caller ')
-        }
-        return len(caller_ids)
+        # Simple heuristic: count speaker transitions to "Caller"
+        caller_count = 0
+        prev_speaker = None
+        
+        for segment in segments:
+            current_speaker = segment.get('speaker')
+            if current_speaker == 'Caller' and prev_speaker != 'Caller':
+                caller_count += 1
+            prev_speaker = current_speaker
+        
+        return max(caller_count, 1) if caller_segments else 0
     
     def _extract_quotes(self, segments: List[Dict], max_quotes: int = 5) -> List[Dict]:
-        """Extract notable quotes with improved specificity detection (surgical fix for quote quality)."""
-        
-        # ✅ ENHANCED: Specific topic indicators (not generic)
-        specific_topics = [
-            'healthcare', 'hospital', 'doctor', 'clinic', 'health', 'medical', 'nurse', 'patient',
-            'education', 'school', 'teacher', 'student', 'university', 'college', 'exam',
-            'road', 'transport', 'traffic', 'bus', 'highway', 'vehicle', 'accident',
-            'water', 'sewage', 'pipe', 'leak', 'supply', 'drainage',
-            'electricity', 'power', 'outage', 'light', 'cable', 'blackout',
-            'crime', 'police', 'theft', 'murder', 'robbery', 'assault', 'security',
-            'jobs', 'employment', 'unemployment', 'work', 'salary', 'wage', 'hire',
-            'housing', 'rent', 'mortgage', 'house', 'home', 'apartment', 'property',
-            'price', 'cost', 'expensive', 'afford', 'inflation', 'dollar',
-            'tax', 'budget', 'revenue', 'spending', 'subsidy', 'vat', 'duty',
-            'minister', 'prime minister', 'pm', 'parliament', 'government', 'constituency',
-            'bridgetown', 'barbados', 'bajan', 'caribbean', 'caricom',
-            'pandemic', 'covid', 'vaccine', 'quarantine', 'lockdown',
-            'tourism', 'hotel', 'beach', 'airport', 'cruise',
-            'pension', 'nis', 'social security', 'welfare'
-        ]
-        
-        # ✅ ENHANCED: Entity indicators (proper nouns, organizations)
-        entity_indicators = [
-            'minister', 'government', 'parliament', 'central bank',
-            'barbados light & power', 'bl&p', 'blp', 'transport board',
-            'qeh', 'queen elizabeth hospital', 'polyclinic', 'university',
-            'company', 'corporation', 'authority', 'board', 'commission',
-            'prime minister', 'opposition', 'senator', 'representative'
-        ]
-        
-        # ✅ ENHANCED: Generic phrases that REDUCE score (filler language)
-        generic_phrases = [
-            'from where i sit', 'as i said before', 'i think that',
-            'what we must be discussing', 'as we go forward',
-            'in this regard', 'at the end of the day', 'you know',
-            'like i said', 'to be honest', 'in my opinion',
-            'i believe', 'i feel', 'i would say', 'basically',
-            'you see', 'let me tell you', 'the thing is'
-        ]
+        """Extract notable quotes from segments."""
         
         quotes = []
         
         for segment in segments:
             text = segment['text'].strip()
-            speaker = segment.get('speaker', 'Unknown')
-            text_lower = text.lower()
             
-            # Skip music and very short segments
-            if speaker == 'Music' or len(text) < 20:
-                continue
-            
-            # Calculate relevance score with improved specificity
-            relevance_score = 0
-            
-            # ✅ BONUS: Contains specific topic (high value)
-            topic_matches = sum(1 for topic in specific_topics if topic in text_lower)
-            if topic_matches > 0:
-                relevance_score += min(topic_matches * 2, 4)  # Cap at +4
-            
-            # ✅ BONUS: Contains entity/proper noun (medium value)
-            entity_matches = sum(1 for entity in entity_indicators if entity in text_lower)
-            if entity_matches > 0:
-                relevance_score += min(entity_matches * 2, 3)  # Cap at +3
-            
-            # ✅ BONUS: Question marks (specific inquiry, small value)
-            if '?' in text:
-                relevance_score += 1
-            
-            # ✅ PENALTY: Contains generic filler phrases (negative value)
-            generic_count = sum(1 for phrase in generic_phrases if phrase in text_lower)
-            if generic_count > 0:
-                relevance_score -= (generic_count * 2)  # -2 per generic phrase
-            
-            # Speaker type bonus (prefer caller quotes)
-            if speaker.startswith('Caller'):
-                relevance_score += 3
-            elif speaker == 'Host':
-                relevance_score += 1
-            
-            # Length preference (not too short, not too long)
-            if 40 <= len(text) <= 150:
-                relevance_score += 1
-            
-            # ✅ REQUIRE minimum specificity: Must have topic OR entity OR be a question
-            has_content = topic_matches > 0 or entity_matches > 0 or '?' in text
-            
-            if has_content and relevance_score >= 3 and len(text) <= 200:
+            # Look for interesting quotes (questions, strong statements, etc.)
+            if (len(text) > 20 and len(text) < 150 and 
+                any(indicator in text.lower() for indicator in [
+                    '?', 'important', 'problem', 'issue', 'concern',
+                    'government', 'minister', 'policy', 'community'
+                ])):
+                
                 quote = {
                     'start_time': segment['start'],
-                    'speaker': speaker,
+                    'speaker': segment.get('speaker', 'Unknown'),
                     'text': text,
-                    'timestamp': self._format_timestamp(segment['start']),
-                    'relevance_score': relevance_score
+                    'timestamp': self._format_timestamp(segment['start'])
                 }
                 quotes.append(quote)
         
-        # Sort by relevance score (higher first) then return top quotes
-        quotes.sort(key=lambda q: q['relevance_score'], reverse=True)
+        # Return top quotes by relevance (for now, just limit count)
         return quotes[:max_quotes]
     
     def _format_timestamp(self, seconds: float) -> str:

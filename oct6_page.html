@@ -1,0 +1,620 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Government Radio Synopsis</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <style>
+        /* Minimal override helpers (panel print + utility spacing if needed) */
+        @media print { .hub-wrapper, .orbit-btn { display: none !important; } }
+    </style>
+</head>
+<body data-is-today="0" data-view-date="2025-10-06">
+    <header class="app-header">
+        <a href="/" class="app-logo"><i class="bi bi-broadcast"></i> <span>Radio Synopsis</span></a>
+        <nav class="app-nav">
+            <a href="/" class="app-nav__link app-nav__link--active">Today</a>
+            <a href="/archive" class="app-nav__link">Archive</a>
+            <a href="/analytics" class="app-nav__link">Analytics</a>
+            <a href="/timeline" class="app-nav__link">Timeline</a>
+        </nav>
+        <div class="app-date">
+            <i class="bi bi-calendar3"></i> October 06, 2025
+            
+        </div>
+    </header>
+    <main>
+    <div class="hub-stage" id="hub-stage">
+    <div class="hub-wrapper">
+            <div class="hub-core" id="hub" data-state="idle" tabindex="0" aria-haspopup="true" aria-expanded="false">
+                <i class="bi bi-grid-3x3-gap hub-icon"></i>
+                <div class="hub-label">Control Hub</div>
+                <div class="hub-ring" aria-hidden="true"></div>
+            </div>
+            <svg class="hub-links" viewBox="0 0 340 340" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+            <!-- Orbit buttons (positioned via JS) -->
+            <button class="orbit-btn" data-panel="overview" aria-label="Overview">
+                <i class="bi bi-graph-up orbit-icon"></i><span>Overview</span>
+            </button>
+            <button class="orbit-btn" data-panel="blocks" aria-label="Blocks">
+                <i class="bi bi-list-ul orbit-icon"></i><span>Blocks</span>
+            </button>
+            <button class="orbit-btn" data-panel="digest" aria-label="Digest">
+                <i class="bi bi-file-text orbit-icon"></i><span>Digest</span>
+            </button>
+            <button class="orbit-btn" data-panel="archive" aria-label="Archive">
+                <i class="bi bi-archive orbit-icon"></i><span>Archive</span>
+            </button>
+            </div>
+        </div>
+
+        <!-- Panels -->
+        <section class="panel" id="panel-overview" aria-labelledby="heading-overview" data-active="false">
+            <div class="d-flex" style="justify-content:space-between; align-items:center; gap:.5rem; margin:.25rem 0 0.75rem; flex-wrap:wrap;">
+                <div class="btn-group" role="group" aria-label="Date navigation" style="flex:0 0 auto;">
+                    <a class="block-action" href="/?date_param=2025-10-05" ><i class="bi bi-chevron-left"></i> Prev</a>
+                    <a class="block-action" href="/">Today</a>
+                    <a class="block-action" href="/?date_param=2025-10-07" >Next <i class="bi bi-chevron-right"></i></a>
+                </div>
+                <div class="d-flex align-items-center" style="gap:.5rem; flex:1 1 auto; justify-content:flex-end;">
+                    <label for="jumpDate" class="small text-muted" style="font-size:.6rem; letter-spacing:.08em;">Jump to</label>
+                    <input id="jumpDate" type="date" class="form-control" style="max-width: 170px; height:28px; padding:.1rem .35rem; font-size:.7rem;" value="2025-10-06" />
+                </div>
+                <div class="small text-muted" style="font-size:.6rem; letter-spacing:.08em; flex:1 1 100%; text-align:right;">
+                    Shortcuts: ←/→ change day · T go today · R refresh
+                </div>
+            </div>
+            <h2 id="heading-overview"><i class="bi bi-graph-up"></i> Today's Overview</h2>
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="status-icon"><i class="bi bi-check-circle"></i></div>
+                    <div class="status-value">3</div>
+                    <div class="status-label">Completed</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-icon"><i class="bi bi-collection"></i></div>
+                    <div class="status-value">3</div>
+                    <div class="status-label">Total Blocks</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-icon"><i class="bi bi-people"></i></div>
+                    <div class="status-value">40</div>
+                    <div class="status-label">Callers</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-icon"><i class="bi bi-percent"></i></div>
+                    <div class="status-value">100%</div>
+                    <div class="status-label">Progress</div>
+                </div>
+                
+                
+                </div>
+        </section>
+
+        <section class="panel" id="panel-blocks" aria-labelledby="heading-blocks" data-active="false">
+            <h2 id="heading-blocks"><i class="bi bi-list-ul"></i> Program Blocks</h2>
+            
+                
+            <div class="block-summary" data-collapsed="true">
+                <div class="block-header">
+                    <div class="block-title">Block B - News Summary Block</div>
+                    <div style="display:flex; align-items:center; gap:.4rem;">
+                        <div class="block-status" data-state="completed">
+                            
+                                <i class="bi bi-check-circle"></i>
+                            
+                            Complete
+                        </div>
+                        <button class="block-toggle" type="button" aria-label="Toggle details" tabindex="0"><i class="bi bi-chevron-down"></i></button>
+                    </div>
+                    </div>
+                <div class="block-collapsible">
+                        
+                    
+                    <p class="block-body">Public concerns on the Barbados call-in center around service delivery and regional integration. Listeners report ongoing water quality problems in St. Lucy, with old pipes and slow upgrades; callers ...</p>
+                    
+                    <!-- Quick highlights from emergent data -->
+                    
+                        
+                        
+                        <!-- Key themes preview -->
+                        
+                        
+                        <!-- Quick alerts for high priority items -->
+                        
+                            
+                                
+                            
+                                
+                            
+                                
+                            
+                                
+                            
+                        
+                        
+                        
+                            
+                                
+                                    <div style="background:rgba(255,193,7,0.1); border:1px solid rgba(255,193,7,0.3); padding:.4rem .6rem; border-radius:var(--radius-sm); margin:.4rem 0; font-size:.65rem;">
+                                        <i class="bi bi-lightning" style="color:#ffc107;"></i> <strong>Action Required:</strong> Barbados Water Authority and Ministry of Water Resources - Provide a public update with a concrete pipeline r...
+                                    </div>
+                                
+                            
+                                
+                            
+                                
+                            
+                                
+                            
+                        
+                        
+                        <!-- Official announcements highlight -->
+                        
+                    
+                    
+                    <!-- Fallback to emergent_themes if raw_json processing fails -->
+                    
+                            
+                    <div class="block-footer">
+                        <span><i class="bi bi-people"></i> 10 callers</span>
+                        
+                            <span><i class="bi bi-clock"></i> 25min</span>
+                        
+                        <button class="block-action" data-block-id="49">DETAILS</button>
+                            </div>
+                        
+                    </div>
+                </div>
+                
+            <div class="block-summary" data-collapsed="true">
+                <div class="block-header">
+                    <div class="block-title">Block C - Major Newscast Block</div>
+                    <div style="display:flex; align-items:center; gap:.4rem;">
+                        <div class="block-status" data-state="completed">
+                            
+                                <i class="bi bi-check-circle"></i>
+                            
+                            Complete
+                        </div>
+                        <button class="block-toggle" type="button" aria-label="Toggle details" tabindex="0"><i class="bi bi-chevron-down"></i></button>
+                    </div>
+                    </div>
+                <div class="block-collapsible">
+                        
+                    
+                    <p class="block-body">Two caller-origin issues dominated today’s lunchtime dial-in. A resident described water-billing woes in St. Lucie, alleging meter spikes from about $150 to $3,000, disconnection, and no explanations,...</p>
+                    
+                    <!-- Quick highlights from emergent data -->
+                    
+                        
+                        
+                        <!-- Key themes preview -->
+                        
+                        
+                        <!-- Quick alerts for high priority items -->
+                        
+                            
+                                
+                            
+                                
+                            
+                        
+                        
+                        
+                            
+                                
+                            
+                                
+                            
+                        
+                        
+                        <!-- Official announcements highlight -->
+                        
+                    
+                    
+                    <!-- Fallback to emergent_themes if raw_json processing fails -->
+                    
+                            
+                    <div class="block-footer">
+                        <span><i class="bi bi-people"></i> 21 callers</span>
+                        
+                            <span><i class="bi bi-clock"></i> 50min</span>
+                        
+                        <button class="block-action" data-block-id="50">DETAILS</button>
+                            </div>
+                        
+                    </div>
+                </div>
+                
+            <div class="block-summary" data-collapsed="true">
+                <div class="block-header">
+                    <div class="block-title">Block D - History Block</div>
+                    <div style="display:flex; align-items:center; gap:.4rem;">
+                        <div class="block-status" data-state="completed">
+                            
+                                <i class="bi bi-check-circle"></i>
+                            
+                            Complete
+                        </div>
+                        <button class="block-toggle" type="button" aria-label="Toggle details" tabindex="0"><i class="bi bi-chevron-down"></i></button>
+                    </div>
+                    </div>
+                <div class="block-collapsible">
+                        
+                    
+                    <p class="block-body">Narrative (concise, &lt;=120 words):
+Public concerns on the Barbados call-in program focus on safety, jobs, and cost pressures. A caller frames crime as the top priority, noting stretched police resource...</p>
+                    
+                    <!-- Quick highlights from emergent data -->
+                    
+                        
+                        
+                        <!-- Key themes preview -->
+                        
+                        
+                        <!-- Quick alerts for high priority items -->
+                        
+                            
+                                
+                            
+                                
+                            
+                                
+                            
+                                
+                            
+                        
+                        
+                        
+                            
+                                
+                                    <div style="background:rgba(255,193,7,0.1); border:1px solid rgba(255,193,7,0.3); padding:.4rem .6rem; border-radius:var(--radius-sm); margin:.4rem 0; font-size:.65rem;">
+                                        <i class="bi bi-lightning" style="color:#ffc107;"></i> <strong>Action Required:</strong> Barbados Government / Commissioner of Police - Publish quarterly crime statistics and launch targ...
+                                    </div>
+                                
+                            
+                                
+                            
+                                
+                                    <div style="background:rgba(255,193,7,0.1); border:1px solid rgba(255,193,7,0.3); padding:.4rem .6rem; border-radius:var(--radius-sm); margin:.4rem 0; font-size:.65rem;">
+                                        <i class="bi bi-lightning" style="color:#ffc107;"></i> <strong>Action Required:</strong> Barbados Government / Labour / Private sector - Review minimum wage and underemployment; consider ...
+                                    </div>
+                                
+                            
+                                
+                            
+                                
+                                    <div style="background:rgba(255,193,7,0.1); border:1px solid rgba(255,193,7,0.3); padding:.4rem .6rem; border-radius:var(--radius-sm); margin:.4rem 0; font-size:.65rem;">
+                                        <i class="bi bi-lightning" style="color:#ffc107;"></i> <strong>Action Required:</strong> Unions / Government - Engage to ensure fair wages and worker protections...
+                                    </div>
+                                
+                            
+                        
+                        
+                        <!-- Official announcements highlight -->
+                        
+                            <div style="background:rgba(40,167,69,0.1); border:1px solid rgba(40,167,69,0.3); padding:.4rem .6rem; border-radius:var(--radius-sm); margin:.4rem 0; font-size:.65rem;">
+                                <i class="bi bi-megaphone" style="color:#28a745;"></i> <strong>1 Official Announcement</strong>
+                            </div>
+                        
+                    
+                    
+                    <!-- Fallback to emergent_themes if raw_json processing fails -->
+                    
+                            
+                    <div class="block-footer">
+                        <span><i class="bi bi-people"></i> 9 callers</span>
+                        
+                            <span><i class="bi bi-clock"></i> 25min</span>
+                        
+                        <button class="block-action" data-block-id="51">DETAILS</button>
+                            </div>
+                        
+                    </div>
+                </div>
+                
+        </section>
+
+                
+
+        <section class="panel" id="panel-archive" aria-labelledby="heading-archive" data-active="false">
+            <h2 id="heading-archive"><i class="bi bi-archive"></i> Recent Archive</h2>
+            <div style="display: grid; gap: .75rem;">
+                
+                <div class="archive-item" onclick="location.href='/?date_param=2025-10-09'">
+                    <div>
+                        <div style="font-weight:600;">Thursday, October 09</div>
+                        <div style="font-size:.7rem; color:var(--text-tertiary);">2025</div>
+                    </div>
+                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            
+                <div class="archive-item" onclick="location.href='/?date_param=2025-10-08'">
+                    <div>
+                        <div style="font-weight:600;">Wednesday, October 08</div>
+                        <div style="font-size:.7rem; color:var(--text-tertiary);">2025</div>
+                    </div>
+                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            
+                <div class="archive-item" onclick="location.href='/?date_param=2025-10-07'">
+                    <div>
+                        <div style="font-weight:600;">Tuesday, October 07</div>
+                        <div style="font-size:.7rem; color:var(--text-tertiary);">2025</div>
+                    </div>
+                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            
+                <div class="archive-item" onclick="location.href='/?date_param=2025-10-06'">
+                    <div>
+                        <div style="font-weight:600;">Monday, October 06</div>
+                        <div style="font-size:.7rem; color:var(--text-tertiary);">2025</div>
+                    </div>
+                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            
+                        </div>
+        </section>
+    </main>
+
+        <!-- Mobile Action Bar -->
+        <nav class="mobile-action-bar" aria-label="Quick actions">
+            <button data-nav="overview"><i class="bi bi-graph-up"></i><span>Overview</span></button>
+            <button data-nav="blocks"><i class="bi bi-list-ul"></i><span>Blocks</span></button>
+            
+            <button data-nav="archive"><i class="bi bi-archive"></i><span>Archive</span></button>
+            <button onclick="location.href='/timeline'"><i class="bi bi-activity"></i><span>Timeline</span></button>
+            <button data-refresh><i class="bi bi-arrow-repeat"></i><span>Refresh</span></button>
+        </nav>
+
+    <script>
+        const hub = document.getElementById('hub');
+        const orbitButtons = Array.from(document.querySelectorAll('.orbit-btn'));
+        const panels = Array.from(document.querySelectorAll('.panel'));
+        const svg = document.querySelector('.hub-links');
+        const hubSize = () => ({ x: hub.offsetLeft + hub.offsetWidth / 2, y: hub.offsetTop + hub.offsetHeight / 2 });
+        let linkLines = [];
+        let hubOpen = false;
+
+        function buildLinkLines() {
+            svg.innerHTML = '';
+            linkLines = orbitButtons.map(btn => {
+                const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+                line.setAttribute('stroke-linecap','round');
+                line.setAttribute('pathLength','200');
+                svg.appendChild(line);
+                return { btn, line };
+            });
+        }
+
+        function positionOrbitButtons() {
+            const radius = 140; // distance from hub center
+            const wrapperRect = document.querySelector('.hub-wrapper').getBoundingClientRect();
+            const cx = wrapperRect.width / 2; // center relative to wrapper
+            const cy = wrapperRect.height / 2;
+            
+            orbitButtons.forEach((btn, i) => {
+                const angle = (Math.PI * 2 / orbitButtons.length) * i - Math.PI / 2; // start at top
+                const x = cx + radius * Math.cos(angle) - (btn.offsetWidth / 2);
+                const y = cy + radius * Math.sin(angle) - (btn.offsetHeight / 2);
+                btn.style.left = x + 'px';
+                btn.style.top = y + 'px';
+            });
+            
+            // update lines (SVG coordinates relative to wrapper)
+            linkLines.forEach(({ btn, line }) => {
+                const bx = parseFloat(btn.style.left) + (btn.offsetWidth / 2);
+                const by = parseFloat(btn.style.top) + (btn.offsetHeight / 2);
+                line.setAttribute('x1', cx);
+                line.setAttribute('y1', cy);
+                line.setAttribute('x2', bx);
+                line.setAttribute('y2', by);
+            });
+        }
+
+        function toggleHub(forceState=null) {
+            hubOpen = forceState !== null ? forceState : !hubOpen;
+            hub.classList.toggle('expanded', hubOpen);
+            hub.setAttribute('aria-expanded', hubOpen);
+            orbitButtons.forEach((b, idx) => {
+                if (hubOpen) {
+                    b.setAttribute('data-visible','true');
+                    b.style.transitionDelay = (idx * 60) + 'ms';
+                } else {
+                    b.removeAttribute('data-visible');
+                    b.style.transitionDelay = '0ms';
+                }
+            });
+            linkLines.forEach(({ line }, idx) => {
+                if (hubOpen) {
+                    line.setAttribute('data-visible','true');
+                    line.style.transitionDelay = (idx * 60) + 'ms';
+                } else {
+                    line.removeAttribute('data-visible');
+                    line.style.transitionDelay = '0ms';
+                }
+            });
+            if (!hubOpen) clearActivePanels();
+        }
+
+        function clearActivePanels() { panels.forEach(p => p.dataset.active = 'false'); }
+
+        const hubStage = document.getElementById('hub-stage');
+
+        function collapseHero() {
+            if (hubStage && !hubStage.classList.contains('hub-stage--collapsed')) {
+                hubStage.classList.add('hub-stage--collapsed');
+            }
+        }
+
+        function showPanel(id) {
+            clearActivePanels();
+            const el = document.getElementById('panel-' + id);
+            if (el) {
+                el.dataset.active = 'true';
+                localStorage.setItem('lastPanel', id);
+                el.scrollIntoView({behavior:'smooth', block:'start'});
+                collapseHero();
+            }
+        }
+
+        orbitButtons.forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); showPanel(btn.dataset.panel); }));
+        hub.addEventListener('click', e => { e.stopPropagation(); toggleHub(); });
+
+        function restoreLastPanel() {
+            const last = localStorage.getItem('lastPanel');
+            if (last && document.getElementById('panel-' + last)) {
+                toggleHub(true);
+                showPanel(last);
+                collapseHero();
+            }
+        }
+
+        function showBlockDetail(blockId) { window.location.href = '/block/' + blockId; }
+
+        function downloadDigest() {
+            const digestEl = document.querySelector('#panel-digest .digest-box');
+            if(!digestEl) return;
+            const digestText = digestEl.textContent;
+            const blob = new Blob([digestText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const viewDate = document.body.getAttribute('data-view-date');
+            a.download = `daily-digest-${viewDate}.txt`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        }
+
+        // Outside click + esc
+        document.addEventListener('click', e => { if (hubOpen && !e.target.closest('.hub-wrapper')) toggleHub(false); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && hubOpen) toggleHub(false); });
+
+        // Auto-refresh (only when hub closed and today)
+        const isToday = document.body.getAttribute('data-is-today') === '1';
+        if (isToday) {
+            setInterval(() => { if (!hubOpen) window.location.reload(); }, 120000);
+        }
+
+    window.addEventListener('resize', positionOrbitButtons);
+        window.addEventListener('load', () => {
+            buildLinkLines();
+            positionOrbitButtons();
+            restoreLastPanel();
+            document.querySelectorAll('.block-action[data-block-id]').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    const id = parseInt(btn.getAttribute('data-block-id'));
+                    if (!isNaN(id)) showBlockDetail(id);
+                });
+            });
+            // Make entire block card clickable (excluding explicit buttons/toggles)
+            document.querySelectorAll('.block-summary').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('.block-toggle') || e.target.closest('button') || e.target.tagName.toLowerCase() === 'a') return;
+                    const btn = card.querySelector('.block-action[data-block-id]');
+                    if (btn) {
+                        const id = parseInt(btn.getAttribute('data-block-id'));
+                        if (!isNaN(id)) showBlockDetail(id);
+                    }
+                });
+            });
+            // Mobile action bar wiring
+            const mbar = document.querySelector('.mobile-action-bar');
+            if(mbar){
+                mbar.querySelectorAll('button[data-nav]').forEach(btn=>{
+                    btn.addEventListener('click', ()=>{
+                        const panel = btn.getAttribute('data-nav');
+                        showPanel(panel);
+                        if(hubOpen) toggleHub(false);
+                        window.scrollTo({top:0,behavior:'smooth'});
+                    });
+                });
+                const rb = mbar.querySelector('button[data-refresh]');
+                if(rb) rb.addEventListener('click', ()=>window.location.reload());
+            }
+            // Collapsible block summaries (mobile first)
+            const mq = window.matchMedia('(max-width:760px)');
+            function applyBlockCollapse(){
+               const small = mq.matches;
+               document.querySelectorAll('.block-summary').forEach(card=>{
+                   const coll = card.querySelector('.block-collapsible');
+                   const toggle = card.querySelector('.block-toggle i');
+                   if(!coll) return;
+                   if(small){
+                       const collapsed = card.getAttribute('data-collapsed') === 'true';
+                       coll.style.display = collapsed ? 'none':'block';
+                       toggle.className = collapsed ? 'bi bi-chevron-down':'bi bi-chevron-up';
+                   } else {
+                       coll.style.display = 'block';
+                       toggle.className = 'bi bi-chevron-up';
+                   }
+               });
+            }
+            document.querySelectorAll('.block-summary .block-toggle').forEach(btn=>{
+               btn.addEventListener('click', () => {
+                   const card = btn.closest('.block-summary');
+                   const state = card.getAttribute('data-collapsed') === 'true';
+                   card.setAttribute('data-collapsed', state ? 'false':'true');
+                   applyBlockCollapse();
+               });
+            });
+            mq.addEventListener('change', applyBlockCollapse);
+            applyBlockCollapse();
+        });
+
+        // Keyboard shortcuts: left/right for prev/next day, T for today, R refresh, 1-4 panels
+        document.addEventListener('keydown', (e) => {
+            const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+            if (tag === 'input' || tag === 'textarea') return;
+            if (e.key === 'ArrowLeft' && '2025-10-05' !== 'None') {
+                window.location.href='/?date_param=2025-10-05';
+            } else if (e.key === 'ArrowRight' && '2025-10-07' !== 'None') {
+                window.location.href='/?date_param=2025-10-07';
+            } else if (e.key.toLowerCase() === 't') {
+                window.location.href='/';
+            } else if (e.key.toLowerCase() === 'r') {
+                window.location.reload();
+            } else if (e.key === '1') {
+                showPanel('overview');
+            } else if (e.key === '2') {
+                showPanel('blocks');
+            } else if (e.key === '3' && document.getElementById('panel-digest')) {
+                showPanel('digest');
+            } else if (e.key === '4') {
+                showPanel('archive');
+            }
+        });
+        // Date jump wiring
+        const jump = document.getElementById('jumpDate');
+        if (jump) {
+            jump.addEventListener('change', () => {
+                if (jump.value) window.location.href='/?date_param=' + encodeURIComponent(jump.value);
+            });
+        }
+    </script>
+    <style>
+    /* Collapsible block summaries */
+    @media (max-width:760px){
+      .block-summary{padding:1rem .9rem 1rem;}
+      .block-summary .block-toggle{background:var(--color-panel-alt); border:1px solid var(--color-border); color:var(--text-tertiary); width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:var(--radius-pill); cursor:pointer; font-size:.9rem; }
+      .block-summary .block-toggle:hover{color:var(--text-primary); border-color:var(--color-border-strong);}  
+    }
+    @media (min-width:761px){ .block-summary .block-toggle{ display:none; } }
+    </style>
+    <style>
+    /* Mobile Action Bar */
+    .mobile-action-bar{display:none;}
+    @media (max-width:700px){
+        .mobile-action-bar{position:fixed; bottom:0; left:0; right:0; z-index:40; background:rgba(18,24,35,0.92); backdrop-filter:blur(10px); border-top:1px solid var(--color-border); display:flex; justify-content:space-around; padding:.35rem .25rem;}
+        .mobile-action-bar button{background:none; border:none; color:var(--text-tertiary); font-size:.55rem; display:flex; flex-direction:column; align-items:center; gap:.15rem; letter-spacing:.08em; font-weight:600; padding:.3rem .5rem; border-radius:var(--radius-sm);}
+        .mobile-action-bar button i{font-size:1.15rem;}
+        .mobile-action-bar button:active, .mobile-action-bar button:hover{color:var(--text-primary); background:var(--color-panel-alt);}    
+        body{padding-bottom:70px;} /* reserve space */
+    }
+    </style>
+</body>
+</html>
