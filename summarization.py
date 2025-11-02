@@ -308,11 +308,25 @@ Maintain objectivity and focus on factual content relevant to government decisio
         blocks = db.get_blocks_by_date(show_date)
         completed_blocks = [b for b in blocks if b['status'] == 'completed']
         
+        # ✅ PREMATURE DIGEST FIX: Ensure ALL blocks across ALL programs are completed
+        all_blocks_config = Config.get_all_blocks()
+        expected_block_count = len(all_blocks_config)  # Total blocks across all programs (A-F = 6)
+        
+        if len(blocks) < expected_block_count:
+            logger.warning(f"⏳ Only {len(blocks)}/{expected_block_count} blocks exist for {show_date} - waiting for all blocks to be scheduled")
+            return None
+        
+        if len(completed_blocks) < len(blocks):
+            incomplete_blocks = [b['block_code'] for b in blocks if b['status'] != 'completed']
+            logger.warning(f"⏳ Only {len(completed_blocks)}/{len(blocks)} blocks completed for {show_date} - waiting for all blocks to finish")
+            logger.info(f"  Incomplete blocks: {', '.join(incomplete_blocks)}")
+            return None
+        
         if not completed_blocks:
             logger.warning(f"No completed blocks found for {show_date}")
             return None
         
-        logger.info(f"Creating combined daily digest for {show_date} with {len(completed_blocks)} blocks from all programs")
+        logger.info(f"✅ Creating digest with ALL {len(completed_blocks)}/{expected_block_count} blocks completed for {show_date}")
         
         # Collect all summaries, grouped by program
         programs_data = {}
