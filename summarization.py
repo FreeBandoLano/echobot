@@ -88,7 +88,9 @@ class RadioSummarizer:
         """Generate summary using OpenAI GPT."""
         
         block_code = block['block_code']
-        block_name = Config.BLOCKS[block_code]['name']
+        # Get block name from multi-program config
+        all_blocks = Config.get_all_blocks()
+        block_name = all_blocks.get(block_code, {}).get('name', f'Block {block_code}')
         
         # Prepare context
         transcript_text = transcript_data.get('text', '')
