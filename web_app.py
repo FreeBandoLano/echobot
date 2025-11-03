@@ -373,9 +373,13 @@ async def block_detail(request: Request, block_id: int):
         except:
             pass
     
+    # Get block name from multi-program config
+    all_blocks = Config.get_all_blocks()
+    block_name = all_blocks[block['block_code']]['name'] if block['block_code'] in all_blocks else 'Unknown'
+    
     block_info = {
         **block,
-        'block_name': Config.BLOCKS[block['block_code']]['name'],
+        'block_name': block_name,
         'summary': summary,
         'transcript': transcript_data,
         'emergent': emergent
