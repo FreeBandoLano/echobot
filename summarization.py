@@ -97,6 +97,16 @@ class RadioSummarizer:
         caller_count = transcript_data.get('caller_count', 0)
         existing_quotes = transcript_data.get('notable_quotes', [])
         
+        # Collect stats for prompt
+        stats = {
+            'caller_count': caller_count,
+            'caller_seconds': transcript_data.get('caller_seconds', 0),
+            'filler_seconds': transcript_data.get('filler_seconds', 0),
+            'ad_count': transcript_data.get('ad_count', 0),
+            'music_count': transcript_data.get('music_count', 0),
+            'total_seconds': transcript_data.get('duration', 0)
+        }
+        
         if not transcript_text.strip():
             logger.warning("Empty transcript text")
             # Handle empty/silence transcript gracefully
@@ -127,8 +137,8 @@ class RadioSummarizer:
             logger.info(f"Empty summary completed for block {block_id}")
             return summary_data
         
-        # Create prompt based on block type
-        prompt = self._create_summary_prompt(block_code, block_name, transcript_text, caller_count)
+        # Create structured prompt
+        prompt = self._create_summary_prompt(block_code, block_name, transcript_text, caller_count, stats)
         
         try:
             logger.info(f"Generating summary with GPT-4 for {block_name}")
@@ -138,7 +148,7 @@ class RadioSummarizer:
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are an expert radio content analyst creating summaries for government civil servants. Provide objective, structured summaries focused on policy implications, public concerns, and actionable information."
+                        "content": "You are a precise policy briefing generator. Follow instructions exactly."
                     },
                     {
                         "role": "user", 
@@ -149,81 +159,66 @@ class RadioSummarizer:
                 max_tokens=1500
             )
             
-            summary_text = response.choices[0].message.content
+            raw_text = response.choices[0].message.content
             
-            # Parse structured elements from summary
-            parsed_data = self._parse_summary_response(summary_text, existing_quotes, caller_count)
+            # Parse JSON from response with robust extraction
+            parsed_data = self._parse_structured_response(raw_text, existing_quotes, caller_count)
             
-            logger.info(f"Summary generated: {len(summary_text)} characters")
+            logger.info(f"Summary generated: {len(raw_text)} characters")
             return parsed_data
             
         except Exception as e:
             logger.error(f"GPT API error: {e}")
             return None
     
-    def _create_summary_prompt(self, block_code: str, block_name: str, transcript: str, caller_count: int) -> str:
-        """Create appropriate prompt based on block type."""
+    def _create_summary_prompt(self, block_code: str, block_name: str, transcript: str, caller_count: int, stats: Dict) -> str:
+        """Create structured prompt for policy-intelligence briefing format."""
         
-        base_context = f"""
-Radio Program: Down to Brass Tacks
-Block: {block_code} - {block_name}
-Callers: {caller_count}
-Duration: {len(transcript.split())} words
+        return f"""
+You are producing a policy-intelligence briefing from a Barbados public affairs call-in radio program.
 
-Transcript:
-{transcript}
+INSTRUCTIONS:
+1. Public concerns: ONLY caller-origin issues (skip ads, music, promos).
+2. Official / Host announcements separate.
+3. Commercial/promotional content: list briefly; never elevate to public concerns.
+4. Music/filler acknowledged only as metrics.
+5. Provide actionable follow-ups (who, what, urgency: low|medium|high) where grounded.
+6. Categorize entities: government, private_sector, civil_society, individuals.
+7. Provide metrics (caller_count, caller_talk_ratio, filler_ratio, ads_count, music_count).
+8. Output first a concise narrative (<=120 words), then STRICT JSON object (schema below). No extra prose after JSON.
 
-Please provide a structured summary for government civil servants including:
-"""
-        
-        if block_code == 'A':  # Morning Block (10:00-12:00)
-            specific_instructions = """
-1. EXECUTIVE SUMMARY (2-3 sentences)
-2. KEY TOPICS DISCUSSED (bullet points)
-3. PUBLIC CONCERNS RAISED (by callers)
-4. POLICY IMPLICATIONS (if any)
-5. NOTABLE QUOTES (1-2 most significant)
-6. ENTITIES MENTIONED (people, organizations, places)
+BLOCK META:
+Block: {block_code} ({block_name})
+Approx Caller Count: {caller_count}
+Raw Duration Seconds: {stats.get('total_seconds', 0)}
+Ad Segments (estimated): {stats.get('ad_count', 0)} | Music Segments: {stats.get('music_count', 0)}
 
-Focus on: Major topics, recurring themes, government-related discussions, community issues.
-"""
-        elif block_code == 'B':  # News Summary Block (12:05-12:30)
-            specific_instructions = """
-1. NEWS SUMMARY (key headlines covered)
-2. GOVERNMENT ANNOUNCEMENTS (if any)
-3. PUBLIC REACTION (caller responses)
-4. NOTABLE QUOTES (1-2 most relevant)
-5. ENTITIES MENTIONED (officials, ministries, organizations)
+TRANSCRIPT (raw – may include music/ads/promos):
+{transcript[:12000]}
 
-Focus on: Official announcements, policy updates, public reactions to news.
-"""
-        elif block_code == 'C':  # Major Newscast Block (12:40-13:30)
-            specific_instructions = """
-1. MAJOR NEWS ITEMS (prioritized list)
-2. GOVERNMENT/POLITICAL CONTENT
-3. COMMUNITY ISSUES HIGHLIGHTED
-4. CALLER CONTRIBUTIONS (concerns, questions)
-5. NOTABLE QUOTES (1-2 most impactful)
-6. ENTITIES MENTIONED (key figures, organizations)
+JSON SCHEMA:
+{{
+  "public_concerns": [{{"topic": str, "summary": str, "callers_involved": int}}],
+  "official_announcements": [{{"topic": str, "summary": str}}],
+  "commercial_items": [str],
+  "actions": [{{"who": str, "what": str, "urgency": "low|medium|high"}}],
+  "entities": {{
+      "government": [str], "private_sector": [str], "civil_society": [str], "individuals": [str]
+  }},
+  "metrics": {{
+      "caller_count": int,
+      "caller_talk_ratio": float,
+      "filler_ratio": float,
+      "ads_count": int,
+      "music_count": int
+  }}
+}}
 
-Focus on: Breaking news, political developments, community concerns, official statements.
-"""
-        else:  # Block D - History Block (13:35-14:00)
-            specific_instructions = """
-1. HISTORICAL TOPIC COVERED
-2. RELEVANCE TO CURRENT ISSUES (if any)
-3. EDUCATIONAL CONTENT SUMMARY
-4. CALLER ENGAGEMENT (questions, comments)
-5. NOTABLE QUOTES (1-2 educational highlights)
-6. ENTITIES MENTIONED (historical figures, places, events)
-
-Focus on: Historical context, educational value, connections to contemporary issues.
-"""
-        
-        return base_context + specific_instructions + """
-
-Format your response clearly with numbered sections. Keep summaries concise but comprehensive.
-Maintain objectivity and focus on factual content relevant to government decision-making.
+RULES:
+- Empty arrays instead of fabrication.
+- No duplicate topics.
+- Keep commercial_items short phrases.
+- caller_talk_ratio + filler_ratio between 0 and 1 (approx ok).
 """
     
     def _create_empty_summary(self, block_code: str, block_name: str, transcript_data: Dict) -> Dict:
@@ -247,61 +242,112 @@ Maintain objectivity and focus on factual content relevant to government decisio
             }
         }
     
-    def _parse_summary_response(self, summary_text: str, existing_quotes: List[Dict], caller_count: int) -> Dict:
-        """Parse the GPT response into structured data."""
+    def _parse_structured_response(self, raw_text: str, existing_quotes: List[Dict], caller_count: int) -> Dict:
+        """Parse the GPT response with robust JSON extraction and fallback strategies."""
         
-        # Extract key points (look for bullet points or numbered items)
-        key_points = []
-        entities = []
-        quotes = []
+        json_part = {}
+        narrative = ""
         
-        lines = summary_text.split('\n')
-        current_section = None
+        # Strategy 1: Regex-based JSON extraction (most robust)
+        import re
+        json_match = re.search(r'\{[\s\S]*\}', raw_text)
+        if json_match:
+            candidate = json_match.group(0).strip()
+            try:
+                json_part = json.loads(candidate)
+                # Extract narrative before JSON (if any)
+                json_start = json_match.start()
+                potential_narrative = raw_text[:json_start].strip()
+                if len(potential_narrative) > 20 and not potential_narrative.startswith('{'):
+                    narrative = potential_narrative
+                logger.info("JSON extracted via regex")
+            except Exception as je:
+                logger.warning(f"Regex JSON parse failed: {je}")
+                # Strategy 2: Fallback to rfind method
+                idx = raw_text.rfind('{')
+                if idx != -1:
+                    candidate = raw_text[idx:].strip()
+                    try:
+                        json_part = json.loads(candidate)
+                        potential_narrative = raw_text[:idx].strip()
+                        if len(potential_narrative) > 20 and not potential_narrative.startswith('{'):
+                            narrative = potential_narrative
+                        logger.info("JSON extracted via rfind fallback")
+                    except Exception as je2:
+                        logger.warning(f"Fallback JSON parse failed: {je2}")
         
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
+        # Ensure narrative is clean (no JSON contamination)
+        if narrative and '{' in narrative:
+            narrative = narrative.split('{')[0].strip()
+        
+        # If no JSON found, treat entire response as narrative
+        if not json_part:
+            narrative = raw_text
+            json_part = {}
+        
+        # Map structured JSON to legacy fields for UI compatibility
+        if json_part:
+            # Build key_points from public_concerns
+            key_points = []
+            for concern in json_part.get('public_concerns', [])[:10]:
+                topic = concern.get('topic', 'Concern')
+                summary = concern.get('summary', '')
+                callers_involved = concern.get('callers_involved', 0)
+                caller_text = f" ({callers_involved} callers)" if callers_involved > 0 else ""
+                key_points.append(f"{topic}{caller_text}: {summary}")
             
-            # Identify sections
-            if any(keyword in line.lower() for keyword in ['key topics', 'summary', 'issues', 'concerns']):
-                current_section = 'key_points'
-            elif any(keyword in line.lower() for keyword in ['entities', 'mentioned', 'people', 'organizations']):
-                current_section = 'entities'
-            elif any(keyword in line.lower() for keyword in ['quotes', 'notable']):
-                current_section = 'quotes'
+            # Add official announcements as key points
+            for announcement in json_part.get('official_announcements', [])[:5]:
+                topic = announcement.get('topic', 'Announcement')
+                summary = announcement.get('summary', '')
+                key_points.append(f"📢 {topic}: {summary}")
             
-            # Extract bullet points and numbered items
-            if line.startswith('•') or line.startswith('-') or (len(line) > 0 and line[0].isdigit() and '.' in line[:5]):
-                cleaned_line = line.lstrip('•-0123456789. ').strip()
-                if len(cleaned_line) > 10:  # Minimum length for meaningful content
-                    if current_section == 'entities':
-                        # Split comma-separated entities
-                        entity_list = [e.strip() for e in cleaned_line.split(',')]
-                        entities.extend([e for e in entity_list if len(e) > 2])
-                    else:
-                        key_points.append(cleaned_line)
-        
-        # Extract quotes from existing transcript quotes or parse from summary
-        if existing_quotes:
-            quotes = existing_quotes[:3]  # Limit to top 3
+            # Extract entities from categorized structure
+            entities_dict = json_part.get('entities', {})
+            entities = list({
+                *entities_dict.get('government', []),
+                *entities_dict.get('private_sector', []),
+                *entities_dict.get('civil_society', []),
+                *entities_dict.get('individuals', [])
+            })[:20]
+            
+            # Build readable summary from narrative or create one from concerns
+            if narrative:
+                summary_text = narrative
+            else:
+                # Generate readable summary from structured data
+                lines = ["Key Public Concerns:"]
+                for concern in json_part.get('public_concerns', [])[:5]:
+                    lines.append(f"- {concern.get('topic', 'Topic')}: {concern.get('summary', '')}")
+                
+                if json_part.get('official_announcements'):
+                    lines.append("\n📢 Official Announcements:")
+                    for ann in json_part.get('official_announcements', [])[:3]:
+                        lines.append(f"- {ann.get('topic', 'Topic')}: {ann.get('summary', '')}")
+                
+                summary_text = "\n".join(lines)
+            
+            # Use existing quotes or extract from transcript
+            quotes = existing_quotes[:3] if existing_quotes else []
+            
+            return {
+                'summary': summary_text,
+                'key_points': key_points,
+                'entities': entities,
+                'caller_count': caller_count,
+                'quotes': quotes,
+                'raw_json': json_part  # Store full JSON for potential future use
+            }
         else:
-            # Try to extract quotes from summary text
-            import re
-            quote_pattern = r'"([^"]{20,100})"'
-            found_quotes = re.findall(quote_pattern, summary_text)
-            quotes = [{'text': q, 'speaker': 'Unknown', 'timestamp': '00:00'} for q in found_quotes[:2]]
-        
-        # Clean up entities (remove duplicates, common words)
-        entities = list(set([e for e in entities if len(e) > 2 and e.lower() not in ['the', 'and', 'for', 'with']]))
-        
-        return {
-            'summary': summary_text,
-            'key_points': key_points[:10],  # Limit to 10 key points
-            'entities': entities[:20],  # Limit to 20 entities
-            'caller_count': caller_count,
-            'quotes': quotes
-        }
+            # No structured data, return simple format
+            return {
+                'summary': narrative if narrative else "No substantive content detected during this block.",
+                'key_points': [],
+                'entities': [],
+                'caller_count': caller_count,
+                'quotes': existing_quotes[:3] if existing_quotes else []
+            }
+    
     
     def create_daily_digest(self, show_date: datetime.date) -> Optional[str]:
         """Create a daily digest combining all blocks from all programs."""
