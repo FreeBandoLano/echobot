@@ -352,8 +352,8 @@ class TaskManager:
         blocks = db.get_blocks_by_date(date_obj)
         completed_blocks = [b for b in blocks if b['status'] == 'completed']
         
-        # Expected number of blocks for a full show day (A, B, C, D)
-        expected_block_count = len(Config.BLOCKS)
+        # Expected number of blocks for a full show day (E, F, A, B, C, D = 6 blocks across 2 programs)
+        expected_block_count = len(Config.get_all_blocks())
         
         # Check if all EXPECTED blocks are completed
         # This prevents premature digest creation when only some blocks have been recorded
