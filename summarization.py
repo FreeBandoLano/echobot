@@ -437,6 +437,189 @@ RULES:
         
         return digest_text
     
+    def create_program_digest(self, show_date: datetime.date, program_key: str) -> Optional[str]:
+        """Create a digest for a specific program on a specific date.
+        
+        Args:
+            show_date: The date to generate digest for
+            program_key: Program identifier (e.g., 'VOB_BRASS_TACKS' or 'CBC_LETS_TALK')
+        
+        Returns:
+            Digest text if successful, None if conditions not met
+        """
+        from config import Config
+        
+        # Get program configuration
+        prog_config = Config.get_program_config(program_key)
+        if not prog_config:
+            logger.error(f"Unknown program key: {program_key}")
+            return None
+        
+        program_name = prog_config['name']
+        program_blocks = list(prog_config['blocks'].keys())  # e.g., ['A', 'B', 'C', 'D']
+        
+        # Get all blocks for this date
+        all_blocks = db.get_blocks_by_date(show_date)
+        
+        # Filter for this program's blocks
+        program_blocks_data = [b for b in all_blocks 
+                               if b['block_code'] in program_blocks 
+                               and b.get('program_name') == program_name]
+        
+        completed_blocks = [b for b in program_blocks_data if b['status'] == 'completed']
+        
+        # Check if we have enough completed blocks for this program
+        expected_count = len(program_blocks)
+        
+        logger.info(f"📊 Program digest check for {program_name} on {show_date}: "
+                   f"{len(completed_blocks)}/{expected_count} blocks completed")
+        
+        if len(completed_blocks) < expected_count:
+            logger.warning(f"⏳ Only {len(completed_blocks)}/{expected_count} blocks completed "
+                          f"for {program_name} - need all blocks")
+            return None
+        
+        if not completed_blocks:
+            logger.warning(f"No completed blocks found for {program_name} on {show_date}")
+            return None
+        
+        logger.info(f"✅ Creating digest for {program_name} with {len(completed_blocks)} blocks")
+        
+        # Collect summaries for this program
+        total_callers = 0
+        all_entities = set()
+        blocks_summaries = []
+        
+        for block in completed_blocks:
+            summary = db.get_summary(block['id'])
+            if summary:
+                block_code = block['block_code']
+                block_info = prog_config['blocks'].get(block_code, {})
+                block_name = block_info.get('name', f'Block {block_code}')
+                
+                blocks_summaries.append({
+                    'block_code': block_code,
+                    'block_name': block_name,
+                    'summary': summary['summary_text'],
+                    'key_points': summary['key_points'],
+                    'entities': summary['entities'],
+                    'caller_count': summary['caller_count']
+                })
+                
+                total_callers += summary['caller_count']
+                all_entities.update(summary['entities'])
+        
+        if not blocks_summaries:
+            logger.warning(f"No summaries available for {program_name}")
+            return None
+        
+        # Generate program-specific digest
+        digest_text = self._generate_program_digest(
+            show_date, program_name, prog_config, blocks_summaries, 
+            total_callers, list(all_entities)
+        )
+        
+        # Save to database with program identifier
+        if digest_text:
+            # Save with program-specific identifier
+            db.create_daily_digest(
+                show_date, digest_text, len(completed_blocks), 
+                total_callers, [program_name]
+            )
+            
+            # Save to file with program identifier
+            safe_program_name = program_name.lower().replace(' ', '_')
+            digest_filename = f"{show_date}_{safe_program_name}_digest.txt"
+            digest_path = Config.SUMMARIES_DIR / digest_filename
+            
+            with open(digest_path, 'w', encoding='utf-8') as f:
+                f.write(digest_text)
+            
+            logger.info(f"Program digest created: {digest_path}")
+        
+        return digest_text
+    
+    def _generate_program_digest(self, show_date: datetime.date, program_name: str,
+                                 prog_config: Dict, blocks_summaries: List[Dict],
+                                 total_callers: int, entities: List[str]) -> Optional[str]:
+        """Generate a digest for a single program using GPT."""
+        
+        # Prepare content for this program
+        program_content = ""
+        for block_summary in blocks_summaries:
+            program_content += f"\n--- Block {block_summary['block_code']} - {block_summary['block_name']} ---\n"
+            program_content += f"Callers: {block_summary['caller_count']}\n"
+            program_content += block_summary['summary']
+        
+        station = prog_config.get('station', 'Unknown')
+        
+        prompt = f"""
+Create a comprehensive daily digest for government civil servants based on today's call-in radio program.
+
+Date: {show_date}
+Program: {program_name}
+Station: {station}
+Total Blocks: {len(blocks_summaries)}
+Total Callers: {total_callers}
+Key Entities: {', '.join(entities[:20])}
+
+Block Summaries:
+{program_content}
+
+Please create a comprehensive digest with:
+
+1. EXECUTIVE SUMMARY (4-5 sentences covering the most important content)
+
+2. KEY THEMES & ISSUES (ranked by importance and prevalence)
+
+3. PUBLIC SENTIMENT & CONCERNS (what citizens are saying)
+
+4. POLICY IMPLICATIONS (areas requiring government attention)
+
+5. NOTABLE QUOTES & STATEMENTS
+
+6. RECOMMENDED FOLLOW-UP ACTIONS (if any)
+
+Format: Professional government briefing style.
+"""
+        
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a senior government analyst creating daily briefings for civil servants and ministers."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.2,
+                max_tokens=2500
+            )
+            
+            digest_text = response.choices[0].message.content
+            
+            # Add header with metadata
+            header = f"""
+DAILY RADIO SYNOPSIS - {program_name.upper()}
+Date: {show_date}
+Station: {station}
+Blocks Processed: {len(blocks_summaries)}
+Total Callers: {total_callers}
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+{'='*80}
+"""
+            
+            return header + digest_text
+            
+        except Exception as e:
+            logger.error(f"Error generating program digest: {e}")
+            return None
+    
     def _generate_daily_digest(self, show_date: datetime.date, programs_data: Dict, 
                               total_callers: int, entities: List[str]) -> Optional[str]:
         """Generate combined daily digest using GPT for all programs."""
