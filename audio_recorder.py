@@ -27,7 +27,12 @@ class AudioRecorder:
         """Record a specific time block."""
         
         prog_config = Config.get_program_config(program_key)
-        prog_name = prog_config['name'] if prog_config else 'Unknown'
+        if not prog_config:
+            logger.error(f"No program config found for {program_key}")
+            return None
+            
+        prog_name = prog_config['name']
+        stream_url = prog_config['stream_url']
         
         # Create block in database
         block_id = db.create_block(show_id, block_code, start_time, end_time)
@@ -38,6 +43,7 @@ class AudioRecorder:
         audio_path = Config.AUDIO_DIR / audio_filename
         
         logger.info(f"Starting recording for Block {block_code} ({prog_name}): {start_time} to {end_time}")
+        logger.info(f"Program: {program_key}, Stream: {stream_url}")
         
         try:
             # Update status to recording
@@ -46,8 +52,8 @@ class AudioRecorder:
             # Calculate duration in seconds
             duration_seconds = int((end_time - start_time).total_seconds())
             
-            # Record audio
-            success = self._record_audio(audio_path, duration_seconds)
+            # Record audio (pass stream_url for multi-program support)
+            success = self._record_audio(audio_path, duration_seconds, stream_url)
             
             # Check if the actual output file exists (might have _silence suffix)
             actual_audio_path = audio_path
@@ -86,12 +92,18 @@ class AudioRecorder:
             db.update_block_status(block_id, 'failed')
             return None
     
-    def _record_audio(self, output_path: Path, duration_seconds: int) -> bool:
-        """Record audio using ffmpeg or fallback methods."""
+    def _record_audio(self, output_path: Path, duration_seconds: int, stream_url: Optional[str] = None) -> bool:
+        """Record audio using ffmpeg or fallback methods.
+        
+        Args:
+            output_path: Path to save the audio file
+            duration_seconds: Duration to record in seconds
+            stream_url: Optional specific stream URL to use (for multi-program support)
+        """
         
         # Try different recording methods in order of preference
         methods = [
-            self._record_from_stream,
+            lambda p, d: self._record_from_stream(p, d, stream_url),
             self._record_from_system_audio,
             self._record_silence  # Fallback for testing
         ]
@@ -106,13 +118,22 @@ class AudioRecorder:
         
         return False
     
-    def _record_from_stream(self, output_path: Path, duration_seconds: int) -> bool:
-        """Record from radio stream using dynamic session ID retrieval when needed."""
+    def _record_from_stream(self, output_path: Path, duration_seconds: int, stream_url: Optional[str] = None) -> bool:
+        """Record from radio stream using dynamic session ID retrieval when needed.
         
-        if not Config.RADIO_STREAM_URL:
+        Args:
+            output_path: Path to save the audio file
+            duration_seconds: Duration to record in seconds
+            stream_url: Optional specific stream URL to use (overrides Config.RADIO_STREAM_URL)
+        """
+        
+        # Use provided stream_url or fall back to Config.RADIO_STREAM_URL
+        source_stream_url = stream_url or Config.RADIO_STREAM_URL
+        
+        if not source_stream_url:
             return False
         
-        logger.info(f"Recording from stream: {Config.RADIO_STREAM_URL}")
+        logger.info(f"Recording from stream: {source_stream_url}")
         
         try:
             import requests
@@ -120,7 +141,7 @@ class AudioRecorder:
             import re
             
             # Check if we need to use dynamic session ID
-            if "playSessionID=DYNAMIC" in Config.RADIO_STREAM_URL:
+            if "playSessionID=DYNAMIC" in source_stream_url:
                 logger.info("Dynamic session ID detected, fetching fresh session...")
                 
                 # First, get fresh session ID from station settings
@@ -144,22 +165,22 @@ class AudioRecorder:
                 if not session_match:
                     logger.warning("Could not extract session ID from station settings, trying direct stream...")
                     # Fallback to direct stream without session ID (discovered working method)
-                    stream_url = "https://ice66.securenetsystems.net/VOB929"
+                    final_stream_url = "https://ice66.securenetsystems.net/VOB929"
                     logger.info("Using direct stream URL (no session ID required)")
                 else:
                     session_id = session_match.group(1)
-                    stream_url = f"https://ice66.securenetsystems.net/VOB929?playSessionID={session_id}"
+                    final_stream_url = f"https://ice66.securenetsystems.net/VOB929?playSessionID={session_id}"
                     logger.info(f"Using fresh session ID: {session_id}")
-                logger.info(f"Stream URL: {stream_url}")
+                logger.info(f"Stream URL: {final_stream_url}")
             else:
                 # Use the configured URL directly, but prefer the working direct stream for VOB
-                if "VOB929" in Config.RADIO_STREAM_URL or not Config.RADIO_STREAM_URL:
+                if "VOB929" in source_stream_url:
                     # Use the discovered working direct stream
-                    stream_url = "https://ice66.securenetsystems.net/VOB929"
+                    final_stream_url = "https://ice66.securenetsystems.net/VOB929"
                     logger.info("Using discovered direct VOB stream (budget solution)")
                 else:
-                    stream_url = Config.RADIO_STREAM_URL
-                    logger.info(f"Using configured stream URL directly: {stream_url}")
+                    final_stream_url = source_stream_url
+                    logger.info(f"Using configured stream URL directly: {final_stream_url}")
                 session = requests.Session()
                     
             # Update headers to match embed player
@@ -172,11 +193,11 @@ class AudioRecorder:
             })            # Test connectivity first
             logger.info("Testing stream connectivity...")
             try:
-                test_response = session.head(stream_url, timeout=10)
+                test_response = session.head(final_stream_url, timeout=10)
                 if test_response.status_code != 200:
                     # Try GET with small range if HEAD fails
                     test_response = session.get(
-                        stream_url,
+                        final_stream_url,
                         headers={'Range': 'bytes=0-1023'},
                         timeout=10,
                         stream=True
@@ -190,7 +211,7 @@ class AudioRecorder:
                 return False
             
             # Start streaming request with fresh session ID
-            response = session.get(stream_url, stream=True, timeout=30)
+            response = session.get(final_stream_url, stream=True, timeout=30)
             response.raise_for_status()
             
             # Log stream info
@@ -378,7 +399,12 @@ class AudioRecorder:
             return None
         
         prog_config = Config.get_program_config(program_key)
-        prog_name = prog_config['name'] if prog_config else 'Unknown'
+        if not prog_config:
+            logger.error(f"No program config found for {program_key}")
+            return None
+            
+        prog_name = prog_config['name']
+        stream_url = prog_config['stream_url']
         
         now = datetime.now(Config.TIMEZONE)
         duration_seconds = duration_minutes * 60
@@ -388,6 +414,7 @@ class AudioRecorder:
         end_time = now + timedelta(seconds=duration_seconds)
         
         logger.info(f"Starting immediate recording for Block {block_code} ({prog_name})")
+        logger.info(f"Program: {program_key}, Stream: {stream_url}")
         logger.info(f"Duration: {duration_minutes} minutes ({duration_seconds} seconds)")
         # Get current date
         today = now.date()
@@ -411,6 +438,7 @@ class AudioRecorder:
         logger.info(f"Starting live recording for Block {block_code} ({prog_name}): {audio_filename}")
         print(f"🎙️  RECORDING INITIATED: Block {block_code} ({prog_name}) for {duration_minutes} minutes")
         print(f"📁 Output file: {audio_filename}")
+        print(f"📻 Stream URL: {stream_url}")
         print(f"⏰ Start: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"⏰ End: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
         
@@ -419,9 +447,9 @@ class AudioRecorder:
             db.update_block_status(block_id, 'recording')
             print(f"📊 Database status updated: RECORDING")
             
-            # Record audio for the specified duration
-            print(f"🔴 Starting audio capture...")
-            success = self._record_audio(audio_path, duration_seconds)
+            # Record audio for the specified duration (pass stream_url for multi-program support)
+            print(f"🔴 Starting audio capture from {prog_name}...")
+            success = self._record_audio(audio_path, duration_seconds, stream_url)
             
             # Check if the actual output file exists (might have _silence suffix)
             actual_audio_path = audio_path
