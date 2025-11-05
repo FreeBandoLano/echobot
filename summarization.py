@@ -542,62 +542,118 @@ RULES:
     def _generate_program_digest(self, show_date: datetime.date, program_name: str,
                                  prog_config: Dict, blocks_summaries: List[Dict],
                                  total_callers: int, entities: List[str]) -> Optional[str]:
-        """Generate a digest for a single program using GPT."""
+        """Generate a comprehensive 4000-word digest for a single program using GPT."""
         
-        # Prepare content for this program
+        # Prepare detailed content for this program
         program_content = ""
         for block_summary in blocks_summaries:
-            program_content += f"\n--- Block {block_summary['block_code']} - {block_summary['block_name']} ---\n"
+            program_content += f"\n\n=== Block {block_summary['block_code']} - {block_summary['block_name']} ===\n"
             program_content += f"Callers: {block_summary['caller_count']}\n"
-            program_content += block_summary['summary']
+            program_content += f"Key Points: {json.dumps(block_summary['key_points'])}\n"
+            program_content += f"Entities: {', '.join(block_summary['entities'])}\n"
+            program_content += f"Summary: {block_summary['summary']}\n"
         
         station = prog_config.get('station', 'Unknown')
         
         prompt = f"""
-Create a comprehensive daily digest for government civil servants based on today's call-in radio program.
+Create a comprehensive 4000-word daily intelligence briefing for senior government officials from today's "{program_name}" radio program.
+
+This briefing is for the Prime Minister's press secretary and senior civil servants to understand public sentiment and emerging issues ahead of upcoming elections.
+
+REQUIREMENTS:
+- Target 4000 words (approximately 24,000-28,000 characters)
+- Structured, professional analysis suitable for executive briefing
+- Focus on policy implications, public sentiment, and actionable intelligence
+- Include extensive quotes and caller-moderator exchanges when contextually relevant (no artificial limits)
+- Break down dense topics into organized bullet points with clear sub-headings
+- Provide concrete details and specific examples rather than vague generalizations
 
 Date: {show_date}
 Program: {program_name}
 Station: {station}
-Total Blocks: {len(blocks_summaries)}
-Total Callers: {total_callers}
-Key Entities: {', '.join(entities[:20])}
+Total Program Blocks: {len(blocks_summaries)}
+Total Public Callers: {total_callers}
+Key Public Figures Mentioned: {', '.join(entities[:15])}
 
-Block Summaries:
+Detailed Block Analysis:
 {program_content}
 
-Please create a comprehensive digest with:
+REQUIRED STRUCTURE (4000 words total):
 
-1. EXECUTIVE SUMMARY (4-5 sentences covering the most important content)
+## PREAMBLE (300 words)
+Focus specifically on how the moderator opened the program - their framing statements, agenda-setting, and introductory remarks that shaped the day's discourse. Include direct quotes from the moderator's opening when available.
 
-2. KEY THEMES & ISSUES (ranked by importance and prevalence)
+## EXECUTIVE SUMMARY (500 words)
+Comprehensive overview of main themes, critical issues, overall public sentiment, and immediate government concerns.
 
-3. PUBLIC SENTIMENT & CONCERNS (what citizens are saying)
+## TOPICS OVERVIEW (800 words)
+Break this into organized thematic clusters with clear structure:
 
-4. POLICY IMPLICATIONS (areas requiring government attention)
+### 1. [First Major Theme]
+- **Core Issue**: [specific problem discussed]
+- **Caller Positions**: [what callers said, with quotes when impactful]
+- **Moderator Response**: [how host engaged/steered discussion]
+- **Policy Implications**: [concrete government considerations]
+- **Notable Exchanges**: [key caller-moderator dialogue that reveals deeper concerns]
 
-5. NOTABLE QUOTES & STATEMENTS
+### 2. [Second Major Theme]
+[Same structured format]
 
-6. RECOMMENDED FOLLOW-UP ACTIONS (if any)
+### 3. [Third Major Theme]
+[Same structured format]
 
-Format: Professional government briefing style.
+For each theme, include as many direct quotes, paraphrased exchanges, and specific details as needed to fully capture the discussion dynamics.
+
+## CONVERSATION EVOLUTION (600 words)
+Track how discussions evolved throughout the program:
+- Opening themes vs closing themes
+- Sentiment shifts during the program
+- How callers influenced each other
+- Moderator guidance and steering
+- Emerging consensus or divisions
+
+## MODERATOR POSITIONS & INFLUENCE (400 words)
+Analysis of how program hosts:
+- Framed discussions and guided conversations
+- Responded to controversial topics
+- Influenced public opinion through questioning
+- Aligned with or challenged government positions
+
+## PUBLIC SENTIMENT ANALYSIS (600 words)
+Deep dive into caller emotions, concerns, and priorities:
+- Overall mood and confidence levels
+- Specific demographic patterns (if identifiable)
+- Areas of public frustration or support
+- Comparison to recent polling or previous programs
+
+## POLICY IMPLICATIONS & RECOMMENDATIONS (500 words)
+Actionable intelligence for government response:
+- Issues requiring immediate attention
+- Long-term policy considerations
+- Public communication opportunities
+- Potential political risks or advantages
+
+## NOTABLE QUOTES & EVIDENCE (300 words)
+Key statements that capture public mood or reveal important insights, with context and analysis. Include as many quotes as necessary to paint a complete picture of public discourse.
+
+Format: Professional government briefing style with clear sections and evidence-based analysis.
 """
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model="gpt-4o",
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a senior government analyst creating daily briefings for civil servants and ministers."
+                        "content": "You are a senior government analyst creating comprehensive 4000-word daily briefings for civil servants and ministers. You specialize in detailed policy analysis, public sentiment tracking, and actionable intelligence synthesis."
                     },
                     {
                         "role": "user",
                         "content": prompt
                     }
                 ],
-                temperature=0.2,
-                max_tokens=2500
+                temperature=0.3,
+                max_tokens=12000
             )
             
             digest_text = response.choices[0].message.content
