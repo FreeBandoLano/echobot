@@ -521,10 +521,10 @@ RULES:
         
         # Save to database with program identifier
         if digest_text:
-            # Save with program-specific identifier
+            # Save with program-specific identifier (without programs_included for now)
             db.create_daily_digest(
                 show_date, digest_text, len(completed_blocks), 
-                total_callers, [program_name]
+                total_callers
             )
             
             # Save to file with program identifier
