@@ -275,8 +275,29 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
     # Sort blocks by code
     block_data.sort(key=lambda x: x['block_code'])
     
-    # Get daily digest
+    # Get daily digest from database (for backward compatibility)
     digest = db.get_daily_digest(view_date)
+    
+    # Load program-specific digest files
+    program_digests = []
+    date_str = view_date.strftime('%Y-%m-%d')
+    for prog_key, prog_config in Config.PROGRAMS.items():
+        prog_name = prog_config['name']
+        safe_name = prog_name.lower().replace(' ', '_')
+        digest_filename = f"{date_str}_{safe_name}_digest.txt"
+        digest_path = Config.SUMMARIES_DIR / digest_filename
+        
+        if digest_path.exists():
+            try:
+                with open(digest_path, 'r', encoding='utf-8') as f:
+                    digest_content = f.read()
+                program_digests.append({
+                    'program_key': prog_key,
+                    'program_name': prog_name,
+                    'content': digest_content
+                })
+            except Exception as e:
+                logger.error(f"Error reading digest file {digest_filename}: {e}")
     
     # Calculate statistics
     total_blocks = len(blocks)
@@ -316,6 +337,7 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
         "show": show,
         "blocks": block_data,
         "digest": digest,
+        "program_digests": program_digests,
         "stats": {
             "total_blocks": total_blocks,
             "completed_blocks": completed_blocks,
@@ -1244,8 +1266,20 @@ def create_templates():
                 </div>
                 {% endfor %}
 
-                <!-- Daily Digest -->
-                {% if digest %}
+                <!-- Program-Specific Digests -->
+                {% if program_digests %}
+                    {% for prog_digest in program_digests %}
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">{{ prog_digest.program_name }} - Daily Digest</h5>
+                        </div>
+                        <div class="card-body">
+                            <pre style="white-space: pre-wrap; word-wrap: break-word;">{{ prog_digest.content }}</pre>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% elif digest %}
+                <!-- Legacy single digest (backward compatibility) -->
                 <div class="card mt-4">
                     <div class="card-header">
                         <h5 class="mb-0">Daily Digest</h5>
