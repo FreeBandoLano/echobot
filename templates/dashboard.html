@@ -213,7 +213,24 @@
             {% endfor %}
         </section>
 
-                {% if digest %}
+                {% if program_digests %}
+        <!-- Program-Specific Digests -->
+        <section class="panel" id="panel-digest" aria-labelledby="heading-digest" data-active="false">
+            <h2 id="heading-digest"><i class="bi bi-file-text"></i> Daily Intelligence Digests</h2>
+            
+            {% for prog_digest in program_digests %}
+            <div class="digest-program-section mb-4">
+                <h3 class="program-digest-title">
+                    <i class="bi bi-broadcast"></i> {{ prog_digest.program_name }}
+                </h3>
+                <div class="digest-box">
+                    <pre style="white-space: pre-wrap; word-wrap: break-word;">{{ prog_digest.content }}</pre>
+                </div>
+            </div>
+            {% endfor %}
+        </section>
+        {% elif digest %}
+        <!-- Legacy single digest (backward compatibility) -->
         <section class="panel" id="panel-digest" aria-labelledby="heading-digest" data-active="false">
             <h2 id="heading-digest"><i class="bi bi-file-text"></i> Daily Intelligence Digest</h2>
             
