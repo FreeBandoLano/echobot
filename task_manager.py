@@ -421,18 +421,32 @@ class TaskManager:
         return email_service.send_block_summary(task.block_id)
     
     def _handle_create_daily_digest(self, task: Task) -> bool:
-        """Handle daily digest creation task."""
+        """Handle daily digest creation task - creates separate program digests."""
         from summarization import summarizer
         from datetime import datetime
+        from config import Config
         
         if not task.show_date:
             raise ValueError("Show date required for daily digest task")
         
         date_obj = datetime.strptime(task.show_date, '%Y-%m-%d').date()
-        result = summarizer.create_daily_digest(date_obj)
         
-        if result:
-            # Schedule email for the digest
+        # Get all configured programs
+        program_keys = Config.get_all_programs()
+        
+        success_count = 0
+        for prog_key in program_keys:
+            logger.info(f"Creating digest for {prog_key} on {date_obj}")
+            result = summarizer.create_program_digest(date_obj, prog_key)
+            if result:
+                success_count += 1
+                logger.info(f"✅ Digest created for {prog_key}")
+            else:
+                logger.warning(f"⚠️ Failed to create digest for {prog_key}")
+        
+        # Consider it successful if at least one program digest was created
+        if success_count > 0:
+            # Schedule email for the digest(s)
             self.add_task(TaskType.EMAIL_DAILY_DIGEST, show_date=task.show_date)
             return True
         return False

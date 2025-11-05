@@ -164,6 +164,11 @@ class Config:
         return None
     
     @classmethod
+    def get_all_programs(cls):
+        """Get list of all configured program keys."""
+        return list(cls.PROGRAMS.keys())
+    
+    @classmethod
     def get_all_blocks(cls):
         """Get all blocks across all programs with program metadata."""
         all_blocks = {}
