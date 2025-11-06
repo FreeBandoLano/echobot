@@ -494,7 +494,8 @@ body::after {
   line-height: 1.9;
   font-size: 1.05rem;
   position: relative;
-  overflow: hidden;
+  max-height: 600px;
+  overflow-y: auto;
   transition: all var(--dur-ui) var(--ease-standard);
 }
 
@@ -583,6 +584,36 @@ body::after {
   opacity: 0.95;
 }
 
+/* Smooth custom scrollbar for digest boxes */
+.digest-box::-webkit-scrollbar {
+  width: 10px;
+}
+
+.digest-box::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-lg);
+}
+
+.digest-box::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    to bottom,
+    var(--color-gold) 0%,
+    var(--color-brand) 100%
+  );
+  border-radius: var(--radius-lg);
+  transition: background var(--dur-ui) var(--ease-standard);
+}
+
+.digest-box::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold);
+}
+
+/* For Firefox */
+.digest-box {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-gold) rgba(0, 0, 0, 0.1);
+}
+
 /* Add subtle left border accent */
 .digest-box::after {
   content: '';
@@ -611,6 +642,7 @@ body::after {
   .digest-box {
     padding: 1.25rem;
     font-size: 0.95rem;
+    max-height: 400px;
   }
   
   .program-digest-title {
