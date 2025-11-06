@@ -648,8 +648,8 @@ class Database:
                 row = conn.execute("SELECT * FROM shows WHERE id = ?", (show_id,)).fetchone()
                 return dict(row) if row else None
     
-    def create_block(self, show_id: int, block_code: str, start_time: datetime, end_time: datetime) -> int:
-        """Create a new block record."""
+    def create_block(self, show_id: int, block_code: str, start_time: datetime, end_time: datetime, program_name: str = None) -> int:
+        """Create a new block record with program name."""
         duration_minutes = int((end_time - start_time).total_seconds() / 60)
         
         # Convert timezone-aware datetime objects to strings for database compatibility
@@ -657,7 +657,7 @@ class Database:
         end_time_str = end_time.strftime('%Y-%m-%d %H:%M:%S')
         
         # Debug logging for Azure deployment
-        logger.info(f"🔍 create_block DEBUG - Input types: show_id={type(show_id)}, block_code={type(block_code)}, start_time={type(start_time)}, end_time={type(end_time)}")
+        logger.info(f"🔍 create_block DEBUG - Input types: show_id={type(show_id)}, block_code={type(block_code)}, start_time={type(start_time)}, end_time={type(end_time)}, program_name={program_name}")
         logger.info(f"🔍 create_block DEBUG - Values: show_id={show_id}, block_code='{block_code}', duration_minutes={duration_minutes}")
         logger.info(f"🔍 create_block DEBUG - String conversions: start_time_str='{start_time_str}', end_time_str='{end_time_str}'")
         logger.info(f"🔍 create_block DEBUG - Database type: {'Azure SQL' if self.use_azure_sql else 'SQLite'}")
@@ -670,14 +670,14 @@ class Database:
                     check_query = "SELECT id FROM blocks WHERE show_id = :show_id AND block_code = :block_code"
                     existing = conn.execute(str(text(check_query)), {"show_id": show_id, "block_code": block_code}).fetchone()
                     
-                    params = {"show_id": show_id, "block_code": block_code, "start_time": start_time_str, "end_time": end_time_str, "duration_minutes": duration_minutes}
+                    params = {"show_id": show_id, "block_code": block_code, "start_time": start_time_str, "end_time": end_time_str, "duration_minutes": duration_minutes, "program_name": program_name}
                     logger.info(f"🔍 create_block DEBUG - Azure SQL parameters dict: {params}")
                     
                     if existing:
                         # Update existing block
                         update_query = """
                         UPDATE blocks 
-                        SET start_time = :start_time, end_time = :end_time, duration_minutes = :duration_minutes, status = 'scheduled'
+                        SET start_time = :start_time, end_time = :end_time, duration_minutes = :duration_minutes, status = 'scheduled', program_name = :program_name
                         WHERE show_id = :show_id AND block_code = :block_code
                         """
                         conn.execute(str(text(update_query)), params)
@@ -688,8 +688,8 @@ class Database:
                     else:
                         # Insert new block
                         insert_query = """
-                        INSERT INTO blocks (show_id, block_code, start_time, end_time, duration_minutes, status) 
-                        VALUES (:show_id, :block_code, :start_time, :end_time, :duration_minutes, 'scheduled')
+                        INSERT INTO blocks (show_id, block_code, start_time, end_time, duration_minutes, status, program_name) 
+                        VALUES (:show_id, :block_code, :start_time, :end_time, :duration_minutes, 'scheduled', :program_name)
                         """
                         try:
                             conn.execute(str(text(insert_query)), params)
@@ -712,13 +712,13 @@ class Database:
                             raise e
             else:
                 with self.get_connection() as conn:
-                    params = (show_id, block_code, start_time_str, end_time_str, duration_minutes)
+                    params = (show_id, block_code, start_time_str, end_time_str, duration_minutes, program_name)
                     logger.info(f"🔍 create_block DEBUG - SQLite parameters tuple: {params} (types: {[type(p) for p in params]})")
                     
                     cursor = conn.execute("""
                         INSERT OR REPLACE INTO blocks 
-                        (show_id, block_code, start_time, end_time, duration_minutes, status)
-                        VALUES (?, ?, ?, ?, ?, 'scheduled')
+                        (show_id, block_code, start_time, end_time, duration_minutes, status, program_name)
+                        VALUES (?, ?, ?, ?, ?, 'scheduled', ?)
                     """, params)
                     block_id = cursor.lastrowid
                     logger.info(f"🔍 create_block DEBUG - Successfully created block_id: {block_id}")

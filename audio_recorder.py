@@ -34,8 +34,8 @@ class AudioRecorder:
         prog_name = prog_config['name']
         stream_url = prog_config['stream_url']
         
-        # Create block in database
-        block_id = db.create_block(show_id, block_code, start_time, end_time)
+        # Create block in database with program name
+        block_id = db.create_block(show_id, block_code, start_time, end_time, prog_name)
         
         # Generate filename
         date_str = start_time.strftime('%Y-%m-%d')
@@ -429,10 +429,10 @@ class AudioRecorder:
         audio_filename = f"{timestamp_str}_block_{block_code}_live_{duration_minutes}min.wav"
         audio_path = Config.AUDIO_DIR / audio_filename
         
-        # Create block in database
+        # Create block in database with program name
         logger.info(f"🔍 record_live_duration DEBUG - Before create_block: show_id={show_id} (type: {type(show_id)}), block_code='{block_code}' (type: {type(block_code)})")
         logger.info(f"🔍 record_live_duration DEBUG - start_time={start_time} (type: {type(start_time)}), end_time={end_time} (type: {type(end_time)})")
-        block_id = db.create_block(show_id, block_code, start_time, end_time)
+        block_id = db.create_block(show_id, block_code, start_time, end_time, prog_name)
         logger.info(f"🔍 record_live_duration DEBUG - create_block successful, block_id={block_id}")
         
         logger.info(f"Starting live recording for Block {block_code} ({prog_name}): {audio_filename}")
