@@ -467,6 +467,19 @@ class Database:
                     created_at DATETIME2 DEFAULT GETDATE()
                 );
 
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[program_digests]') AND type in (N'U'))
+                CREATE TABLE program_digests (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    show_date DATE NOT NULL,
+                    program_key NVARCHAR(50) NOT NULL,
+                    program_name NVARCHAR(100) NOT NULL,
+                    digest_text NVARCHAR(MAX),
+                    blocks_processed INT,
+                    total_callers INT,
+                    created_at DATETIME2 DEFAULT GETDATE(),
+                    CONSTRAINT UQ_program_digest UNIQUE (show_date, program_key)
+                );
+
                 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[topics]') AND type in (N'U'))
                 CREATE TABLE topics (
                     id INT IDENTITY(1,1) PRIMARY KEY,
@@ -1087,6 +1100,113 @@ class Database:
             with self.get_connection() as conn:
                 row = conn.execute(
                     "SELECT * FROM daily_digests WHERE show_date = ?", (show_date_str,)
+                ).fetchone()
+                return dict(row) if row else None
+
+    # ---------------- Program Digest Methods (VOB/CBC persistent storage) ----------------
+    
+    def save_program_digest(self, show_date: date, program_key: str, program_name: str, 
+                           digest_text: str, blocks_processed: int = 0, total_callers: int = 0) -> int:
+        """
+        Save or update a program-specific digest (VOB/CBC) to Azure SQL database.
+        Returns the digest ID. Uses MERGE to handle updates elegantly.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        show_date_str = show_date.strftime('%Y-%m-%d')
+        
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                # Use MERGE for elegant upsert in Azure SQL
+                merge_query = """
+                MERGE INTO program_digests AS target
+                USING (SELECT :show_date AS show_date, :program_key AS program_key) AS source
+                ON target.show_date = source.show_date AND target.program_key = source.program_key
+                WHEN MATCHED THEN
+                    UPDATE SET 
+                        program_name = :program_name,
+                        digest_text = :digest_text,
+                        blocks_processed = :blocks_processed,
+                        total_callers = :total_callers,
+                        created_at = GETDATE()
+                WHEN NOT MATCHED THEN
+                    INSERT (show_date, program_key, program_name, digest_text, blocks_processed, total_callers)
+                    VALUES (:show_date, :program_key, :program_name, :digest_text, :blocks_processed, :total_callers);
+                """
+                try:
+                    conn.execute(str(text(merge_query)), {
+                        "show_date": show_date_str,
+                        "program_key": program_key,
+                        "program_name": program_name,
+                        "digest_text": digest_text,
+                        "blocks_processed": blocks_processed,
+                        "total_callers": total_callers
+                    })
+                    conn.commit()
+                    
+                    # Get the ID
+                    id_result = conn.execute(
+                        str(text("SELECT id FROM program_digests WHERE show_date = :show_date AND program_key = :program_key")),
+                        {"show_date": show_date_str, "program_key": program_key}
+                    )
+                    digest_id = id_result.fetchone()[0]
+                    logger.info(f"✅ Saved {program_key} digest to database (ID: {digest_id})")
+                    return digest_id
+                except Exception as e:
+                    logger.error(f"❌ Failed to save {program_key} digest: {e}")
+                    raise e
+        else:
+            # SQLite fallback
+            with self.get_connection() as conn:
+                cursor = conn.execute("""
+                    INSERT OR REPLACE INTO program_digests 
+                    (show_date, program_key, program_name, digest_text, blocks_processed, total_callers)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (show_date_str, program_key, program_name, digest_text, blocks_processed, total_callers))
+                return cursor.lastrowid
+    
+    def get_program_digests(self, show_date: date) -> List[Dict]:
+        """
+        Get all program digests (VOB/CBC) for a specific date from database.
+        Returns list of digest dicts with keys: id, show_date, program_key, program_name, 
+        digest_text, blocks_processed, total_callers, created_at
+        """
+        show_date_str = show_date.strftime('%Y-%m-%d')
+        
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                result = conn.execute(
+                    str(text("SELECT * FROM program_digests WHERE show_date = :show_date ORDER BY program_key")),
+                    {"show_date": show_date_str}
+                )
+                rows = result.fetchall()
+                return [dict(row._mapping) for row in rows]
+        else:
+            with self.get_connection() as conn:
+                rows = conn.execute(
+                    "SELECT * FROM program_digests WHERE show_date = ? ORDER BY program_key",
+                    (show_date_str,)
+                ).fetchall()
+                return [dict(row) for row in rows]
+    
+    def get_program_digest(self, show_date: date, program_key: str) -> Optional[Dict]:
+        """Get a specific program digest by date and program key."""
+        show_date_str = show_date.strftime('%Y-%m-%d')
+        
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                result = conn.execute(
+                    str(text("SELECT * FROM program_digests WHERE show_date = :show_date AND program_key = :program_key")),
+                    {"show_date": show_date_str, "program_key": program_key}
+                )
+                row = result.fetchone()
+                return dict(row._mapping) if row else None
+        else:
+            with self.get_connection() as conn:
+                row = conn.execute(
+                    "SELECT * FROM program_digests WHERE show_date = ? AND program_key = ?",
+                    (show_date_str, program_key)
                 ).fetchone()
                 return dict(row) if row else None
 

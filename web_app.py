@@ -278,26 +278,37 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
     # Get daily digest from database (for backward compatibility)
     digest = db.get_daily_digest(view_date)
     
-    # Load program-specific digest files
+    # ✅ NEW: Load program-specific digests from DATABASE (persistent storage)
     program_digests = []
-    date_str = view_date.strftime('%Y-%m-%d')
-    for prog_key, prog_config in Config.PROGRAMS.items():
-        prog_name = prog_config['name']
-        safe_name = prog_name.lower().replace(' ', '_')
-        digest_filename = f"{date_str}_{safe_name}_digest.txt"
-        digest_path = Config.SUMMARIES_DIR / digest_filename
-        
-        if digest_path.exists():
-            try:
-                with open(digest_path, 'r', encoding='utf-8') as f:
-                    digest_content = f.read()
-                program_digests.append({
-                    'program_key': prog_key,
-                    'program_name': prog_name,
-                    'content': digest_content
-                })
-            except Exception as e:
-                logger.error(f"Error reading digest file {digest_filename}: {e}")
+    db_digests = db.get_program_digests(view_date)
+    for digest_record in db_digests:
+        program_digests.append({
+            'program_key': digest_record['program_key'],
+            'program_name': digest_record['program_name'],
+            'content': digest_record['digest_text']
+        })
+    
+    # ⚠️ DEPRECATED: Fallback to files if no database digests (migration period only)
+    if not program_digests:
+        date_str = view_date.strftime('%Y-%m-%d')
+        for prog_key, prog_config in Config.PROGRAMS.items():
+            prog_name = prog_config['name']
+            safe_name = prog_name.lower().replace(' ', '_')
+            digest_filename = f"{date_str}_{safe_name}_digest.txt"
+            digest_path = Config.SUMMARIES_DIR / digest_filename
+            
+            if digest_path.exists():
+                try:
+                    with open(digest_path, 'r', encoding='utf-8') as f:
+                        digest_content = f.read()
+                    program_digests.append({
+                        'program_key': prog_key,
+                        'program_name': prog_name,
+                        'content': digest_content
+                    })
+                    logger.info(f"📁 Loaded {prog_name} digest from file (fallback)")
+                except Exception as e:
+                    logger.error(f"Error reading digest file {digest_filename}: {e}")
     
     # Calculate statistics
     total_blocks = len(blocks)

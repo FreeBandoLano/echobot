@@ -521,13 +521,19 @@ RULES:
         
         # Save to database with program identifier
         if digest_text:
-            # Save with program-specific identifier (without programs_included for now)
-            db.create_daily_digest(
-                show_date, digest_text, len(completed_blocks), 
-                total_callers
+            # ✅ NEW: Save to Azure SQL database (persistent across restarts)
+            prog_key = prog_config.get('key', program_name.lower().replace(' ', '_'))
+            db.save_program_digest(
+                show_date=show_date,
+                program_key=prog_key,
+                program_name=program_name,
+                digest_text=digest_text,
+                blocks_processed=len(completed_blocks),
+                total_callers=total_callers
             )
+            logger.info(f"✅ Saved {program_name} digest to database ({len(digest_text)} chars)")
             
-            # Save to file with program identifier
+            # ⚠️ DEPRECATED: Keep file backup for now (will remove later)
             safe_program_name = program_name.lower().replace(' ', '_')
             digest_filename = f"{show_date}_{safe_program_name}_digest.txt"
             digest_path = Config.SUMMARIES_DIR / digest_filename
@@ -535,7 +541,7 @@ RULES:
             with open(digest_path, 'w', encoding='utf-8') as f:
                 f.write(digest_text)
             
-            logger.info(f"Program digest created: {digest_path}")
+            logger.info(f"📁 File backup created: {digest_path}")
         
         return digest_text
     
