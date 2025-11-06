@@ -798,7 +798,7 @@ async def reprocess_date(date: str = Form(...)):
 
 @app.post("/api/generate-enhanced-digest")
 async def generate_enhanced_digest(date: str = Form(...)):
-    """Generate enhanced daily digest for a specific date."""
+    """Generate enhanced daily digest for a specific date (legacy single digest)."""
     
     try:
         # Parse and validate date
@@ -843,6 +843,55 @@ async def generate_enhanced_digest(date: str = Form(...)):
         raise
     except Exception as e:
         logger.error(f"Enhanced digest generation failed for {date}: {e}")
+        raise HTTPException(status_code=500, detail=f"Digest generation failed: {str(e)}")
+
+@app.post("/api/generate-program-digests")
+async def generate_program_digests(request: Request):
+    """Generate program-specific digests for given dates."""
+    
+    try:
+        body = await request.json()
+        dates_str = body.get('dates', [])
+        
+        # Parse dates
+        dates = [datetime.strptime(d, '%Y-%m-%d').date() for d in dates_str]
+        
+        results = []
+        
+        for target_date in dates:
+            date_results = {'date': str(target_date), 'digests': []}
+            
+            for prog_key in Config.get_all_programs():
+                prog_config = Config.get_program_config(prog_key)
+                prog_name = prog_config['name']
+                
+                try:
+                    digest_text = summarizer.create_program_digest(target_date, prog_key)
+                    
+                    if digest_text:
+                        date_results['digests'].append({
+                            'program': prog_name,
+                            'status': 'success',
+                            'length': len(digest_text)
+                        })
+                    else:
+                        date_results['digests'].append({
+                            'program': prog_name,
+                            'status': 'not_ready'
+                        })
+                except Exception as e:
+                    date_results['digests'].append({
+                        'program': prog_name,
+                        'status': 'error',
+                        'error': str(e)
+                    })
+            
+            results.append(date_results)
+        
+        return {'status': 'success', 'results': results}
+        
+    except Exception as e:
+        logger.error(f"Program digest generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Digest generation failed: {str(e)}")
 
 @app.post("/api/send-digest-email")
@@ -962,6 +1011,75 @@ async def cleanup_legacy_data():
     except Exception as e:
         logger.error(f"Legacy data cleanup failed: {e}")
         raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
+
+@app.post("/api/backfill-program-names")
+async def backfill_program_names(request: Request):
+    """Backfill program_name for blocks based on block_code."""
+    
+    try:
+        body = await request.json()
+        dates_str = body.get('dates', [])
+        
+        # Parse dates
+        dates = [datetime.strptime(d, '%Y-%m-%d').date() for d in dates_str]
+        
+        results = []
+        
+        for target_date in dates:
+            blocks = db.get_blocks_by_date(target_date)
+            
+            if not blocks:
+                results.append({
+                    'date': str(target_date),
+                    'status': 'no_blocks',
+                    'updated': 0
+                })
+                continue
+            
+            updated_count = 0
+            
+            with db.get_connection() as conn:
+                for block in blocks:
+                    block_code = block['block_code']
+                    
+                    # Determine correct program name
+                    if block_code in ['A', 'B', 'C', 'D']:
+                        correct_program = 'Down to Brass Tacks'
+                    elif block_code in ['E', 'F']:
+                        correct_program = "Let's Talk About It"
+                    else:
+                        continue
+                    
+                    # Update if different
+                    if block.get('program_name') != correct_program:
+                        if db.use_azure_sql:
+                            conn.execute(text("UPDATE blocks SET program_name = :program_name WHERE id = :block_id"), 
+                                       {"program_name": correct_program, "block_id": block['id']})
+                        else:
+                            conn.execute("UPDATE blocks SET program_name = ? WHERE id = ?", 
+                                       (correct_program, block['id']))
+                        updated_count += 1
+                
+                conn.commit()
+            
+            # Verify
+            blocks_after = db.get_blocks_by_date(target_date)
+            vob_count = len([b for b in blocks_after if b.get('program_name') == 'Down to Brass Tacks'])
+            cbc_count = len([b for b in blocks_after if b.get('program_name') == "Let's Talk About It"])
+            
+            results.append({
+                'date': str(target_date),
+                'status': 'success',
+                'updated': updated_count,
+                'vob_blocks': vob_count,
+                'cbc_blocks': cbc_count
+            })
+        
+        return {'status': 'success', 'results': results}
+        
+    except Exception as e:
+        logger.error(f"Program name backfill failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Backfill failed: {str(e)}")
 
 @app.get("/health")
 async def health_check():
