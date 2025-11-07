@@ -862,7 +862,12 @@ async def generate_program_digests(request: Request):
     
     try:
         body = await request.json()
-        dates_str = body.get('dates', [])
+        
+        # Support both 'date' (single) and 'dates' (array)
+        if 'date' in body:
+            dates_str = [body['date']]
+        else:
+            dates_str = body.get('dates', [])
         
         # Parse dates
         dates = [datetime.strptime(d, '%Y-%m-%d').date() for d in dates_str]
