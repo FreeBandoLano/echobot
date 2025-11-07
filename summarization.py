@@ -474,14 +474,13 @@ RULES:
         logger.info(f"📊 Program digest check for {program_name} on {show_date}: "
                    f"{len(completed_blocks)}/{expected_count} blocks completed")
         
-        if len(completed_blocks) < expected_count:
-            logger.warning(f"⏳ Only {len(completed_blocks)}/{expected_count} blocks completed "
-                          f"for {program_name} - need all blocks")
+        # ✅ FLEXIBLE: Generate digest if at least 1 block is completed (not all required)
+        if not completed_blocks:
+            logger.warning(f"⏳ No completed blocks found for {program_name} on {show_date}")
             return None
         
-        if not completed_blocks:
-            logger.warning(f"No completed blocks found for {program_name} on {show_date}")
-            return None
+        if len(completed_blocks) < expected_count:
+            logger.info(f"⚠️ Partial digest: {len(completed_blocks)}/{expected_count} blocks completed for {program_name}")
         
         logger.info(f"✅ Creating digest for {program_name} with {len(completed_blocks)} blocks")
         
