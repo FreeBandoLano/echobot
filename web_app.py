@@ -642,6 +642,127 @@ async def api_llm_toggle(enable: bool):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/digest/pdf")
+async def download_digest_pdf(date: str, program: str):
+    """Generate and download a PDF of the program digest."""
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    
+    try:
+        # Parse date
+        show_date = datetime.strptime(date, '%Y-%m-%d').date()
+        
+        # Get digest from database
+        digest_record = db.get_program_digest(show_date, program)
+        
+        if not digest_record:
+            raise HTTPException(status_code=404, detail=f"Digest not found for {program} on {date}")
+        
+        # Get program config for nice filename
+        prog_config = Config.get_program_config(program)
+        program_name = prog_config['name'] if prog_config else program
+        
+        # Try to use ReportLab for PDF generation
+        try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+            from reportlab.lib.enums import TA_LEFT, TA_CENTER
+            
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter,
+                                   leftMargin=0.75*inch, rightMargin=0.75*inch,
+                                   topMargin=0.75*inch, bottomMargin=0.75*inch)
+            
+            styles = getSampleStyleSheet()
+            
+            # Custom styles
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=16,
+                textColor='#1a1a1a',
+                spaceAfter=12,
+                alignment=TA_CENTER
+            )
+            
+            heading_style = ParagraphStyle(
+                'CustomHeading',
+                parent=styles['Heading2'],
+                fontSize=12,
+                textColor='#2c3e50',
+                spaceAfter=6,
+                spaceBefore=12
+            )
+            
+            body_style = ParagraphStyle(
+                'CustomBody',
+                parent=styles['Normal'],
+                fontSize=10,
+                leading=14,
+                alignment=TA_LEFT
+            )
+            
+            # Build PDF content
+            story = []
+            
+            # Title
+            story.append(Paragraph(f"<b>{program_name}</b>", title_style))
+            story.append(Paragraph(f"Daily Intelligence Digest - {show_date.strftime('%B %d, %Y')}", styles['Normal']))
+            story.append(Spacer(1, 0.3*inch))
+            
+            # Digest content - split by lines and format
+            digest_text = digest_record['digest_text']
+            lines = digest_text.split('\n')
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    story.append(Spacer(1, 0.1*inch))
+                    continue
+                
+                # Detect headers (lines with ## or ===)
+                if line.startswith('##'):
+                    clean_line = line.replace('##', '').strip()
+                    story.append(Paragraph(f"<b>{clean_line}</b>", heading_style))
+                elif line.startswith('===') or line.startswith('---'):
+                    story.append(Spacer(1, 0.05*inch))
+                else:
+                    # Escape HTML entities and preserve formatting
+                    safe_line = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    story.append(Paragraph(safe_line, body_style))
+            
+            # Build PDF
+            doc.build(story)
+            buffer.seek(0)
+            
+            filename = f"{date}_{program}_digest.pdf"
+            
+            return StreamingResponse(
+                buffer,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
+            
+        except ImportError:
+            # Fallback: Return plain text if ReportLab not available
+            logger.warning("ReportLab not available, returning plain text")
+            digest_text = digest_record['digest_text']
+            filename = f"{date}_{program}_digest.txt"
+            
+            return StreamingResponse(
+                iter([digest_text.encode()]),
+                media_type="text/plain",
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
+            
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    except Exception as e:
+        logger.error(f"PDF generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
+
 # Removed cost tracking functionality
 
 @app.post("/api/backfill/segments")

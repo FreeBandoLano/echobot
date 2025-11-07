@@ -32,6 +32,9 @@ pytz==2023.3
 sqlalchemy==2.0.23
 pyodbc==5.0.1
 
+# PDF generation
+reportlab==4.0.7
+
 # Optional audio system dependencies (uncomment if needed)
 # sounddevice==0.4.6
 # soundfile==0.12.1
