@@ -176,6 +176,9 @@ class RadioScheduler:
         
         self.setup_daily_schedule()
         
+        # ✅ CHECK FOR MISSED BLOCKS: If we restarted mid-day, catch up on any blocks that should be recording
+        self._check_missed_blocks_on_startup()
+        
         # Start scheduler thread
         self.scheduler_thread = threading.Thread(target=self._run_scheduler, daemon=True)
         self.scheduler_thread.start()
@@ -223,6 +226,59 @@ class RadioScheduler:
             except Exception as e:
                 logger.error(f"Scheduler error: {e}")
                 time.sleep(60)  # Wait a minute before retrying
+    
+    def _check_missed_blocks_on_startup(self):
+        """Check if we missed any blocks due to restart/deployment and start recording if still in time window."""
+        
+        now = get_local_datetime()
+        today = now.date()
+        current_time = now.time()
+        
+        # Skip Saturday (weekday=5)
+        if today.weekday() == 5:
+            logger.info("🚫 Saturday - no missed block check needed")
+            return
+        
+        logger.info(f"🔍 Checking for missed blocks at {now.strftime('%H:%M:%S')}...")
+        
+        for prog_key, prog_config in Config.PROGRAMS.items():
+            program_name = prog_config['name']
+            
+            for block_code, block_config in prog_config['blocks'].items():
+                start_time_str = block_config['start_time']
+                end_time_str = block_config['end_time']
+                
+                # Parse times
+                start_time = datetime.strptime(start_time_str, '%H:%M').time()
+                end_time = datetime.strptime(end_time_str, '%H:%M').time()
+                
+                # Check if block already exists in database
+                blocks = db.get_blocks_by_date(today)
+                block_exists = any(b['block_code'] == block_code and b.get('program_name') == program_name for b in blocks)
+                
+                # Check if we're currently within this block's time window
+                if start_time <= current_time <= end_time:
+                    if block_exists:
+                        logger.info(f"✅ Block {block_code} ({program_name}) already recording or recorded")
+                    else:
+                        logger.warning(f"⚠️ MISSED BLOCK: {block_code} ({program_name}) should be recording NOW!")
+                        logger.info(f"   Time: {start_time_str}-{end_time_str}, Current: {current_time.strftime('%H:%M')}")
+                        logger.info(f"   🎙️ Starting immediate catch-up recording...")
+                        
+                        # Start recording immediately in a background thread
+                        recording_thread = threading.Thread(
+                            target=self._record_block_thread,
+                            args=(block_code, today, prog_key),
+                            daemon=True
+                        )
+                        recording_thread.start()
+                
+                elif start_time <= current_time and current_time > end_time and not block_exists:
+                    # Block time has completely passed and wasn't recorded
+                    logger.warning(f"⚠️ Block {block_code} ({program_name}) missed - ended at {end_time_str}, now {current_time.strftime('%H:%M')}")
+                    logger.info(f"   ℹ️ Too late to record - time window has passed")
+        
+        logger.info("✅ Missed block check complete")
     
     def _start_block_recording(self, block_code: str, program_key: str):
         """Start recording a specific block for a program."""
