@@ -98,6 +98,358 @@ This project uses OpenAI APIs:
 Radio Stream → Audio Chunks → Transcription → AI Summary → Web Dashboard
 ```
 
+## API Reference
+
+### Web Interface Endpoints
+
+#### `GET /`
+**Dashboard Home Page**
+- Description: Main dashboard displaying today's recordings and summaries
+- Query Parameters:
+  - `date` (optional): View specific date in YYYY-MM-DD format
+  - `message` (optional): Display success message
+  - `error` (optional): Display error message
+- Returns: HTML dashboard
+
+#### `GET /block/{block_id}`
+**Block Detail Page**
+- Description: Detailed view of a specific recording block
+- Parameters:
+  - `block_id`: Database ID of the block
+- Returns: HTML page with transcript, summary, and audio player
+
+#### `GET /archive`
+**Historical Archive Page**
+- Description: Browse recordings by date with calendar interface
+- Returns: HTML archive page
+
+---
+
+### System Status APIs
+
+#### `GET /api/status`
+**Current System Status**
+- Description: Real-time status of recordings and processing
+- Returns:
+```json
+{
+  "date": "2025-11-07",
+  "total_blocks": 6,
+  "status_counts": {
+    "completed": 4,
+    "processing": 1,
+    "recording": 1
+  },
+  "scheduler_running": true,
+  "commit": "abc123",
+  "build_time": "2025-11-07T12:00:00",
+  "timestamp": "2025-11-07T14:30:00"
+}
+```
+
+#### `GET /api/info`
+**Deployment Information**
+- Description: Lightweight health check and version info
+- Returns:
+```json
+{
+  "app": "echobot",
+  "version": "1.1.0",
+  "commit": "abc123",
+  "build_time": "2025-11-07T12:00:00",
+  "enable_llm": true,
+  "scheduler_running": true,
+  "db": "ok",
+  "utc": "2025-11-07T18:30:00Z"
+}
+```
+
+---
+
+### Analytics & Metrics APIs
+
+#### `GET /api/filler/trend`
+**Filler Content Trend Analysis**
+- Description: Daily filler percentage trends over time
+- Query Parameters:
+  - `days` (optional): Number of days to analyze (1-90, default: 14)
+- Returns:
+```json
+{
+  "days": 14,
+  "trend": [
+    {
+      "date": "2025-11-07",
+      "filler_percentage": 45.2,
+      "content_percentage": 54.8,
+      "total_minutes": 240
+    }
+  ]
+}
+```
+
+#### `GET /api/filler/overview`
+**Filler Content Overview**
+- Description: Aggregate statistics for recent timeframe
+- Query Parameters:
+  - `days` (optional): Timeframe in days (1-30, default: 7)
+- Returns:
+```json
+{
+  "range": 7,
+  "aggregate": {
+    "total_filler_minutes": 1250.5,
+    "total_content_minutes": 1450.3,
+    "average_filler_percentage": 46.3
+  },
+  "today": {
+    "blocks": [
+      {
+        "block_code": "A",
+        "filler_minutes": 45.2,
+        "content_minutes": 74.8
+      }
+    ]
+  }
+}
+```
+
+#### `GET /api/filler/block/{block_id}`
+**Per-Block Filler Statistics**
+- Description: Detailed filler breakdown for a specific block
+- Parameters:
+  - `block_id`: Database ID of the block
+- Returns:
+```json
+{
+  "block_id": 123,
+  "filler_minutes": 45.2,
+  "content_minutes": 74.8,
+  "filler_percentage": 37.7,
+  "segments": [
+    {
+      "type": "music",
+      "duration": 180.5
+    }
+  ]
+}
+```
+
+#### `GET /api/rolling/summary`
+**Rolling Window Summary**
+- Description: Recent time window summary from today's non-filler content
+- Query Parameters:
+  - `minutes` (optional): Window size (1-180, default: 30)
+- Returns: Summary of most recent content
+
+---
+
+### LLM & AI Control APIs
+
+#### `GET /api/llm/usage`
+**LLM Usage Statistics**
+- Description: Summarization usage counters and status
+- Returns:
+```json
+{
+  "enable_llm": true,
+  "total_requests": 145,
+  "total_tokens": 234567,
+  "total_cost": 12.45
+}
+```
+
+#### `POST /api/llm/toggle`
+**Toggle LLM Processing**
+- Description: Enable/disable AI summarization at runtime (in-memory only)
+- Body Parameters:
+  - `enable`: boolean
+- Returns:
+```json
+{
+  "enable_llm": true
+}
+```
+
+---
+
+### Digest & Report APIs
+
+#### `GET /api/digest/pdf`
+**Download Program Digest PDF**
+- Description: Generate and download PDF version of program digest
+- Query Parameters:
+  - `date`: Date in YYYY-MM-DD format
+  - `program`: Program key (e.g., "VOB_BRASS_TACKS", "CBC_LETS_TALK")
+- Returns: PDF file download or plain text fallback
+- Example:
+```bash
+curl "https://your-app.azurewebsites.net/api/digest/pdf?date=2025-11-07&program=VOB_BRASS_TACKS" \
+  -o digest.pdf
+```
+
+#### `POST /api/generate-program-digests`
+**Generate Program-Specific Digests**
+- Description: Create comprehensive 4000-word intelligence briefings for specific programs
+- Body Parameters:
+  - `date`: Single date string (YYYY-MM-DD), OR
+  - `dates`: Array of date strings
+  - `program` (optional): Specific program key to generate
+- Returns:
+```json
+{
+  "status": "success",
+  "results": [
+    {
+      "date": "2025-11-07",
+      "digests": [
+        {
+          "program": "Down to Brass Tacks",
+          "status": "success",
+          "length": 25430
+        },
+        {
+          "program": "Let's Talk About It",
+          "status": "not_ready"
+        }
+      ]
+    }
+  ]
+}
+```
+- Example:
+```bash
+# Single date, all programs
+curl -X POST https://your-app.azurewebsites.net/api/generate-program-digests \
+  -H "Content-Type: application/json" \
+  -d '{"date": "2025-11-07"}'
+
+# Multiple dates, specific program
+curl -X POST https://your-app.azurewebsites.net/api/generate-program-digests \
+  -H "Content-Type: application/json" \
+  -d '{"dates": ["2025-11-03", "2025-11-04"], "program": "VOB_BRASS_TACKS"}'
+```
+
+#### `POST /api/generate-enhanced-digest`
+**Generate Combined Daily Digest**
+- Description: Legacy endpoint - generates single combined digest from all programs
+- Body Parameters (form-data):
+  - `date`: Date in YYYY-MM-DD format
+- Returns:
+```json
+{
+  "success": true,
+  "date": "2025-11-07",
+  "digest_type": "enhanced",
+  "message": "Enhanced digest generated successfully",
+  "blocks_processed": 6,
+  "preview": "DAILY RADIO SYNOPSIS..."
+}
+```
+
+#### `POST /api/send-digest-email`
+**Email Digest to Recipients**
+- Description: Send existing digest via email
+- Body Parameters (form-data):
+  - `date`: Date in YYYY-MM-DD format
+- Returns:
+```json
+{
+  "success": true,
+  "date": "2025-11-07",
+  "message": "Digest email sent successfully"
+}
+```
+
+---
+
+### Manual Control APIs
+
+#### `POST /api/manual-record`
+**Manually Trigger Recording**
+- Description: Start recording for a specific block immediately
+- Body Parameters (form-data):
+  - `block_code`: Block identifier (A, B, C, D, E, F)
+- Returns: Redirect to dashboard with status message
+
+#### `POST /api/manual-record-duration`
+**Record for Specific Duration**
+- Description: Record for a custom duration regardless of schedule
+- Body Parameters (form-data):
+  - `block_code`: Block identifier
+  - `duration_minutes`: Duration in minutes (1-120)
+- Returns: Redirect to dashboard with status message
+
+#### `POST /api/manual-process`
+**Manually Trigger Processing**
+- Description: Start transcription and summarization for a block
+- Body Parameters (form-data):
+  - `block_code`: Block identifier
+- Returns: Redirect to dashboard with status message
+
+#### `POST /api/reprocess-date`
+**Reprocess Historical Date**
+- Description: Re-run summarization for all blocks on a specific date
+- Body Parameters (form-data):
+  - `date`: Date in YYYY-MM-DD format (max 30 days old)
+- Returns:
+```json
+{
+  "success": true,
+  "date": "2025-11-07",
+  "reprocessed_blocks": ["A", "B", "C", "D"],
+  "errors": [],
+  "message": "Reprocessed 4 blocks for 2025-11-07"
+}
+```
+
+---
+
+### Maintenance APIs
+
+#### `POST /api/backfill/segments`
+**Backfill Missing Segments**
+- Description: Admin tool to populate missing timeline segments
+- Query Parameters:
+  - `run`: boolean - Execute changes (default: false, dry-run)
+  - `rebuild`: boolean - Rebuild all segments
+  - `limit`: integer - Max blocks to process
+- Returns: Backfill operation results
+
+#### `POST /api/cleanup-legacy-data`
+**Clean Legacy Data**
+- Description: Remove JSON contamination from old summary records
+- Returns: Cleanup operation results
+
+---
+
+### API Usage Examples
+
+**Check System Status:**
+```bash
+curl https://your-app.azurewebsites.net/api/status
+```
+
+**Generate Digests for Multiple Dates:**
+```bash
+curl -X POST https://your-app.azurewebsites.net/api/generate-program-digests \
+  -H "Content-Type: application/json" \
+  -d '{"dates": ["2025-11-03", "2025-11-04", "2025-11-05", "2025-11-06"]}'
+```
+
+**Download Digest as PDF:**
+```bash
+curl "https://your-app.azurewebsites.net/api/digest/pdf?date=2025-11-07&program=VOB_BRASS_TACKS" \
+  -o brass_tacks_digest.pdf
+```
+
+**Get Filler Trend for Last 30 Days:**
+```bash
+curl "https://your-app.azurewebsites.net/api/filler/trend?days=30"
+```
+
+---
+
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 

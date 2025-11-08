@@ -220,17 +220,9 @@
             
             {% for prog_digest in program_digests %}
             <div class="digest-program-section mb-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="program-digest-title mb-0">
-                        <i class="bi bi-broadcast"></i> {{ prog_digest.program_name }}
-                    </h3>
-                    <a href="/api/digest/pdf?date={{ view_date.strftime('%Y-%m-%d') }}&program={{ prog_digest.program_key }}" 
-                       class="btn btn-sm btn-outline-primary" 
-                       download="{{ view_date.strftime('%Y-%m-%d') }}_{{ prog_digest.program_key }}_digest.pdf"
-                       title="Download PDF">
-                        <i class="bi bi-file-pdf"></i> Download PDF
-                    </a>
-                </div>
+                <h3 class="program-digest-title mb-3">
+                    <i class="bi bi-broadcast"></i> {{ prog_digest.program_name }}
+                </h3>
                 <div class="digest-box">
                     <pre style="white-space: pre-wrap; word-wrap: break-word;">{{ prog_digest.content }}</pre>
                 </div>
