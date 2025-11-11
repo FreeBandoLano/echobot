@@ -586,7 +586,20 @@ Detailed Block Analysis:
 REQUIRED STRUCTURE (4000 words total):
 
 ## PREAMBLE (300 words)
-Focus specifically on how the moderator opened the program - their framing statements, agenda-setting, and introductory remarks that shaped the day's discourse. Include direct quotes from the moderator's opening when available.
+Extract and analyze how the moderator opened the program with the following structured breakdown:
+
+**Moderator's Opening Statement:**
+- Direct quotes from the moderator's introduction (verbatim when available)
+- Tone and framing used to set the day's agenda
+
+**Topics Announced for Discussion:**
+List the specific topics, issues, or themes the moderator explicitly mentioned they intended to cover during the program. Use bullet points:
+- Topic 1: [Quote or paraphrase what moderator said about this topic]
+- Topic 2: [Quote or paraphrase]
+- Topic 3: [Quote or paraphrase]
+
+**Agenda-Setting Analysis:**
+How did the moderator frame these topics? What language, emphasis, or perspective did they use to position the day's discussion? What priorities or concerns were signaled?
 
 ## EXECUTIVE SUMMARY (500 words)
 Comprehensive overview of main themes, critical issues, overall public sentiment, and immediate government concerns.
