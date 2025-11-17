@@ -521,16 +521,16 @@ RULES:
         # Save to database with program identifier
         if digest_text:
             # ✅ NEW: Save to Azure SQL database (persistent across restarts)
-            prog_key = prog_config.get('key', program_name.lower().replace(' ', '_'))
+            # Use the program_key parameter directly (e.g., VOB_BRASS_TACKS, CBC_LETS_TALK)
             db.save_program_digest(
                 show_date=show_date,
-                program_key=prog_key,
+                program_key=program_key,  # Use the parameter passed in, not derived from name
                 program_name=program_name,
                 digest_text=digest_text,
                 blocks_processed=len(completed_blocks),
                 total_callers=total_callers
             )
-            logger.info(f"✅ Saved {program_name} digest to database ({len(digest_text)} chars)")
+            logger.info(f"✅ Saved {program_name} digest to database with key '{program_key}' ({len(digest_text)} chars)")
             
             # ⚠️ DEPRECATED: Keep file backup for now (will remove later)
             safe_program_name = program_name.lower().replace(' ', '_')
