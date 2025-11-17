@@ -452,7 +452,7 @@ class TaskManager:
         return False
     
     def _handle_email_daily_digest(self, task: Task) -> bool:
-        """Handle daily digest email task."""
+        """Handle daily digest email task - sends separate emails for each program."""
         from email_service import email_service
         from datetime import datetime
         
@@ -460,7 +460,9 @@ class TaskManager:
             raise ValueError("Show date required for digest email task")
         
         date_obj = datetime.strptime(task.show_date, '%Y-%m-%d').date()
-        return email_service.send_daily_digest(date_obj)
+        
+        # ✅ NEW: Send separate program-specific digest emails (VOB + CBC)
+        return email_service.send_program_digests(date_obj)
     
     def get_task_status(self, task_id: int) -> Optional[Dict]:
         """Get status of a specific task."""

@@ -417,23 +417,24 @@ class RadioScheduler:
             logger.info(f"🚫 Skipping daily digest creation - Saturday")
             return
         
-        logger.info(f"📧 Creating and emailing daily digest for {today}")
+        logger.info(f"📧 Creating and emailing program digests for {today}")
         
         try:
-            # Create digest
+            # ⚠️ DEPRECATED: This scheduler method is rarely used (DIGEST_CREATOR=task_manager by default)
+            # Create legacy combined digest (kept for backward compatibility)
             digest = summarizer.create_daily_digest(today)
             
             if digest:
                 logger.info("✅ Daily digest created successfully")
                 
-                # Send email digest (EOD delivery)
+                # Send program-specific digest emails (VOB + CBC)
                 try:
                     from email_service import email_service
-                    email_sent = email_service.send_daily_digest(today)
+                    email_sent = email_service.send_program_digests(today)
                     if email_sent:
-                        logger.info("📧 Daily digest email sent successfully")
+                        logger.info("📧 Program digest emails sent successfully")
                     else:
-                        logger.warning("⚠️ Daily digest email failed to send")
+                        logger.warning("⚠️ Program digest emails failed to send")
                 except Exception as email_err:
                     logger.error(f"❌ Email service error: {email_err}")
                     

@@ -2,6 +2,7 @@
 
 import smtplib
 import logging
+import re
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -361,8 +362,89 @@ https://echobot-docker-app.azurewebsites.net/
         
         return html
     
+    def send_program_digests(self, show_date: date) -> bool:
+        """Send separate digest emails for each program (VOB and CBC)."""
+        
+        from config import Config
+        
+        # ✅ DUPLICATE EMAIL FIX: Check if already sent
+        try:
+            import time
+            cache_file = Config.WEB_DIR / f".program_digests_email_sent_{show_date}.lock"
+            
+            if cache_file.exists():
+                # Check if lock is recent (within last 2 hours)
+                lock_age = time.time() - cache_file.stat().st_mtime
+                if lock_age < 7200:  # 2 hours
+                    logger.info(f"⏭️  Program digest emails for {show_date} already sent {int(lock_age/60)} minutes ago, skipping")
+                    return True  # Return True to indicate "success" (email already sent)
+        except Exception as lock_err:
+            logger.warning(f"Failed to check email lock: {lock_err}")
+            # Continue anyway - better to send duplicate than not send at all
+        
+        success_count = 0
+        programs_to_send = Config.get_all_programs()
+        
+        for program_key in programs_to_send:
+            try:
+                # Get program digest from database
+                digest = db.get_program_digest(show_date, program_key)
+                if not digest:
+                    logger.warning(f"Program digest for {program_key} on {show_date} not found, skipping")
+                    continue
+                
+                # Get program configuration
+                prog_config = Config.get_program_config(program_key)
+                if not prog_config:
+                    logger.error(f"Unknown program key: {program_key}")
+                    continue
+                
+                program_name = prog_config['name']
+                station = prog_config.get('station', 'Radio')
+                
+                # Format date
+                formatted_date = show_date.strftime('%B %d, %Y')
+                
+                # Create program-specific subject
+                subject = f"[{program_name}] Daily Brief – {formatted_date}"
+                
+                # Create email body
+                body_text = self._create_program_digest_text(digest, show_date, program_name, station)
+                body_html = self._create_program_digest_html(digest, show_date, program_name, station)
+                
+                # Log digest length for monitoring
+                digest_length = len(digest.get('digest_text', ''))
+                email_length = len(body_text)
+                logger.info(f"📊 {program_name} digest: {digest_length} chars core content, {email_length} chars total email")
+                
+                # Send email
+                if self._send_email(subject, body_text, body_html):
+                    logger.info(f"📧 {program_name} digest email delivered to {len(self.email_to)} recipients")
+                    success_count += 1
+                else:
+                    logger.error(f"Failed to send {program_name} digest email")
+                    
+            except Exception as e:
+                logger.error(f"Error sending {program_key} digest email: {e}")
+        
+        # ✅ DUPLICATE EMAIL FIX: Create lock file if at least one email sent
+        if success_count > 0:
+            try:
+                cache_file = Config.WEB_DIR / f".program_digests_email_sent_{show_date}.lock"
+                cache_file.touch()
+                logger.info(f"✅ Created program-digests email-sent lock for {show_date}")
+            except Exception as lock_err:
+                logger.warning(f"Failed to create email lock (non-critical): {lock_err}")
+        
+        # Return True if all available digests were sent successfully
+        return success_count > 0
+    
     def send_daily_digest(self, show_date: date) -> bool:
-        """Send daily digest email to stakeholders with 4000 char optimization."""
+        """Send daily digest email to stakeholders with 4000 char optimization.
+        
+        ⚠️ DEPRECATED: Use send_program_digests() instead for program-specific emails.
+        This method is kept for backward compatibility with legacy combined digests.
+        """
         
         # ✅ DUPLICATE EMAIL FIX: Check if already sent
         try:
@@ -424,9 +506,90 @@ https://echobot-docker-app.azurewebsites.net/
             logger.error(f"Error sending daily digest email: {e}")
             return False
     
+    def _create_program_digest_text(self, digest: Dict, show_date: date,
+                                   program_name: str, station: str) -> str:
+        """Create plain text program digest email (supports 4000+ word digests)."""
+        
+        formatted_date = show_date.strftime('%B %d, %Y')
+        
+        # Extract the core digest content (4000-word intelligence briefing)
+        digest_content = digest.get('digest_text', 'No digest available')
+        
+        # Create minimal header/footer to preserve space for content
+        text = f"""{program_name.upper()} - DAILY INTELLIGENCE BRIEF
+{station} | {formatted_date} | {digest.get('total_callers', 0)} callers | {digest.get('blocks_processed', 0)} blocks
+
+{digest_content}
+
+---
+Generated: {datetime.now().strftime('%H:%M AST')} | View full archive: https://echobot-docker-app.azurewebsites.net/
+"""
+        
+        # Note: No truncation for program digests - these are 4000-word briefings
+        # Email clients can handle large text content (tested up to 30KB+)
+        return text
+    
+    def _create_program_digest_html(self, digest: Dict, show_date: date,
+                                   program_name: str, station: str) -> str:
+        """Create HTML program digest email."""
+        
+        formatted_date = show_date.strftime('%B %d, %Y')
+        digest_content = digest.get('digest_text', 'No digest available')
+        
+        # Convert markdown-style headers to HTML
+        import re
+        html_content = digest_content
+        html_content = re.sub(r'^## (.*?)$', r'<h2>\1</h2>', html_content, flags=re.MULTILINE)
+        html_content = re.sub(r'^### (.*?)$', r'<h3>\1</h3>', html_content, flags=re.MULTILINE)
+        html_content = re.sub(r'^\*\*(.*?)\*\*', r'<strong>\1</strong>', html_content, flags=re.MULTILINE)
+        html_content = html_content.replace('\n\n', '</p><p>')
+        html_content = f'<p>{html_content}</p>'
+        
+        html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: Georgia, 'Times New Roman', serif; line-height: 1.6; color: #2c3e50; max-width: 800px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px; margin-bottom: 30px; }}
+        .header h1 {{ margin: 0; font-size: 24px; font-weight: 600; }}
+        .header .meta {{ margin-top: 10px; opacity: 0.95; font-size: 14px; }}
+        .content {{ background: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+        h2 {{ color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 10px; margin-top: 30px; }}
+        h3 {{ color: #764ba2; margin-top: 20px; }}
+        .footer {{ margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: center; font-size: 12px; color: #6c757d; }}
+        .footer a {{ color: #667eea; text-decoration: none; }}
+        p {{ margin-bottom: 15px; }}
+        strong {{ color: #2c3e50; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{program_name.upper()} - DAILY INTELLIGENCE BRIEF</h1>
+        <div class="meta">
+            {station} | {formatted_date} | {digest.get('total_callers', 0)} callers | {digest.get('blocks_processed', 0)} blocks
+        </div>
+    </div>
+    <div class="content">
+        {html_content}
+    </div>
+    <div class="footer">
+        Generated: {datetime.now().strftime('%Y-%m-%d %H:%M AST')}<br>
+        <a href="https://echobot-docker-app.azurewebsites.net/">View Full Archive</a>
+    </div>
+</body>
+</html>
+"""
+        
+        return html
+    
     def _create_daily_digest_text(self, digest: Dict, show_date: date, 
                                  completed_blocks: List[Dict]) -> str:
-        """Create plain text daily digest email with 4000 char limit."""
+        """Create plain text daily digest email with 4000 char limit.
+        
+        ⚠️ DEPRECATED: Use _create_program_digest_text() for program-specific emails.
+        """
         
         formatted_date = show_date.strftime('%B %d, %Y')
         
@@ -450,8 +613,6 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View details: https://echobo
             truncate_pos = text.rfind('.', 0, 4800)
             if truncate_pos > 2000:  # Make sure we don't truncate too much
                 text = text[:truncate_pos + 1] + "\n\n[Content truncated - view full digest online]"
-        
-        return text
         
         return text
     
