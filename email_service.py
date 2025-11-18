@@ -28,7 +28,7 @@ class EmailService:
         self.smtp_user = os.getenv('SMTP_USER', '')
         self.smtp_pass = os.getenv('SMTP_PASS', '')
         self.email_from = os.getenv('EMAIL_FROM', self.smtp_user)
-        self.email_to = os.getenv('EMAIL_TO', '').split(',')
+        self.email_to = os.getenv('EMAIL_TO', 'delano@futurebarbados.bb,anya@futurebarbados.bb,Roy.morris@barbados.gov.bb,delanowaithe@gmail.com').split(',')
         self.email_enabled = os.getenv('ENABLE_EMAIL', 'false').lower() == 'true'
         
         # Clean email list
