@@ -1043,25 +1043,25 @@ async def send_digest_email(date: str = Form(...)):
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
         
-        # Check if digest exists
-        digest = db.get_daily_digest(target_date)
-        if not digest:
+        # Check if program digests exist
+        program_digests = db.get_program_digests(target_date)
+        if not program_digests:
             return {
                 "success": False,
-                "message": f"No digest found for {target_date}",
+                "message": f"No program digests found for {target_date}",
                 "date": str(target_date)
             }
         
-        # Send email
-        logger.info(f"Sending digest email for {target_date}")
+        # Send program-specific digest emails (VOB + CBC)
+        logger.info(f"Sending program digest emails for {target_date}")
         from email_service import email_service
-        success = email_service.send_daily_digest(target_date)
+        success = email_service.send_program_digests(target_date)
         
         if success:
             return {
                 "success": True,
                 "date": str(target_date),
-                "message": f"Digest email sent successfully for {target_date}"
+                "message": f"Program digest emails sent successfully for {target_date}"
             }
         else:
             return {
