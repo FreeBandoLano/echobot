@@ -185,7 +185,7 @@ INSTRUCTIONS:
 5. Provide actionable follow-ups (who, what, urgency: low|medium|high) where grounded.
 6. Categorize entities: government, private_sector, civil_society, individuals.
 7. Provide metrics (caller_count, caller_talk_ratio, filler_ratio, ads_count, music_count).
-8. Output first a concise narrative (<=300 words), then STRICT JSON object (schema below). No extra prose after JSON.
+8. Output first a concise narrative (<=500 words), then STRICT JSON object (schema below). No extra prose after JSON.
 
 DETAIL PRESERVATION (CRITICAL):
 When summarizing topics, preserve:
