@@ -156,7 +156,7 @@ class RadioSummarizer:
                     }
                 ],
                 temperature=0.3,  # Low temperature for consistency
-                max_tokens=1500
+                max_tokens=2500
             )
             
             raw_text = response.choices[0].message.content
@@ -185,7 +185,14 @@ INSTRUCTIONS:
 5. Provide actionable follow-ups (who, what, urgency: low|medium|high) where grounded.
 6. Categorize entities: government, private_sector, civil_society, individuals.
 7. Provide metrics (caller_count, caller_talk_ratio, filler_ratio, ads_count, music_count).
-8. Output first a concise narrative (<=120 words), then STRICT JSON object (schema below). No extra prose after JSON.
+8. Output first a concise narrative (<=300 words), then STRICT JSON object (schema below). No extra prose after JSON.
+
+DETAIL PRESERVATION (CRITICAL):
+When summarizing topics, preserve:
+- Specific locations (neighborhoods, streets, areas)
+- Timelines (how long, since when, duration)
+- Quantities (how many people affected, cost amounts, counts)
+- Direct quote fragments (impactful phrases from callers in quotation marks)
 
 BLOCK META:
 Block: {block_code} ({block_name})
@@ -198,8 +205,8 @@ TRANSCRIPT (raw – may include music/ads/promos):
 
 JSON SCHEMA:
 {{
-  "public_concerns": [{{"topic": str, "summary": str, "callers_involved": int}}],
-  "official_announcements": [{{"topic": str, "summary": str}}],
+  "public_concerns": [{{"topic": str, "summary": str, "callers_involved": int, "key_quotes": [str]}}],
+  "official_announcements": [{{"topic": str, "summary": str, "key_quotes": [str]}}],
   "commercial_items": [str],
   "actions": [{{"who": str, "what": str, "urgency": "low|medium|high"}}],
   "entities": {{
@@ -219,6 +226,7 @@ RULES:
 - No duplicate topics.
 - Keep commercial_items short phrases.
 - caller_talk_ratio + filler_ratio between 0 and 1 (approx ok).
+- Include 1-3 impactful quotes per topic in key_quotes array (actual caller words in quotes).
 """
     
     def _create_empty_summary(self, block_code: str, block_name: str, transcript_data: Dict) -> Dict:
