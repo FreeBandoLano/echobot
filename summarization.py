@@ -593,6 +593,22 @@ RULES:
         
         station = prog_config.get('station', 'Unknown')
         
+        # Calculate program time range from blocks
+        blocks_config = prog_config.get('blocks', {})
+        block_times = []
+        for block_code, block_info in blocks_config.items():
+            start = block_info.get('start_time', '')
+            end = block_info.get('end_time', '')
+            if start and end:
+                block_times.append((start, end))
+        
+        # Get earliest start and latest end
+        program_time = ""
+        if block_times:
+            start_times = [t[0] for t in block_times]
+            end_times = [t[1] for t in block_times]
+            program_time = f"{min(start_times)}-{max(end_times)}"
+        
         prompt = f"""
 Create a comprehensive 4000-word daily intelligence briefing for senior government officials from today's "{program_name}" radio program.
 
@@ -710,9 +726,10 @@ Format: Professional government briefing style with clear sections and evidence-
             digest_text = response.choices[0].message.content
             
             # Add header with metadata
+            time_display = f" | {program_time}" if program_time else ""
             header = f"""
 DAILY RADIO SYNOPSIS - {program_name.upper()}
-Date: {show_date}
+Date: {show_date}{time_display}
 Station: {station}
 Blocks Processed: {len(blocks_summaries)}
 Total Callers: {total_callers}
