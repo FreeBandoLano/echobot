@@ -335,8 +335,33 @@ RULES:
                 
                 summary_text = "\n".join(lines)
             
-            # Use existing quotes or extract from transcript
-            quotes = existing_quotes[:3] if existing_quotes else []
+            # Extract quotes from new key_quotes field (with fallback to existing_quotes)
+            extracted_quotes = []
+            
+            # Collect quotes from public_concerns
+            for concern in json_part.get('public_concerns', []):
+                for quote_text in concern.get('key_quotes', [])[:2]:  # Max 2 quotes per topic
+                    if quote_text:
+                        extracted_quotes.append({
+                            'text': quote_text,
+                            'speaker': 'Caller',
+                            'timestamp': '',
+                            'topic': concern.get('topic', 'Unknown')
+                        })
+            
+            # Collect quotes from official_announcements
+            for announcement in json_part.get('official_announcements', []):
+                for quote_text in announcement.get('key_quotes', [])[:1]:  # Max 1 quote per announcement
+                    if quote_text:
+                        extracted_quotes.append({
+                            'text': quote_text,
+                            'speaker': 'Host/Official',
+                            'timestamp': '',
+                            'topic': announcement.get('topic', 'Unknown')
+                        })
+            
+            # Use extracted quotes, fallback to existing quotes if none found
+            quotes = extracted_quotes[:10] if extracted_quotes else existing_quotes[:3]
             
             return {
                 'summary': summary_text,
