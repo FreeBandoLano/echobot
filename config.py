@@ -72,7 +72,7 @@ class Config:
         'CBC_LETS_TALK': {
             'name': "Let's Talk About It",
             'station': 'CBC Q100.7 FM',
-            'stream_url': os.getenv('CBC_STREAM_URL', 'http://108.178.16.190:8000/981fm.mp3'),
+            'stream_url': os.getenv('CBC_STREAM_URL', 'http://108.178.16.190:8000/1007fm.mp3'),
             'target_audience': 'general community members',
             'content_focus': 'community issues, local concerns, and public discourse',
             'blocks': {
