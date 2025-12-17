@@ -531,52 +531,234 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View full archive: https://e
     
     def _create_program_digest_html(self, digest: Dict, show_date: date,
                                    program_name: str, station: str) -> str:
-        """Create HTML program digest email."""
+        """Create HTML program digest email with enhanced UI/UX."""
         
         formatted_date = show_date.strftime('%B %d, %Y')
         digest_content = digest.get('digest_text', 'No digest available')
         
-        # Convert markdown-style headers to HTML
+        # Calculate reading time
+        word_count = len(digest_content.split())
+        reading_time = max(1, round(word_count / 200))
+        
         import re
-        html_content = digest_content
-        html_content = re.sub(r'^## (.*?)$', r'<h2>\1</h2>', html_content, flags=re.MULTILINE)
-        html_content = re.sub(r'^### (.*?)$', r'<h3>\1</h3>', html_content, flags=re.MULTILINE)
-        html_content = re.sub(r'^\*\*(.*?)\*\*', r'<strong>\1</strong>', html_content, flags=re.MULTILINE)
-        html_content = html_content.replace('\n\n', '</p><p>')
-        html_content = f'<p>{html_content}</p>'
+        
+        def make_anchor(text: str) -> str:
+            """Create a clean, unique anchor ID from header text."""
+            anchor = text.lower()
+            anchor = re.sub(r'[^a-z0-9\s]', '', anchor)  # Remove non-alphanumeric except spaces
+            anchor = re.sub(r'\s+', '-', anchor.strip())  # Replace spaces with single dash
+            return anchor
+        
+        # 1. Extract TOC
+        toc_items = []
+        for line in digest_content.split('\n'):
+            if line.startswith('## '):
+                title = line[3:].strip()
+                anchor = make_anchor(title)
+                toc_items.append(f'<li><a href="#{anchor}">{title}</a></li>')
+        
+        toc_html = f"""
+        <div class="toc">
+            <h3>In this Briefing</h3>
+            <ul>{''.join(toc_items)}</ul>
+        </div>
+        """ if toc_items else ""
+
+        # 2. Process Content
+        lines = digest_content.split('\n')
+        html_lines = []
+        in_list = False
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                if in_list:
+                    html_lines.append('</ul>')
+                    in_list = False
+                # Skip empty lines - paragraph spacing handled by CSS margins
+                continue
+                
+            # Headers
+            if line.startswith('## '):
+                if in_list: html_lines.append('</ul>'); in_list = False
+                title = line[3:].strip()
+                anchor = make_anchor(title)
+                html_lines.append(f'<h2 id="{anchor}">{title}</h2>')
+            elif line.startswith('### '):
+                if in_list: html_lines.append('</ul>'); in_list = False
+                html_lines.append(f'<h3>{line[4:].strip()}</h3>')
+            
+            # Lists
+            elif line.startswith('- ') or line.startswith('* '):
+                if not in_list:
+                    html_lines.append('<ul>')
+                    in_list = True
+                content = line[2:].strip()
+                # Handle bolding inside list items
+                content = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', content)
+                html_lines.append(f'<li>{content}</li>')
+            
+            # Blockquotes (if GPT uses >)
+            elif line.startswith('> '):
+                if in_list: html_lines.append('</ul>'); in_list = False
+                html_lines.append(f'<blockquote>{line[2:].strip()}</blockquote>')
+            
+            # Regular paragraphs
+            else:
+                if in_list: html_lines.append('</ul>'); in_list = False
+                # Handle bolding
+                content = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', line)
+                html_lines.append(f'<p>{content}</p>')
+        
+        if in_list:
+            html_lines.append('</ul>')
+            
+        html_content = '\n'.join(html_lines)
         
         html = f"""
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body {{ font-family: Georgia, 'Times New Roman', serif; line-height: 1.6; color: #2c3e50; max-width: 800px; margin: 0 auto; padding: 20px; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px; margin-bottom: 30px; }}
-        .header h1 {{ margin: 0; font-size: 24px; font-weight: 600; }}
-        .header .meta {{ margin-top: 10px; opacity: 0.95; font-size: 14px; }}
-        .content {{ background: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        h2 {{ color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 10px; margin-top: 30px; }}
-        h3 {{ color: #764ba2; margin-top: 20px; }}
-        .footer {{ margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: center; font-size: 12px; color: #6c757d; }}
-        .footer a {{ color: #667eea; text-decoration: none; }}
-        p {{ margin-bottom: 15px; }}
-        strong {{ color: #2c3e50; }}
+        /* Base & Typography */
+        body {{ 
+            font-family: Georgia, 'Times New Roman', serif; 
+            line-height: 1.6; 
+            color: #2c3e50; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #f4f7f6;
+        }}
+        .container {{
+            max-width: 680px; 
+            margin: 0 auto; 
+            padding: 20px;
+        }}
+        
+        /* Header */
+        .header {{ 
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%); 
+            color: white; 
+            padding: 40px 30px; 
+            border-radius: 12px 12px 0 0; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }}
+        .header h1 {{ 
+            margin: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 28px; 
+            font-weight: 700; 
+            letter-spacing: -0.5px;
+        }}
+        .header .meta {{ 
+            margin-top: 15px; 
+            opacity: 0.9; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 14px; 
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }}
+        .badge {{
+            background: rgba(255,255,255,0.2);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+        }}
+
+        /* Content */
+        .content {{ 
+            background: #ffffff; 
+            padding: 40px 30px; 
+            border-radius: 0 0 12px 12px; 
+            box-shadow: 0 2px 15px rgba(0,0,0,0.05); 
+        }}
+        
+        /* Typography Elements */
+        h2 {{ 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #2c3e50; 
+            border-bottom: 2px solid #ecf0f1; 
+            padding-bottom: 10px; 
+            margin-top: 40px; 
+            font-size: 22px;
+        }}
+        h3 {{ 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #34495e; 
+            margin-top: 25px; 
+            font-size: 18px;
+        }}
+        p {{ margin-bottom: 1.2em; font-size: 17px; }}
+        strong {{ color: #2c3e50; font-weight: 700; }}
+        
+        /* Lists */
+        ul {{ padding-left: 20px; margin-bottom: 20px; }}
+        li {{ margin-bottom: 8px; font-size: 17px; }}
+        
+        /* Quotes */
+        blockquote {{
+            border-left: 4px solid #3498db;
+            background: #f8f9fa;
+            margin: 20px 0;
+            padding: 15px 20px;
+            font-style: italic;
+            color: #555;
+            border-radius: 0 4px 4px 0;
+        }}
+
+        /* TOC */
+        .toc {{
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #e9ecef;
+        }}
+        .toc h3 {{ margin-top: 0; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; color: #7f8c8d; }}
+        .toc ul {{ margin: 0; padding-left: 20px; }}
+        .toc li {{ margin-bottom: 5px; font-size: 15px; }}
+        .toc a {{ color: #3498db; text-decoration: none; }}
+        .toc a:hover {{ text-decoration: underline; }}
+
+        /* Footer */
+        .footer {{ 
+            margin-top: 30px; 
+            text-align: center; 
+            font-size: 13px; 
+            color: #95a5a6; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }}
+        .footer a {{ color: #3498db; text-decoration: none; }}
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>{program_name.upper()} - DAILY INTELLIGENCE BRIEF</h1>
-        <div class="meta">
-            {station} | {formatted_date} | {digest.get('total_callers', 0)} callers | {digest.get('blocks_processed', 0)} blocks
+    <div class="container">
+        <div class="header">
+            <h1>{program_name.upper()}</h1>
+            <div class="meta">
+                <span class="badge">{station}</span>
+                <span>{formatted_date}</span>
+                <span>⏱️ ~{reading_time} min read</span>
+            </div>
+            <div class="meta" style="margin-top: 8px; font-size: 13px; opacity: 0.8;">
+                {digest.get('total_callers', 0)} callers • {digest.get('blocks_processed', 0)} blocks analyzed
+            </div>
         </div>
-    </div>
-    <div class="content">
-        {html_content}
-    </div>
-    <div class="footer">
-        Generated: {datetime.now().strftime('%Y-%m-%d %H:%M AST')}<br>
-        <a href="https://echobot-docker-app.azurewebsites.net/">View Full Archive</a>
+        
+        <div class="content">
+            {toc_html}
+            {html_content}
+        </div>
+        
+        <div class="footer">
+            <p>Generated by EchoBot Intelligence • {datetime.now().strftime('%Y-%m-%d %H:%M AST')}</p>
+            <p><a href="https://echobot-docker-app.azurewebsites.net/">View Full Archive & Analytics</a></p>
+        </div>
     </div>
 </body>
 </html>
