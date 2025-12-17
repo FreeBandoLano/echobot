@@ -319,7 +319,8 @@ RULES:
                 *entities_dict.get('individuals', [])
             })[:20]
             
-            # Build readable summary from narrative or create one from concerns
+            # Build read
+able summary from narrative or create one from concerns
             if narrative:
                 summary_text = narrative
             else:
@@ -610,17 +611,18 @@ RULES:
             program_time = f"{min(start_times)}-{max(end_times)}"
         
         prompt = f"""
-Create a comprehensive 4000-word daily intelligence briefing for senior government officials from today's "{program_name}" radio program.
+Create a comprehensive 4800-word daily intelligence briefing for senior government officials from today's "{program_name}" radio program.
 
 This briefing is for the Prime Minister's press secretary and senior civil servants to understand public sentiment and emerging issues ahead of upcoming elections.
 
 REQUIREMENTS:
-- Target 4000 words (approximately 24,000-28,000 characters)
+- Target 4800 words (approximately 29,000-34,000 characters)
 - Structured, professional analysis suitable for executive briefing
-- Focus on policy implications, public sentiment, and actionable intelligence
-- Include extensive quotes and caller-moderator exchanges when contextually relevant (no artificial limits)
+- Focus on public sentiment, specific caller concerns, and detailed exchanges
+- Include extensive quotes and caller-moderator exchanges throughout (no artificial limits)
 - Break down dense topics into organized bullet points with clear sub-headings
 - Provide concrete details and specific examples rather than vague generalizations
+- Prioritize direct caller quotes and notable exchanges over policy analysis
 
 Date: {show_date}
 Program: {program_name}
@@ -632,7 +634,7 @@ Key Public Figures Mentioned: {', '.join(entities[:15])}
 Detailed Block Analysis:
 {program_content}
 
-REQUIRED STRUCTURE (4000 words total):
+REQUIRED STRUCTURE (4800 words total):
 
 ## PREAMBLE (300 words)
 Extract and analyze how the moderator opened the program with the following structured breakdown:
@@ -653,23 +655,32 @@ How did the moderator frame these topics? What language, emphasis, or perspectiv
 ## EXECUTIVE SUMMARY (500 words)
 Comprehensive overview of main themes, critical issues, overall public sentiment, and immediate government concerns.
 
-## TOPICS OVERVIEW (800 words)
-Break this into organized thematic clusters with clear structure:
+## TOPICS OVERVIEW (1600 words)
+Break this into AT LEAST 5 organized thematic clusters with detailed coverage. PRIORITIZE specific caller statements, direct quotes, and notable exchanges over general summaries.
 
 ### 1. [First Major Theme]
-- **Core Issue**: [specific problem discussed]
-- **Caller Positions**: [what callers said, with quotes when impactful]
+- **Core Issue**: [specific problem discussed with concrete details]
+- **Caller Positions**: [multiple caller perspectives with direct quotes - include at least 2-3 different callers per theme]
+- **Specific Examples**: [particular cases, locations, timeframes, or incidents mentioned by callers]
 - **Moderator Response**: [how host engaged/steered discussion]
-- **Policy Implications**: [concrete government considerations]
-- **Notable Exchanges**: [key caller-moderator dialogue that reveals deeper concerns]
+- **Notable Exchanges**: [extended caller-moderator dialogue that reveals deeper concerns - include back-and-forth if available]
 
 ### 2. [Second Major Theme]
-[Same structured format]
+[Same detailed format with extensive quotes]
 
 ### 3. [Third Major Theme]
-[Same structured format]
+[Same detailed format with extensive quotes]
 
-For each theme, include as many direct quotes, paraphrased exchanges, and specific details as needed to fully capture the discussion dynamics.
+### 4. [Fourth Major Theme]
+[Same detailed format with extensive quotes]
+
+### 5. [Fifth Major Theme]
+[Same detailed format with extensive quotes]
+
+### 6. [Additional Themes if applicable]
+[Continue for any remaining significant topics discussed]
+
+CRITICAL: For each theme, include as many direct quotes as possible. Capture the actual words callers used, their tone, and the specific details they mentioned. Avoid generalizing - if a caller mentioned a specific street, amount, date, or name, include it.
 
 ## CONVERSATION EVOLUTION (600 words)
 Track how discussions evolved throughout the program:
@@ -693,14 +704,12 @@ Deep dive into caller emotions, concerns, and priorities:
 - Areas of public frustration or support
 - Comparison to recent polling or previous programs
 
-## POLICY IMPLICATIONS & RECOMMENDATIONS (500 words)
-Actionable intelligence for government response:
+## POLICY IMPLICATIONS & RECOMMENDATIONS (300 words)
+Brief actionable intelligence for government response:
 - Issues requiring immediate attention
-- Long-term policy considerations
-- Public communication opportunities
 - Potential political risks or advantages
 
-## NOTABLE QUOTES & EVIDENCE (300 words)
+## NOTABLE QUOTES & EVIDENCE (500 words)
 Key statements that capture public mood or reveal important insights, with context and analysis. Include as many quotes as necessary to paint a complete picture of public discourse.
 
 Format: Professional government briefing style with clear sections and evidence-based analysis.
@@ -712,7 +721,7 @@ Format: Professional government briefing style with clear sections and evidence-
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a senior government analyst creating comprehensive 4000-word daily briefings for civil servants and ministers. You specialize in detailed policy analysis, public sentiment tracking, and actionable intelligence synthesis."
+                        "content": "You are a senior government analyst creating comprehensive 4800-word daily briefings for civil servants and ministers. You specialize in detailed policy analysis, public sentiment tracking, and actionable intelligence synthesis."
                     },
                     {
                         "role": "user",
