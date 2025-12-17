@@ -319,8 +319,7 @@ RULES:
                 *entities_dict.get('individuals', [])
             })[:20]
             
-            # Build read
-able summary from narrative or create one from concerns
+            # Build readable summary from narrative or create one from concerns
             if narrative:
                 summary_text = narrative
             else:
