@@ -67,7 +67,8 @@ class RadioSummarizer:
                     key_points=summary_data['key_points'],
                     entities=summary_data['entities'],
                     caller_count=summary_data['caller_count'],
-                    quotes=summary_data['quotes']
+                    quotes=summary_data['quotes'],
+                    raw_json=summary_data.get('raw_json', {})
                 )
                 
                 # Update block status
@@ -148,13 +149,14 @@ class RadioSummarizer:
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a precise policy briefing generator. Follow instructions exactly."
+                        "content": "You are a precise policy briefing generator. Output ONLY valid JSON matching the exact schema provided. No narrative text."
                     },
                     {
                         "role": "user", 
                         "content": prompt
                     }
                 ],
+                response_format={"type": "json_object"},  # Enforce JSON mode
                 temperature=0.3,  # Low temperature for consistency
                 max_tokens=2500
             )
@@ -185,7 +187,14 @@ INSTRUCTIONS:
 5. Provide actionable follow-ups (who, what, urgency: low|medium|high) where grounded.
 6. Categorize entities: government, private_sector, civil_society, individuals.
 7. Provide metrics (caller_count, caller_talk_ratio, filler_ratio, ads_count, music_count).
-8. Output first a concise narrative (<=500 words), then STRICT JSON object (schema below). No extra prose after JSON.
+8. Output ONLY a valid JSON object matching the schema below. NO narrative text, NO extra prose before or after JSON.
+
+CRITICAL - JSON ONLY:
+- DO NOT write a narrative paragraph before the JSON
+- DO NOT include metrics (caller_count, ratios, percentages) in text descriptions
+- Metrics belong ONLY in the "metrics" JSON field
+- All content goes into structured JSON fields (public_concerns, official_announcements, commercial_items)
+- Output must start with {{ and end with }}
 
 DETAIL PRESERVATION (CRITICAL):
 When summarizing topics, preserve:
@@ -203,7 +212,7 @@ Ad Segments (estimated): {stats.get('ad_count', 0)} | Music Segments: {stats.get
 TRANSCRIPT (raw – may include music/ads/promos):
 {transcript[:12000]}
 
-JSON SCHEMA:
+JSON SCHEMA (return ONLY this structure):
 {{
   "public_concerns": [{{"topic": str, "summary": str, "callers_involved": int, "key_quotes": [str]}}],
   "official_announcements": [{{"topic": str, "summary": str, "key_quotes": [str]}}],
@@ -227,6 +236,7 @@ RULES:
 - Keep commercial_items short phrases.
 - caller_talk_ratio + filler_ratio between 0 and 1 (approx ok).
 - Include 1-3 impactful quotes per topic in key_quotes array (actual caller words in quotes).
+- Output MUST be valid JSON only - no text before or after.
 """
     
     def _create_empty_summary(self, block_code: str, block_name: str, transcript_data: Dict) -> Dict:
@@ -254,43 +264,38 @@ RULES:
         """Parse the GPT response with robust JSON extraction and fallback strategies."""
         
         json_part = {}
-        narrative = ""
         
-        # Strategy 1: Regex-based JSON extraction (most robust)
-        import re
-        json_match = re.search(r'\{[\s\S]*\}', raw_text)
-        if json_match:
-            candidate = json_match.group(0).strip()
-            try:
-                json_part = json.loads(candidate)
-                # Extract narrative before JSON (if any)
-                json_start = json_match.start()
-                potential_narrative = raw_text[:json_start].strip()
-                if len(potential_narrative) > 20 and not potential_narrative.startswith('{'):
-                    narrative = potential_narrative
-                logger.info("JSON extracted via regex")
-            except Exception as je:
-                logger.warning(f"Regex JSON parse failed: {je}")
-                # Strategy 2: Fallback to rfind method
-                idx = raw_text.rfind('{')
-                if idx != -1:
-                    candidate = raw_text[idx:].strip()
-                    try:
-                        json_part = json.loads(candidate)
-                        potential_narrative = raw_text[:idx].strip()
-                        if len(potential_narrative) > 20 and not potential_narrative.startswith('{'):
-                            narrative = potential_narrative
-                        logger.info("JSON extracted via rfind fallback")
-                    except Exception as je2:
-                        logger.warning(f"Fallback JSON parse failed: {je2}")
+        # With JSON mode enabled, response should be pure JSON
+        # Strategy 1: Direct JSON parse (now primary with json_object mode)
+        try:
+            json_part = json.loads(raw_text.strip())
+            logger.info("JSON parsed directly (json_object mode)")
+        except Exception as direct_err:
+            logger.warning(f"Direct JSON parse failed, trying regex extraction: {direct_err}")
+            # Strategy 2: Regex-based JSON extraction (fallback)
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', raw_text)
+            if json_match:
+                candidate = json_match.group(0).strip()
+                try:
+                    json_part = json.loads(candidate)
+                    logger.info("JSON extracted via regex fallback")
+                except Exception as je:
+                    logger.warning(f"Regex JSON parse failed: {je}")
+                    # Strategy 3: rfind method (last resort)
+                    idx = raw_text.rfind('{')
+                    if idx != -1:
+                        candidate = raw_text[idx:].strip()
+                        try:
+                            json_part = json.loads(candidate)
+                            logger.info("JSON extracted via rfind fallback")
+                        except Exception as je2:
+                            logger.error(f"All JSON extraction methods failed: {je2}")
+                            json_part = {}
         
-        # Ensure narrative is clean (no JSON contamination)
-        if narrative and '{' in narrative:
-            narrative = narrative.split('{')[0].strip()
-        
-        # If no JSON found, treat entire response as narrative
+        # If no JSON found, return minimal structure
         if not json_part:
-            narrative = raw_text
+            logger.error("No valid JSON found in GPT response")
             json_part = {}
         
         # Map structured JSON to legacy fields for UI compatibility
@@ -304,12 +309,6 @@ RULES:
                 caller_text = f" ({callers_involved} callers)" if callers_involved > 0 else ""
                 key_points.append(f"{topic}{caller_text}: {summary}")
             
-            # Add official announcements as key points
-            for announcement in json_part.get('official_announcements', [])[:5]:
-                topic = announcement.get('topic', 'Announcement')
-                summary = announcement.get('summary', '')
-                key_points.append(f"📢 {topic}: {summary}")
-            
             # Extract entities from categorized structure
             entities_dict = json_part.get('entities', {})
             entities = list({
@@ -319,21 +318,34 @@ RULES:
                 *entities_dict.get('individuals', [])
             })[:20]
             
-            # Build readable summary from narrative or create one from concerns
-            if narrative:
-                summary_text = narrative
-            else:
-                # Generate readable summary from structured data
-                lines = ["Key Public Concerns:"]
-                for concern in json_part.get('public_concerns', [])[:5]:
-                    lines.append(f"- {concern.get('topic', 'Topic')}: {concern.get('summary', '')}")
-                
-                if json_part.get('official_announcements'):
-                    lines.append("\n📢 Official Announcements:")
-                    for ann in json_part.get('official_announcements', [])[:3]:
-                        lines.append(f"- {ann.get('topic', 'Topic')}: {ann.get('summary', '')}")
-                
-                summary_text = "\n".join(lines)
+            # Build readable summary narrative from structured data (NO METRICS)
+            lines = []
+            
+            # Public concerns
+            if json_part.get('public_concerns'):
+                for i, concern in enumerate(json_part.get('public_concerns', [])[:5], 1):
+                    topic = concern.get('topic', 'Topic')
+                    summary_detail = concern.get('summary', '')
+                    callers = concern.get('callers_involved', 0)
+                    caller_mention = f" (reported by {callers} caller{'s' if callers != 1 else ''})" if callers > 0 else ""
+                    lines.append(f"{topic}{caller_mention}: {summary_detail}")
+            
+            # Official announcements
+            if json_part.get('official_announcements'):
+                if lines:
+                    lines.append("")  # Blank line separator
+                lines.append("Official Announcements:")
+                for ann in json_part.get('official_announcements', [])[:3]:
+                    lines.append(f"• {ann.get('topic', 'Topic')}: {ann.get('summary', '')}")
+            
+            # Commercial content
+            if json_part.get('commercial_items'):
+                if lines:
+                    lines.append("")
+                commercial_list = ", ".join(json_part.get('commercial_items', [])[:5])
+                lines.append(f"Commercial content: {commercial_list}")
+            
+            summary_text = "\n\n".join(lines) if lines else "No substantive content during this block."
             
             # Extract quotes from new key_quotes field (with fallback to existing_quotes)
             extracted_quotes = []
@@ -369,16 +381,25 @@ RULES:
                 'entities': entities,
                 'caller_count': caller_count,
                 'quotes': quotes,
-                'raw_json': json_part  # Store full JSON for potential future use
+                'raw_json': json_part,  # Store full JSON for UI access
+                'official_announcements': json_part.get('official_announcements', []),
+                'commercial_items': json_part.get('commercial_items', []),
+                'actions': json_part.get('actions', []),
+                'metrics': json_part.get('metrics', {})
             }
         else:
             # No structured data, return simple format
             return {
-                'summary': narrative if narrative else "No substantive content detected during this block.",
+                'summary': "No substantive content detected during this block.",
                 'key_points': [],
                 'entities': [],
                 'caller_count': caller_count,
-                'quotes': existing_quotes[:3] if existing_quotes else []
+                'quotes': existing_quotes[:3] if existing_quotes else [],
+                'raw_json': {},
+                'official_announcements': [],
+                'commercial_items': [],
+                'actions': [],
+                'metrics': {}
             }
     
     

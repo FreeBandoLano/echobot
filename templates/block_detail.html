@@ -246,6 +246,55 @@
                     <h3 class="sub-heading">Entities</h3>
                     <div>{% for entity in block.summary.entities %}<span class="entity-badge">{{ entity }}</span>{% endfor %}</div>
                 {% endif %}
+                
+                {% if block.summary.official_announcements %}
+                    <h3 class="sub-heading">📢 Official Announcements</h3>
+                    {% for ann in block.summary.official_announcements %}
+                        <div style="background: #e3f2fd; border-left: 3px solid #2196f3; padding: 12px 15px; margin: 8px 0; border-radius: 4px;">
+                            <strong style="color: #1976d2; font-size: 0.85rem;">{{ ann.topic }}</strong><br>
+                            <span style="font-size: 0.8rem; color: #424242; line-height: 1.5;">{{ ann.summary }}</span>
+                            {% if ann.key_quotes %}
+                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #bbdefb;">
+                                    {% for quote in ann.key_quotes[:2] %}
+                                        <div style="font-size: 0.75rem; font-style: italic; color: #616161; margin: 4px 0;">"{{ quote }}"</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+                
+                {% if block.summary.commercial_items %}
+                    <h3 class="sub-heading">🛍️ Commercial Content</h3>
+                    <div style="background: #fff3e0; border-left: 3px solid #ff9800; padding: 12px 15px; border-radius: 4px;">
+                        {% for item in block.summary.commercial_items %}
+                            <span style="display: inline-block; background: #fff; border: 1px solid #ffb74d; padding: 5px 12px; border-radius: 12px; margin: 3px; font-size: 0.75rem;">{{ item }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                
+                {% if block.summary.metrics %}
+                    <h3 class="sub-heading" style="margin-top: 2rem;">📊 Block Metrics</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 10px;">
+                        <div style="background: var(--color-panel-alt); padding: 14px; border-radius: 8px; text-align: center; border: 1px solid var(--color-border);">
+                            <div style="font-size: 1.6rem; font-weight: 700; color: var(--color-accent);">{{ block.summary.metrics.caller_count or 0 }}</div>
+                            <div style="font-size: 0.7rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px;">Callers</div>
+                        </div>
+                        <div style="background: var(--color-panel-alt); padding: 14px; border-radius: 8px; text-align: center; border: 1px solid var(--color-border);">
+                            <div style="font-size: 1.6rem; font-weight: 700; color: var(--color-accent);">{{ ((block.summary.metrics.caller_talk_ratio or 0) * 100)|round|int }}%</div>
+                            <div style="font-size: 0.7rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px;">Talk Time</div>
+                        </div>
+                        <div style="background: var(--color-panel-alt); padding: 14px; border-radius: 8px; text-align: center; border: 1px solid var(--color-border);">
+                            <div style="font-size: 1.6rem; font-weight: 700; color: var(--color-gold);">{{ ((block.summary.metrics.filler_ratio or 0) * 100)|round|int }}%</div>
+                            <div style="font-size: 0.7rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px;">Filler</div>
+                        </div>
+                        <div style="background: var(--color-panel-alt); padding: 14px; border-radius: 8px; text-align: center; border: 1px solid var(--color-border);">
+                            <div style="font-size: 1.6rem; font-weight: 700; color: var(--text-secondary);">{{ block.summary.metrics.ads_count or 0 }}</div>
+                            <div style="font-size: 0.7rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px;">Ads</div>
+                        </div>
+                    </div>
+                {% endif %}
+                
                 {% if block.emergent %}
                     <h3 class="sub-heading" style="margin-top:1.75rem;">Analysis Overview</h3>
                     <div class="mobile-collapse" data-collapsed="false" data-title="Analysis Overview" data-section="analysis"></div>

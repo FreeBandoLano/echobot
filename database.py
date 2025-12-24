@@ -893,11 +893,25 @@ class Database:
                     # Parse raw_json field if present
                     if summary.get('raw_json'):
                         try:
-                            summary['raw_json'] = json.loads(summary['raw_json'])
+                            raw_json = json.loads(summary['raw_json'])
+                            summary['raw_json'] = raw_json
+                            # Extract structured fields for UI
+                            summary['official_announcements'] = raw_json.get('official_announcements', [])
+                            summary['commercial_items'] = raw_json.get('commercial_items', [])
+                            summary['actions'] = raw_json.get('actions', [])
+                            summary['metrics'] = raw_json.get('metrics', {})
                         except (json.JSONDecodeError, TypeError):
                             summary['raw_json'] = {}
+                            summary['official_announcements'] = []
+                            summary['commercial_items'] = []
+                            summary['actions'] = []
+                            summary['metrics'] = {}
                     else:
                         summary['raw_json'] = {}
+                        summary['official_announcements'] = []
+                        summary['commercial_items'] = []
+                        summary['actions'] = []
+                        summary['metrics'] = {}
                     return summary
                 return None
         else:
@@ -915,11 +929,25 @@ class Database:
                     # Parse raw_json field if present
                     if summary.get('raw_json'):
                         try:
-                            summary['raw_json'] = json.loads(summary['raw_json'])
+                            raw_json = json.loads(summary['raw_json'])
+                            summary['raw_json'] = raw_json
+                            # Extract structured fields for UI
+                            summary['official_announcements'] = raw_json.get('official_announcements', [])
+                            summary['commercial_items'] = raw_json.get('commercial_items', [])
+                            summary['actions'] = raw_json.get('actions', [])
+                            summary['metrics'] = raw_json.get('metrics', {})
                         except (json.JSONDecodeError, TypeError):
                             summary['raw_json'] = {}
+                            summary['official_announcements'] = []
+                            summary['commercial_items'] = []
+                            summary['actions'] = []
+                            summary['metrics'] = {}
                     else:
                         summary['raw_json'] = {}
+                        summary['official_announcements'] = []
+                        summary['commercial_items'] = []
+                        summary['actions'] = []
+                        summary['metrics'] = {}
                     return summary
                 return None
     
