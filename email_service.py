@@ -532,347 +532,84 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View full archive: https://e
         # Email clients can handle large text content (tested up to 30KB+)
         return text
     
-    def _get_email_styles(self, theme: str = 'dark') -> str:
-        """Get CSS styles based on theme."""
+    def _get_theme_colors(self, theme: str = 'dark') -> dict:
+        """Get color palette for theme (used for inline styles)."""
         if theme == 'light':
-            # Apple-inspired Light Mode
-            return """
-        /* Base & Typography */
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            line-height: 1.6; 
-            color: #1d1d1f; 
-            margin: 0; 
-            padding: 0; 
-            background-color: #f5f5f7;
-        }
-        .container {
-            max-width: 680px; 
-            margin: 20px auto; 
-            padding: 40px;
-            background: #ffffff;
-            border-radius: 18px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.04);
-        }
-        
-        /* Header */
-        .header { 
-            text-align: center;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #d2d2d7;
-        }
-        .header h1 { 
-            margin: 0; 
-            font-size: 32px; 
-            font-weight: 700; 
-            letter-spacing: -0.02em;
-            color: #1d1d1f;
-        }
-        .meta-grid {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin-top: 15px;
-            font-size: 13px;
-            color: #86868b;
-        }
-        .meta-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .meta-item strong {
-            font-size: 15px;
-            color: #1d1d1f;
-            font-weight: 600;
-            margin-bottom: 2px;
-        }
-        
-        /* Content */
-        .content { padding: 0; }
-        
-        h2 { 
-            font-size: 24px;
-            font-weight: 600;
-            letter-spacing: -0.01em;
-            color: #1d1d1f;
-            margin-top: 40px;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #e5e5e5;
-            padding-bottom: 8px;
-        }
-        h3 { 
-            font-size: 19px;
-            font-weight: 600;
-            color: #1d1d1f;
-            margin-top: 25px;
-            margin-bottom: 10px;
-        }
-        p { margin-bottom: 1.4em; font-size: 17px; color: #333336; }
-        
-        strong { font-weight: 600; color: #1d1d1f; }
-        
-        /* Lists */
-        ul { padding-left: 20px; margin-bottom: 20px; }
-        li { margin-bottom: 8px; font-size: 17px; color: #333336; }
-        
-        /* Accents */
-        a { color: #0066cc; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        
-        blockquote {
-            border-left: 4px solid #0066cc;
-            margin: 20px 0;
-            padding-left: 20px;
-            color: #424245;
-            font-style: italic;
-            background: #f5f5f7;
-            padding: 15px 20px;
-            border-radius: 0 8px 8px 0;
-        }
-        
-        .toc {
-            background: #f5f5f7;
-            padding: 20px;
-            border-radius: 12px;
-            margin-bottom: 40px;
-        }
-        .toc h3 { margin-top: 0; font-size: 15px; text-transform: uppercase; letter-spacing: 0.5px; color: #86868b; }
-        .toc ul { margin: 0; padding: 0; list-style: none; }
-        .toc li { margin-bottom: 6px; font-size: 15px; }
-        .toc a { color: #1d1d1f; }
-        .toc a:hover { color: #0066cc; }
-        
-        .footer {
-            margin-top: 50px;
-            padding-top: 30px;
-            border-top: 1px solid #d2d2d7;
-            text-align: center;
-            font-size: 13px;
-            color: #86868b;
-        }
-            """
+            return {
+                'bg': '#f5f5f7',
+                'card_bg': '#ffffff',
+                'text': '#1d1d1f',
+                'text_secondary': '#86868b',
+                'text_muted': '#333336',
+                'accent': '#0066cc',
+                'accent_secondary': '#0066cc',
+                'border': '#d2d2d7',
+                'header_bg': '#ffffff',
+                'header_text': '#1d1d1f',
+                'h2_color': '#1d1d1f',
+                'h3_color': '#1d1d1f',
+                'link_color': '#0066cc',
+                'quote_border': '#0066cc',
+                'quote_bg': '#f5f5f7',
+                'toc_bg': '#f5f5f7',
+                'footer_bg': '#f5f5f7',
+            }
         else:
-            # Refined Dark Mode / Iron Man HUD Theme
-            return """
-        /* Dark Mode / Iron Man HUD Theme */
-        :root {
-            --bg-color: #0d1117;
-            --card-bg: #161b22;
-            --text-primary: #e6edf3;
-            --text-secondary: #8b949e;
-            --accent-cyan: #58a6ff; /* Arc Reactor Blue */
-            --accent-gold: #d29922; /* Gold Titanium Alloy */
-            --accent-red: #f85149; /* Hot Rod Red */
-            --border-color: #30363d;
-        }
-
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            line-height: 1.6; 
-            color: #e6edf3; 
-            margin: 0; 
-            padding: 0; 
-            background-color: #0d1117;
-        }
-        
-        .container {
-            max-width: 680px; 
-            margin: 20px auto; 
-            padding: 0;
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 16px;
-            box-shadow: 0 0 30px rgba(0,0,0,0.5);
-            overflow: hidden;
-        }
-        
-        /* HUD Header */
-        .header { 
-            background: linear-gradient(180deg, #1f2428 0%, #161b22 100%); 
-            padding: 40px 30px; 
-            border-bottom: 1px solid #30363d;
-            position: relative;
-            text-align: center;
-        }
-        
-        .header::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, #f85149, #d29922, #58a6ff);
-        }
-
-        .header h1 { 
-            margin: 0; 
-            font-size: 28px; 
-            font-weight: 800; 
-            letter-spacing: -0.5px;
-            color: #ffffff;
-            text-transform: uppercase;
-            text-shadow: 0 0 15px rgba(88, 166, 255, 0.3);
-        }
-        
-        .meta-grid {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-top: 25px;
-            flex-wrap: wrap;
-        }
-        
-        .meta-item {
-            background: rgba(48, 54, 61, 0.4);
-            border: 1px solid rgba(88, 166, 255, 0.2);
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 13px;
-            color: #8b949e;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-width: 100px;
-        }
-        
-        .meta-item strong {
-            display: block;
-            color: #58a6ff;
-            font-size: 15px;
-            margin-bottom: 2px;
-            background: none;
-            padding: 0;
-        }
-
-        /* Content Area */
-        .content { 
-            padding: 40px 30px; 
-        }
-        
-        /* Typography */
-        h2 { 
-            color: #ffffff; 
-            border-left: 4px solid #d29922; /* Gold accent */
-            padding-left: 15px; 
-            margin-top: 50px; 
-            margin-bottom: 20px;
-            font-size: 24px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-        }
-        
-        h3 { 
-            color: #58a6ff; /* Cyan accent */
-            margin-top: 35px; 
-            margin-bottom: 15px;
-            font-size: 18px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        p { 
-            margin-bottom: 1.5em; 
-            font-size: 16px; 
-            color: #c9d1d9;
-            line-height: 1.7;
-        }
-        
-        strong { 
-            color: #ffffff; 
-            font-weight: 700; 
-        }
-        
-        /* Lists */
-        ul { padding-left: 20px; margin-bottom: 25px; }
-        li { 
-            margin-bottom: 10px; 
-            color: #c9d1d9;
-            position: relative;
-        }
-        li::marker { color: #d29922; }
-        
-        /* Quotes */
-        blockquote {
-            border-left: 3px solid #f85149;
-            background: rgba(248, 81, 73, 0.1);
-            margin: 25px 0;
-            padding: 20px;
-            border-radius: 0 8px 8px 0;
-            color: #e6edf3;
-            font-style: italic;
-        }
-        
-        /* TOC */
-        .toc {
-            background: rgba(22, 27, 34, 0.8);
-            border: 1px solid #30363d;
-            padding: 25px;
-            border-radius: 12px;
-            margin-bottom: 40px;
-        }
-        .toc h3 { margin-top: 0; color: #8b949e; font-size: 14px; border: none; }
-        .toc ul { margin: 0; padding: 0; list-style: none; }
-        .toc li { margin-bottom: 8px; }
-        .toc li::marker { content: ''; }
-        .toc a { color: #58a6ff; text-decoration: none; transition: color 0.2s; }
-        .toc a:hover { color: #d29922; }
-        
-        /* Footer */
-        .footer {
-            background: #0d1117;
-            padding: 30px;
-            text-align: center;
-            border-top: 1px solid #30363d;
-            color: #8b949e;
-            font-size: 13px;
-        }
-        .footer a { color: #58a6ff; text-decoration: none; }
-        
-        /* Mobile Optimization */
-        @media only screen and (max-width: 600px) {{
-            .container {{ border-radius: 0; border: none; }}
-            .header {{ padding: 30px 20px; }}
-            .content {{ padding: 30px 20px; }}
-            .meta-grid {{ grid-template-columns: 1fr 1fr; }}
-        }}
-            """
+            # Executive HUD Theme - JARVIS-inspired but refined for government/professional use
+            # Cyan/Amber palette softened for mature 45+ readability
+            return {
+                'bg': '#0d1117',              # Deep space black (cockpit feel)
+                'card_bg': '#161b22',          # Elevated panel
+                'text': '#e8eaed',             # Warm off-white (high readability)
+                'text_secondary': '#9aa0a6',   # Muted gray
+                'text_muted': '#c5c8cc',       # Comfortable reading gray
+                'accent': '#5cb3cc',           # Refined teal (softer than neon cyan)
+                'accent_secondary': '#d4a84b', # Sophisticated amber/gold
+                'border': '#2d4a5e',           # Subtle teal-gray border
+                'header_bg': '#0d1117',        # Consistent dark header
+                'header_text': '#ffffff',      # Clean white title
+                'h2_color': '#5cb3cc',         # Teal section headers
+                'h3_color': '#d4a84b',         # Amber sub-headers
+                'link_color': '#5cb3cc',       # Consistent teal links
+                'quote_border': '#d4a84b',     # Amber quote indicator
+                'quote_bg': '#1a2332',         # Subtle elevated quote
+                'toc_bg': '#1a2332',           # Subtle contrast for TOC
+                'footer_bg': '#0d1117',        # Match main bg
+            }
 
     def _create_program_digest_html(self, digest: Dict, show_date: date,
                                    program_name: str, station: str, theme: str = 'dark') -> str:
-        """Create HTML program digest email with enhanced UI/UX."""
+        """Create HTML program digest email with inline styles for email client compatibility."""
         
         formatted_date = show_date.strftime('%B %d, %Y')
         digest_content = digest.get('digest_text', 'No digest available')
+        
+        # Get theme colors for inline styles
+        c = self._get_theme_colors(theme)
         
         # Calculate reading time
         word_count = len(digest_content.split())
         reading_time = max(1, round(word_count / 200))
         
-        def make_anchor(text: str) -> str:
-            """Create a clean, unique anchor ID from header text."""
-            anchor = text.lower()
-            anchor = re.sub(r'[^a-z0-9\s]', '', anchor)  # Remove non-alphanumeric except spaces
-            anchor = re.sub(r'\s+', '-', anchor.strip())  # Replace spaces with single dash
-            return anchor
-        
-        # 1. Extract TOC
+        # 1. Extract TOC items (plain text with arrows - no hyperlinks for cleaner reading)
         toc_items = []
         for line in digest_content.split('\n'):
             if line.startswith('## '):
                 title = line[3:].strip()
-                anchor = make_anchor(title)
-                toc_items.append(f'<li><a href="#{anchor}">{title}</a></li>')
+                toc_items.append(f'<tr><td style="padding: 5px 0; color: {c["text_muted"]}; font-size: 14px; line-height: 1.6;"><span style="color: {c["accent"]}; margin-right: 10px;">▸</span>{title}</td></tr>')
         
         toc_html = f"""
-        <div class="toc">
-            <h3>In this Briefing</h3>
-            <ul>{''.join(toc_items)}</ul>
-        </div>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: {c['toc_bg']}; border-left: 3px solid {c['accent']}; margin-bottom: 35px;">
+            <tr><td style="padding: 18px 22px;">
+                <h3 style="margin: 0 0 12px 0; font-size: 11px; color: {c['accent']}; text-transform: uppercase; letter-spacing: 2px; font-weight: 600;">Briefing Contents</h3>
+                <table width="100%" cellpadding="0" cellspacing="0">
+                    {''.join(toc_items)}
+                </table>
+            </td></tr>
+        </table>
         """ if toc_items else ""
 
-        # 2. Process Content
+        # 2. Process Content with inline styles
         lines = digest_content.split('\n')
         html_lines = []
         in_list = False
@@ -881,95 +618,129 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View full archive: https://e
             line = line.strip()
             if not line:
                 if in_list:
-                    html_lines.append('</ul>')
+                    html_lines.append('</table>')
                     in_list = False
-                # Skip empty lines - paragraph spacing handled by CSS margins
                 continue
                 
-            # Headers
+            # Headers with inline styles
             if line.startswith('## '):
-                if in_list: html_lines.append('</ul>'); in_list = False
+                if in_list: html_lines.append('</table>'); in_list = False
                 title = line[3:].strip()
                 anchor = make_anchor(title)
-                html_lines.append(f'<h2 id="{anchor}">{title}</h2>')
+                html_lines.append(f'<h2 id="{anchor}" style="color: {c["h2_color"]}; border-left: 4px solid {c["accent_secondary"]}; padding-left: 15px; margin-top: 40px; margin-bottom: 20px; font-size: 22px; font-weight: 700;">{title}</h2>')
             elif line.startswith('### '):
-                if in_list: html_lines.append('</ul>'); in_list = False
-                html_lines.append(f'<h3>{line[4:].strip()}</h3>')
+                if in_list: html_lines.append('</table>'); in_list = False
+                html_lines.append(f'<h3 style="color: {c["h3_color"]}; margin-top: 30px; margin-bottom: 15px; font-size: 17px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">{line[4:].strip()}</h3>')
             
-            # Lists
+            # Lists - using table for better email compatibility
             elif line.startswith('- ') or line.startswith('* '):
                 if not in_list:
-                    html_lines.append('<ul>')
+                    html_lines.append('<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">')
                     in_list = True
                 content = line[2:].strip()
-                # Handle bolding inside list items
-                content = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', content)
-                html_lines.append(f'<li>{content}</li>')
+                content = re.sub(r'\*\*(.*?)\*\*', rf'<strong style="color: {c["text"]};">\1</strong>', content)
+                html_lines.append(f'<tr><td style="padding: 6px 0; padding-left: 20px; color: {c["text_muted"]}; font-size: 15px; line-height: 1.6;"><span style="color: {c["accent_secondary"]}; font-weight: bold; margin-right: 8px;">›</span>{content}</td></tr>')
             
-            # Blockquotes (if GPT uses >)
+            # Blockquotes with inline styles
             elif line.startswith('> '):
-                if in_list: html_lines.append('</ul>'); in_list = False
-                html_lines.append(f'<blockquote>{line[2:].strip()}</blockquote>')
+                if in_list: html_lines.append('</table>'); in_list = False
+                quote_content = line[2:].strip()
+                html_lines.append(f'<table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;"><tr><td style="border-left: 3px solid {c["quote_border"]}; background-color: {c["quote_bg"]}; padding: 15px 20px; font-style: italic; color: {c["text"]}; border-radius: 0 8px 8px 0;">{quote_content}</td></tr></table>')
             
-            # Regular paragraphs
+            # Regular paragraphs with inline styles
             else:
-                if in_list: html_lines.append('</ul>'); in_list = False
-                # Handle bolding
-                content = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', line)
-                html_lines.append(f'<p>{content}</p>')
+                if in_list: html_lines.append('</table>'); in_list = False
+                content = re.sub(r'\*\*(.*?)\*\*', rf'<strong style="color: {c["text"]};">\1</strong>', line)
+                html_lines.append(f'<p style="margin-bottom: 1.4em; font-size: 16px; color: {c["text_muted"]}; line-height: 1.7;">{content}</p>')
         
         if in_list:
-            html_lines.append('</ul>')
+            html_lines.append('</table>')
             
         html_content = '\n'.join(html_lines)
         
-        # Get styles based on theme
-        styles = self._get_email_styles(theme)
-        
+        # Build HTML with all inline styles (email client compatible)
+        # Using tables for layout - the only reliable way for email
         html = f"""
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-{styles}
-    </style>
+    <title>{program_name} - Daily Brief</title>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>{program_name.upper()}</h1>
-            <div class="meta-grid">
-                <div class="meta-item">
-                    <strong>STATION</strong>
-                    {station}
-                </div>
-                <div class="meta-item">
-                    <strong>DATE</strong>
-                    {formatted_date}
-                </div>
-                <div class="meta-item">
-                    <strong>CALLERS</strong>
-                    {digest.get('total_callers', 0)} Active
-                </div>
-                <div class="meta-item">
-                    <strong>READ TIME</strong>
-                    ~{reading_time} min
-                </div>
-            </div>
-        </div>
-        
-        <div class="content">
-            {toc_html}
-            {html_content}
-        </div>
-        
-        <div class="footer">
-            <p>SYSTEM GENERATED INTELLIGENCE • {datetime.now().strftime('%Y-%m-%d %H:%M AST')}</p>
-            <p><a href="https://echobot-docker-app.azurewebsites.net/">ACCESS FULL DASHBOARD & ANALYTICS</a></p>
-        </div>
-    </div>
+<body style="margin: 0; padding: 0; background-color: {c['bg']}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    
+    <!-- Main Container -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: {c['bg']};">
+        <tr>
+            <td align="center" style="padding: 20px;">
+                
+                <!-- Email Card -->
+                <table width="680" cellpadding="0" cellspacing="0" style="background-color: {c['card_bg']}; border: 1px solid {c['border']}; border-radius: 12px; overflow: hidden;">
+                    
+                    <!-- Accent Header Bar (Refined HUD style) -->
+                    <tr>
+                        <td style="height: 3px; background: linear-gradient(90deg, {c['accent']}, {c['accent_secondary']});"></td>
+                    </tr>
+                    
+                    <!-- Header Section -->
+                    <tr>
+                        <td style="background-color: {c['header_bg']}; padding: 35px 30px; text-align: center; border-bottom: 1px solid {c['border']};">
+                            <h1 style="margin: 0; font-size: 24px; font-weight: 700; color: {c['header_text']}; text-transform: uppercase; letter-spacing: 2px;">{program_name.upper()}</h1>
+                            <p style="margin: 8px 0 0 0; font-size: 13px; color: {c['text_secondary']}; letter-spacing: 1px;">DAILY INTELLIGENCE BRIEF</p>
+                            
+                            <!-- Meta Info - Clean horizontal layout -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 25px;">
+                                <tr>
+                                    <td align="center">
+                                        <table cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td style="padding: 0 15px; text-align: center; border-right: 1px solid {c['border']};">
+                                                    <span style="display: block; color: {c['accent']}; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Station</span>
+                                                    <span style="color: {c['text']}; font-size: 14px;">{station}</span>
+                                                </td>
+                                                <td style="padding: 0 15px; text-align: center; border-right: 1px solid {c['border']};">
+                                                    <span style="display: block; color: {c['accent']}; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Date</span>
+                                                    <span style="color: {c['text']}; font-size: 14px;">{formatted_date}</span>
+                                                </td>
+                                                <td style="padding: 0 15px; text-align: center; border-right: 1px solid {c['border']};">
+                                                    <span style="display: block; color: {c['accent']}; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Callers</span>
+                                                    <span style="color: {c['text']}; font-size: 14px;">{digest.get('total_callers', 0)}</span>
+                                                </td>
+                                                <td style="padding: 0 15px; text-align: center;">
+                                                    <span style="display: block; color: {c['accent']}; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Read Time</span>
+                                                    <span style="color: {c['text']}; font-size: 14px;">~{reading_time} min</span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content Section -->
+                    <tr>
+                        <td style="padding: 40px 35px; color: {c['text']};">
+                            {toc_html}
+                            {html_content}
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer Section -->
+                    <tr>
+                        <td style="background-color: {c['footer_bg']}; padding: 30px; text-align: center; border-top: 1px solid {c['border']};">
+                            <p style="margin: 0 0 10px 0; font-size: 13px; color: {c['text_secondary']};">SYSTEM GENERATED INTELLIGENCE • {datetime.now().strftime('%Y-%m-%d %H:%M AST')}</p>
+                            <p style="margin: 0;"><a href="https://echobot-docker-app.azurewebsites.net/" style="color: {c['link_color']}; text-decoration: none; font-weight: 600;">ACCESS FULL DASHBOARD & ANALYTICS →</a></p>
+                        </td>
+                    </tr>
+                    
+                </table>
+                
+            </td>
+        </tr>
+    </table>
+    
 </body>
 </html>
 """
