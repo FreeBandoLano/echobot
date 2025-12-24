@@ -362,8 +362,11 @@ https://echobot-docker-app.azurewebsites.net/
         
         return html
     
-    def send_program_digests(self, show_date: date) -> bool:
+    def send_program_digests(self, show_date: date, theme: str = None) -> bool:
         """Send separate digest emails for each program (VOB and CBC)."""
+        
+        if theme is None:
+            theme = os.getenv('EMAIL_THEME', 'dark')
         
         from config import Config
         
@@ -410,7 +413,7 @@ https://echobot-docker-app.azurewebsites.net/
                 
                 # Create email body
                 body_text = self._create_program_digest_text(digest, show_date, program_name, station)
-                body_html = self._create_program_digest_html(digest, show_date, program_name, station)
+                body_html = self._create_program_digest_html(digest, show_date, program_name, station, theme=theme)
                 
                 # Log digest length for monitoring
                 digest_length = len(digest.get('digest_text', ''))
@@ -529,8 +532,315 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View full archive: https://e
         # Email clients can handle large text content (tested up to 30KB+)
         return text
     
+    def _get_email_styles(self, theme: str = 'dark') -> str:
+        """Get CSS styles based on theme."""
+        if theme == 'light':
+            # Apple-inspired Light Mode
+            return """
+        /* Base & Typography */
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6; 
+            color: #1d1d1f; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #f5f5f7;
+        }
+        .container {
+            max-width: 680px; 
+            margin: 20px auto; 
+            padding: 40px;
+            background: #ffffff;
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+        }
+        
+        /* Header */
+        .header { 
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #d2d2d7;
+        }
+        .header h1 { 
+            margin: 0; 
+            font-size: 32px; 
+            font-weight: 700; 
+            letter-spacing: -0.02em;
+            color: #1d1d1f;
+        }
+        .meta-grid {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            font-size: 13px;
+            color: #86868b;
+        }
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .meta-item strong {
+            font-size: 15px;
+            color: #1d1d1f;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        
+        /* Content */
+        .content { padding: 0; }
+        
+        h2 { 
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            color: #1d1d1f;
+            margin-top: 40px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #e5e5e5;
+            padding-bottom: 8px;
+        }
+        h3 { 
+            font-size: 19px;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin-top: 25px;
+            margin-bottom: 10px;
+        }
+        p { margin-bottom: 1.4em; font-size: 17px; color: #333336; }
+        
+        strong { font-weight: 600; color: #1d1d1f; }
+        
+        /* Lists */
+        ul { padding-left: 20px; margin-bottom: 20px; }
+        li { margin-bottom: 8px; font-size: 17px; color: #333336; }
+        
+        /* Accents */
+        a { color: #0066cc; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        
+        blockquote {
+            border-left: 4px solid #0066cc;
+            margin: 20px 0;
+            padding-left: 20px;
+            color: #424245;
+            font-style: italic;
+            background: #f5f5f7;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .toc {
+            background: #f5f5f7;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 40px;
+        }
+        .toc h3 { margin-top: 0; font-size: 15px; text-transform: uppercase; letter-spacing: 0.5px; color: #86868b; }
+        .toc ul { margin: 0; padding: 0; list-style: none; }
+        .toc li { margin-bottom: 6px; font-size: 15px; }
+        .toc a { color: #1d1d1f; }
+        .toc a:hover { color: #0066cc; }
+        
+        .footer {
+            margin-top: 50px;
+            padding-top: 30px;
+            border-top: 1px solid #d2d2d7;
+            text-align: center;
+            font-size: 13px;
+            color: #86868b;
+        }
+            """
+        else:
+            # Refined Dark Mode / Iron Man HUD Theme
+            return """
+        /* Dark Mode / Iron Man HUD Theme */
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent-cyan: #58a6ff; /* Arc Reactor Blue */
+            --accent-gold: #d29922; /* Gold Titanium Alloy */
+            --accent-red: #f85149; /* Hot Rod Red */
+            --border-color: #30363d;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6; 
+            color: #e6edf3; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #0d1117;
+        }
+        
+        .container {
+            max-width: 680px; 
+            margin: 20px auto; 
+            padding: 0;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 16px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        
+        /* HUD Header */
+        .header { 
+            background: linear-gradient(180deg, #1f2428 0%, #161b22 100%); 
+            padding: 40px 30px; 
+            border-bottom: 1px solid #30363d;
+            position: relative;
+            text-align: center;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #f85149, #d29922, #58a6ff);
+        }
+
+        .header h1 { 
+            margin: 0; 
+            font-size: 28px; 
+            font-weight: 800; 
+            letter-spacing: -0.5px;
+            color: #ffffff;
+            text-transform: uppercase;
+            text-shadow: 0 0 15px rgba(88, 166, 255, 0.3);
+        }
+        
+        .meta-grid {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 25px;
+            flex-wrap: wrap;
+        }
+        
+        .meta-item {
+            background: rgba(48, 54, 61, 0.4);
+            border: 1px solid rgba(88, 166, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            color: #8b949e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 100px;
+        }
+        
+        .meta-item strong {
+            display: block;
+            color: #58a6ff;
+            font-size: 15px;
+            margin-bottom: 2px;
+            background: none;
+            padding: 0;
+        }
+
+        /* Content Area */
+        .content { 
+            padding: 40px 30px; 
+        }
+        
+        /* Typography */
+        h2 { 
+            color: #ffffff; 
+            border-left: 4px solid #d29922; /* Gold accent */
+            padding-left: 15px; 
+            margin-top: 50px; 
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        
+        h3 { 
+            color: #58a6ff; /* Cyan accent */
+            margin-top: 35px; 
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        p { 
+            margin-bottom: 1.5em; 
+            font-size: 16px; 
+            color: #c9d1d9;
+            line-height: 1.7;
+        }
+        
+        strong { 
+            color: #ffffff; 
+            font-weight: 700; 
+        }
+        
+        /* Lists */
+        ul { padding-left: 20px; margin-bottom: 25px; }
+        li { 
+            margin-bottom: 10px; 
+            color: #c9d1d9;
+            position: relative;
+        }
+        li::marker { color: #d29922; }
+        
+        /* Quotes */
+        blockquote {
+            border-left: 3px solid #f85149;
+            background: rgba(248, 81, 73, 0.1);
+            margin: 25px 0;
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+            color: #e6edf3;
+            font-style: italic;
+        }
+        
+        /* TOC */
+        .toc {
+            background: rgba(22, 27, 34, 0.8);
+            border: 1px solid #30363d;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 40px;
+        }
+        .toc h3 { margin-top: 0; color: #8b949e; font-size: 14px; border: none; }
+        .toc ul { margin: 0; padding: 0; list-style: none; }
+        .toc li { margin-bottom: 8px; }
+        .toc li::marker { content: ''; }
+        .toc a { color: #58a6ff; text-decoration: none; transition: color 0.2s; }
+        .toc a:hover { color: #d29922; }
+        
+        /* Footer */
+        .footer {
+            background: #0d1117;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #30363d;
+            color: #8b949e;
+            font-size: 13px;
+        }
+        .footer a { color: #58a6ff; text-decoration: none; }
+        
+        /* Mobile Optimization */
+        @media only screen and (max-width: 600px) {{
+            .container {{ border-radius: 0; border: none; }}
+            .header {{ padding: 30px 20px; }}
+            .content {{ padding: 30px 20px; }}
+            .meta-grid {{ grid-template-columns: 1fr 1fr; }}
+        }}
+            """
+
     def _create_program_digest_html(self, digest: Dict, show_date: date,
-                                   program_name: str, station: str) -> str:
+                                   program_name: str, station: str, theme: str = 'dark') -> str:
         """Create HTML program digest email with enhanced UI/UX."""
         
         formatted_date = show_date.strftime('%B %d, %Y')
@@ -539,8 +849,6 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View full archive: https://e
         # Calculate reading time
         word_count = len(digest_content.split())
         reading_time = max(1, round(word_count / 200))
-        
-        import re
         
         def make_anchor(text: str) -> str:
             """Create a clean, unique anchor ID from header text."""
@@ -615,6 +923,9 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View full archive: https://e
             
         html_content = '\n'.join(html_lines)
         
+        # Get styles based on theme
+        styles = self._get_email_styles(theme)
+        
         html = f"""
 <!DOCTYPE html>
 <html>
@@ -622,131 +933,30 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View full archive: https://e
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        /* Base & Typography */
-        body {{ 
-            font-family: Georgia, 'Times New Roman', serif; 
-            line-height: 1.6; 
-            color: #2c3e50; 
-            margin: 0; 
-            padding: 0; 
-            background-color: #f4f7f6;
-        }}
-        .container {{
-            max-width: 680px; 
-            margin: 0 auto; 
-            padding: 20px;
-        }}
-        
-        /* Header */
-        .header {{ 
-            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%); 
-            color: white; 
-            padding: 40px 30px; 
-            border-radius: 12px 12px 0 0; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }}
-        .header h1 {{ 
-            margin: 0; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            font-size: 28px; 
-            font-weight: 700; 
-            letter-spacing: -0.5px;
-        }}
-        .header .meta {{ 
-            margin-top: 15px; 
-            opacity: 0.9; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            font-size: 14px; 
-            display: flex;
-            gap: 15px;
-            align-items: center;
-        }}
-        .badge {{
-            background: rgba(255,255,255,0.2);
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 12px;
-            text-transform: uppercase;
-        }}
-
-        /* Content */
-        .content {{ 
-            background: #ffffff; 
-            padding: 40px 30px; 
-            border-radius: 0 0 12px 12px; 
-            box-shadow: 0 2px 15px rgba(0,0,0,0.05); 
-        }}
-        
-        /* Typography Elements */
-        h2 {{ 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            color: #2c3e50; 
-            border-bottom: 2px solid #ecf0f1; 
-            padding-bottom: 10px; 
-            margin-top: 40px; 
-            font-size: 22px;
-        }}
-        h3 {{ 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            color: #34495e; 
-            margin-top: 25px; 
-            font-size: 18px;
-        }}
-        p {{ margin-bottom: 1.2em; font-size: 17px; }}
-        strong {{ color: #2c3e50; font-weight: 700; }}
-        
-        /* Lists */
-        ul {{ padding-left: 20px; margin-bottom: 20px; }}
-        li {{ margin-bottom: 8px; font-size: 17px; }}
-        
-        /* Quotes */
-        blockquote {{
-            border-left: 4px solid #3498db;
-            background: #f8f9fa;
-            margin: 20px 0;
-            padding: 15px 20px;
-            font-style: italic;
-            color: #555;
-            border-radius: 0 4px 4px 0;
-        }}
-
-        /* TOC */
-        .toc {{
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            border: 1px solid #e9ecef;
-        }}
-        .toc h3 {{ margin-top: 0; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; color: #7f8c8d; }}
-        .toc ul {{ margin: 0; padding-left: 20px; }}
-        .toc li {{ margin-bottom: 5px; font-size: 15px; }}
-        .toc a {{ color: #3498db; text-decoration: none; }}
-        .toc a:hover {{ text-decoration: underline; }}
-
-        /* Footer */
-        .footer {{ 
-            margin-top: 30px; 
-            text-align: center; 
-            font-size: 13px; 
-            color: #95a5a6; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }}
-        .footer a {{ color: #3498db; text-decoration: none; }}
+{styles}
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>{program_name.upper()}</h1>
-            <div class="meta">
-                <span class="badge">{station}</span>
-                <span>{formatted_date}</span>
-                <span>⏱️ ~{reading_time} min read</span>
-            </div>
-            <div class="meta" style="margin-top: 8px; font-size: 13px; opacity: 0.8;">
-                {digest.get('total_callers', 0)} callers • {digest.get('blocks_processed', 0)} blocks analyzed
+            <div class="meta-grid">
+                <div class="meta-item">
+                    <strong>STATION</strong>
+                    {station}
+                </div>
+                <div class="meta-item">
+                    <strong>DATE</strong>
+                    {formatted_date}
+                </div>
+                <div class="meta-item">
+                    <strong>CALLERS</strong>
+                    {digest.get('total_callers', 0)} Active
+                </div>
+                <div class="meta-item">
+                    <strong>READ TIME</strong>
+                    ~{reading_time} min
+                </div>
             </div>
         </div>
         
@@ -756,8 +966,8 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View full archive: https://e
         </div>
         
         <div class="footer">
-            <p>Generated by EchoBot Intelligence • {datetime.now().strftime('%Y-%m-%d %H:%M AST')}</p>
-            <p><a href="https://echobot-docker-app.azurewebsites.net/">View Full Archive & Analytics</a></p>
+            <p>SYSTEM GENERATED INTELLIGENCE • {datetime.now().strftime('%Y-%m-%d %H:%M AST')}</p>
+            <p><a href="https://echobot-docker-app.azurewebsites.net/">ACCESS FULL DASHBOARD & ANALYTICS</a></p>
         </div>
     </div>
 </body>

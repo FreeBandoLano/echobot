@@ -348,8 +348,8 @@ curl -X POST https://your-app.azurewebsites.net/api/generate-program-digests \
 ```
 
 #### `POST /api/send-digest-email`
-**Email Digest to Recipients**
-- Description: Send existing digest via email
+**Email Program Digests to Recipients**
+- Description: Send existing program digests (VOB + CBC) via email (separate emails for each program)
 - Body Parameters (form-data):
   - `date`: Date in YYYY-MM-DD format
 - Returns:
@@ -357,9 +357,12 @@ curl -X POST https://your-app.azurewebsites.net/api/generate-program-digests \
 {
   "success": true,
   "date": "2025-11-07",
-  "message": "Digest email sent successfully"
+  "message": "Program digest emails sent successfully"
 }
 ```
+- Note: Sends two separate emails:
+  - `[VOB Brass Tacks] Daily Brief – {date}`
+  - `[CBC Let's Talk] Daily Brief – {date}`
 
 ---
 
