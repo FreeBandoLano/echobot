@@ -47,16 +47,26 @@ print("\n✅ Environment OK - proceeding with digest generation")
 sys.path.insert(0, '/app')
 
 try:
-    from datetime import date
+    from datetime import date, datetime
     from database import db
     from summarization import summarizer
     from email_service import email_service
     
+    # Parse date from command line argument
+    import sys
+    target_date = date(2025, 10, 10)  # default
+    if len(sys.argv) > 2 and sys.argv[1] == '--date':
+        try:
+            target_date = datetime.strptime(sys.argv[2], '%Y-%m-%d').date()
+        except ValueError:
+            print(f"❌ Invalid date format. Use YYYY-MM-DD")
+            sys.exit(1)
+    
     print("\n" + "="*60)
-    print("GENERATING DIGEST FOR OCTOBER 10, 2025")
+    print(f"GENERATING DIGEST FOR {target_date.strftime('%B %d, %Y').upper()}")
     print("="*60)
     
-    target_date = date(2025, 10, 10)
+    target_date = target_date
     
     # Check blocks
     print(f"\n📋 Checking blocks...")

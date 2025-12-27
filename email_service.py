@@ -581,6 +581,10 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View full archive: https://e
                                    program_name: str, station: str, theme: str = 'dark') -> str:
         """Create HTML program digest email with inline styles for email client compatibility."""
         
+        def make_anchor(text: str) -> str:
+            """Create URL-safe anchor from text."""
+            return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
+        
         formatted_date = show_date.strftime('%B %d, %Y')
         digest_content = digest.get('digest_text', 'No digest available')
         

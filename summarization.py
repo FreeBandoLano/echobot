@@ -478,7 +478,7 @@ RULES:
         
         # Save to database
         if digest_text:
-            db.create_daily_digest(show_date, digest_text, len(completed_blocks), total_callers, programs_included)
+            db.create_daily_digest(show_date, digest_text, len(completed_blocks), total_callers)
             
             # Save to file
             digest_filename = f"{show_date}_daily_digest.txt"

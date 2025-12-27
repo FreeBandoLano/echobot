@@ -58,3 +58,7 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Diagnostic scripts with credentials
+diagnose_email_issue.sh
+regenerate_digest_dec25.sh
