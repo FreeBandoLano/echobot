@@ -581,6 +581,36 @@ async def api_info():
         "utc": datetime.utcnow().isoformat()+"Z"
     }
 
+@app.get("/api/email/status")
+async def api_email_status():
+    """Debug endpoint to check email service configuration."""
+    from email_service import email_service
+    import os
+    
+    # Get raw env vars for debugging
+    raw_env = {
+        'ENABLE_EMAIL': os.getenv('ENABLE_EMAIL', 'NOT_SET'),
+        'SMTP_HOST': os.getenv('SMTP_HOST', 'NOT_SET'),
+        'SMTP_USER': os.getenv('SMTP_USER', 'NOT_SET')[:20] + '...' if os.getenv('SMTP_USER') else 'NOT_SET',
+        'SMTP_PASS': '***SET***' if os.getenv('SMTP_PASS') else 'NOT_SET',
+        'EMAIL_FROM': os.getenv('EMAIL_FROM', 'NOT_SET'),
+        'EMAIL_TO': os.getenv('EMAIL_TO', 'NOT_SET')[:50] + '...' if os.getenv('EMAIL_TO') else 'NOT_SET',
+    }
+    
+    # Get service status
+    service_status = email_service.get_status()
+    
+    return {
+        "env_vars": raw_env,
+        "service_status": service_status,
+        "diagnosis": {
+            "env_enable_email_is_true": os.getenv('ENABLE_EMAIL', '').lower() == 'true',
+            "service_enabled": service_status.get('enabled', False),
+            "config_valid": service_status.get('configuration_valid', False),
+            "has_smtp_pass": bool(os.getenv('SMTP_PASS')),
+        }
+    }
+
 @app.get("/api/filler/trend")
 async def api_filler_trend(days: int = 14):
     """Return JSON daily filler trend for recent days."""
