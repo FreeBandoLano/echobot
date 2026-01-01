@@ -42,6 +42,9 @@
             <button class="orbit-btn" data-panel="archive" aria-label="Archive">
                 <i class="bi bi-archive orbit-icon"></i><span>Archive</span>
             </button>
+            <button class="orbit-btn" data-panel="analytics" aria-label="Analytics">
+                <i class="bi bi-bar-chart orbit-icon"></i><span>Analytics</span>
+            </button>
             </div>
         </div>
 
@@ -389,7 +392,14 @@
         }
     }
 
-    orbitButtons.forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); showPanel(btn.dataset.panel); }));
+    orbitButtons.forEach(btn => btn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (btn.dataset.panel === 'analytics') {
+            window.location.href = '/dashboard/analytics';
+        } else {
+            showPanel(btn.dataset.panel);
+        }
+    }));
     hub.addEventListener('click', e => { e.stopPropagation(); toggleHub(); });
 
     function restoreLastPanel() {
