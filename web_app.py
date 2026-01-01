@@ -657,6 +657,201 @@ async def api_rolling_summary(minutes: int = 30):
     result = generate_rolling(minutes=minutes)
     return result
 
+# ============================================================================
+# ANALYTICS API ENDPOINTS (Workstream 2: Data Pipelines & Sentiment Analysis)
+# ============================================================================
+
+@app.get("/api/analytics/sentiment")
+async def api_analytics_sentiment(date: Optional[str] = None):
+    """Get sentiment analysis for a specific date with human-readable labels.
+
+    Query params:
+        date: YYYY-MM-DD format (defaults to today)
+
+    Returns:
+        - date
+        - average_sentiment (numeric score)
+        - blocks_analyzed
+        - sentiment_distribution (label counts)
+        - blocks (per-block details with human-readable labels)
+    """
+    try:
+        from sentiment_analyzer import sentiment_analyzer
+
+        # Parse date or use today
+        if date:
+            try:
+                show_date = datetime.strptime(date, '%Y-%m-%d').date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+        else:
+            show_date = get_local_date()
+
+        # Get sentiment data
+        result = sentiment_analyzer.get_sentiment_for_date(show_date)
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error getting sentiment data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/analytics/parishes")
+async def api_analytics_parishes(days: int = 7):
+    """Get parish-level sentiment heatmap data for recent days.
+
+    Query params:
+        days: Number of recent days to analyze (default 7, max 30)
+
+    Returns:
+        List of parishes with:
+        - parish: normalized parish name
+        - mention_count: number of mentions
+        - avg_sentiment: average sentiment score
+        - sentiment_label: human-readable label
+        - sentiment_display: display text for sentiment
+        - topics: comma-separated topics mentioned for this parish
+    """
+    try:
+        from sentiment_analyzer import sentiment_analyzer
+
+        # Validate days parameter
+        days = max(1, min(int(days), 30))
+
+        # Get parish sentiment map
+        result = sentiment_analyzer.get_parish_sentiment_map(days)
+
+        return {
+            "days": days,
+            "parishes": result
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting parish sentiment map: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/analytics/topics/trending")
+async def api_analytics_topics_trending(days: int = 7):
+    """Get trending topics with sentiment analysis for recent days.
+
+    Query params:
+        days: Number of recent days to analyze (default 7, max 30)
+
+    Returns:
+        List of topics with mention counts and weights
+    """
+    try:
+        # Validate days parameter
+        days = max(1, min(int(days), 30))
+
+        # Get top topics from existing database method
+        topics = db.get_top_topics(days=days, limit=15)
+
+        return {
+            "days": days,
+            "topics": topics
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting trending topics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/analytics/overview")
+async def api_analytics_overview(days: int = 7):
+    """Get comprehensive analytics overview combining sentiment, parishes, and topics.
+
+    Query params:
+        days: Number of recent days to analyze (default 7, max 14)
+
+    Returns:
+        Combined analytics dashboard data
+    """
+    try:
+        from sentiment_analyzer import sentiment_analyzer
+
+        # Validate days parameter
+        days = max(1, min(int(days), 14))
+
+        # Get today's sentiment
+        today_sentiment = sentiment_analyzer.get_sentiment_for_date(get_local_date())
+
+        # Get parish data
+        parish_data = sentiment_analyzer.get_parish_sentiment_map(days)
+
+        # Get trending topics
+        trending_topics = db.get_top_topics(days=days, limit=10)
+
+        # Get policy categories
+        policy_categories = Config.get_all_policy_categories()
+
+        return {
+            "period_days": days,
+            "today_sentiment": today_sentiment,
+            "parish_sentiment": {
+                "days": days,
+                "parishes": parish_data
+            },
+            "trending_topics": {
+                "days": days,
+                "topics": trending_topics
+            },
+            "policy_categories": {
+                "tier1": Config.POLICY_CATEGORIES['tier1']['categories'],
+                "tier2": Config.POLICY_CATEGORIES['tier2']['categories']
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting analytics overview: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/analytics/emerging-issues")
+async def api_analytics_emerging_issues(days: int = 3):
+    """Detect emerging issues based on topic velocity and sentiment shifts.
+
+    Query params:
+        days: Recent window for emergence detection (default 3, max 7)
+
+    Returns:
+        List of emerging issues with urgency indicators
+    """
+    try:
+        # Validate days parameter
+        days = max(1, min(int(days), 7))
+
+        # Get recent topics
+        recent_topics = db.get_top_topics(days=days, limit=20)
+
+        # For now, return topics sorted by mention velocity
+        # Future: Add sentiment trajectory analysis
+        emerging = []
+        for topic in recent_topics:
+            # Simple heuristic: high weight + low block count = concentrated concern
+            blocks = topic.get('blocks', 1)
+            weight = topic.get('total_weight', 0)
+
+            if blocks > 0:
+                intensity = weight / blocks
+
+                emerging.append({
+                    'topic': topic.get('name', 'Unknown'),
+                    'mention_count': blocks,
+                    'intensity': round(intensity, 2),
+                    'urgency': 'high' if intensity > 2.0 else 'medium' if intensity > 1.0 else 'low'
+                })
+
+        # Sort by intensity
+        emerging.sort(key=lambda x: x['intensity'], reverse=True)
+
+        return {
+            "days": days,
+            "emerging_issues": emerging[:10]
+        }
+
+    except Exception as e:
+        logger.error(f"Error detecting emerging issues: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/llm/usage")
 async def api_llm_usage():
     """Return summarization usage counters (no secrets)."""

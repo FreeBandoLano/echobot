@@ -264,6 +264,46 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_tasks_status_created ON tasks(status, created_at);
                 CREATE INDEX IF NOT EXISTS idx_tasks_block ON tasks(block_id);
                 CREATE INDEX IF NOT EXISTS idx_tasks_type_status ON tasks(task_type, status);
+
+                /* Phase 2 Analytics: Sentiment Analysis & Parish Tracking */
+                CREATE TABLE IF NOT EXISTS sentiment_scores (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    block_id INTEGER REFERENCES blocks(id) ON DELETE CASCADE,
+                    overall_score REAL NOT NULL,
+                    label TEXT NOT NULL,
+                    display_text TEXT NOT NULL,
+                    confidence REAL DEFAULT 1.0,
+                    topics_sentiment TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_sentiment_block ON sentiment_scores(block_id);
+                CREATE INDEX IF NOT EXISTS idx_sentiment_score ON sentiment_scores(overall_score);
+
+                CREATE TABLE IF NOT EXISTS parish_mentions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    block_id INTEGER REFERENCES blocks(id) ON DELETE CASCADE,
+                    parish TEXT NOT NULL,
+                    raw_mention TEXT,
+                    sentiment_score REAL,
+                    topic TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_parish_block ON parish_mentions(block_id);
+                CREATE INDEX IF NOT EXISTS idx_parish_name ON parish_mentions(parish);
+
+                CREATE TABLE IF NOT EXISTS topic_trends (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    topic_id INTEGER REFERENCES topics(id) ON DELETE CASCADE,
+                    date DATE NOT NULL,
+                    mention_count INTEGER DEFAULT 0,
+                    avg_sentiment REAL,
+                    trajectory TEXT,
+                    urgency_score REAL DEFAULT 0.0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(topic_id, date)
+                );
+                CREATE INDEX IF NOT EXISTS idx_topic_trends_date ON topic_trends(date);
+                CREATE INDEX IF NOT EXISTS idx_topic_trends_topic ON topic_trends(topic_id);
             """)
             # Lightweight migrations
     
@@ -581,6 +621,61 @@ class Database:
 
                 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_tasks_type_status' AND object_id = OBJECT_ID('tasks'))
                 CREATE INDEX idx_tasks_type_status ON tasks(task_type, status);
+
+                -- Phase 2 Analytics: Sentiment Analysis & Parish Tracking
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[sentiment_scores]') AND type in (N'U'))
+                CREATE TABLE sentiment_scores (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    block_id INT REFERENCES blocks(id) ON DELETE CASCADE,
+                    overall_score FLOAT NOT NULL,
+                    label NVARCHAR(50) NOT NULL,
+                    display_text NVARCHAR(100) NOT NULL,
+                    confidence FLOAT DEFAULT 1.0,
+                    topics_sentiment NVARCHAR(MAX),
+                    created_at DATETIME2 DEFAULT GETDATE()
+                );
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_sentiment_block' AND object_id = OBJECT_ID('sentiment_scores'))
+                CREATE INDEX idx_sentiment_block ON sentiment_scores(block_id);
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_sentiment_score' AND object_id = OBJECT_ID('sentiment_scores'))
+                CREATE INDEX idx_sentiment_score ON sentiment_scores(overall_score);
+
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[parish_mentions]') AND type in (N'U'))
+                CREATE TABLE parish_mentions (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    block_id INT REFERENCES blocks(id) ON DELETE CASCADE,
+                    parish NVARCHAR(50) NOT NULL,
+                    raw_mention NVARCHAR(100),
+                    sentiment_score FLOAT,
+                    topic NVARCHAR(100),
+                    created_at DATETIME2 DEFAULT GETDATE()
+                );
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_parish_block' AND object_id = OBJECT_ID('parish_mentions'))
+                CREATE INDEX idx_parish_block ON parish_mentions(block_id);
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_parish_name' AND object_id = OBJECT_ID('parish_mentions'))
+                CREATE INDEX idx_parish_name ON parish_mentions(parish);
+
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[topic_trends]') AND type in (N'U'))
+                CREATE TABLE topic_trends (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    topic_id INT REFERENCES topics(id) ON DELETE CASCADE,
+                    date DATE NOT NULL,
+                    mention_count INT DEFAULT 0,
+                    avg_sentiment FLOAT,
+                    trajectory NVARCHAR(20),
+                    urgency_score FLOAT DEFAULT 0.0,
+                    created_at DATETIME2 DEFAULT GETDATE(),
+                    CONSTRAINT UQ_topic_trend UNIQUE (topic_id, date)
+                );
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_topic_trends_date' AND object_id = OBJECT_ID('topic_trends'))
+                CREATE INDEX idx_topic_trends_date ON topic_trends(date);
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_topic_trends_topic' AND object_id = OBJECT_ID('topic_trends'))
+                CREATE INDEX idx_topic_trends_topic ON topic_trends(topic_id);
             """
             conn.execute(str(text(tables_query)))
             conn.commit()
