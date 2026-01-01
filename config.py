@@ -149,7 +149,92 @@ class Config:
     
     # Expose cost endpoint flag (env-driven)
     EXPOSE_COST_ENDPOINT = os.getenv('EXPOSE_COST_ENDPOINT', 'true').lower() in ('1','true','yes','on')
-    
+
+    # Policy Categories for Analytics (Tier 1 = Core, Tier 2 = Governance)
+    POLICY_CATEGORIES = {
+        'tier1': {
+            'name': 'Core Issues',
+            'categories': [
+                'Healthcare',
+                'Education',
+                'Cost of Living',
+                'Crime & Safety',
+                'Infrastructure',
+                'Employment'
+            ]
+        },
+        'tier2': {
+            'name': 'Governance & Services',
+            'categories': [
+                'Government Services',
+                'Housing',
+                'Tourism',
+                'Environment',
+                'Social Welfare',
+                'Transportation'
+            ]
+        }
+    }
+
+    # Sentiment Analysis Configuration
+    SENTIMENT_LABELS = {
+        'strongly_positive': {
+            'range': (0.6, 1.0),
+            'label': 'Strongly Positive',
+            'display_text': 'Public strongly supports this'
+        },
+        'somewhat_positive': {
+            'range': (0.2, 0.6),
+            'label': 'Somewhat Positive',
+            'display_text': 'Generally favorable reception'
+        },
+        'mixed_neutral': {
+            'range': (-0.2, 0.2),
+            'label': 'Mixed/Neutral',
+            'display_text': 'Public opinion divided'
+        },
+        'somewhat_negative': {
+            'range': (-0.6, -0.2),
+            'label': 'Somewhat Negative',
+            'display_text': 'Growing public concern'
+        },
+        'strongly_negative': {
+            'range': (-1.0, -0.6),
+            'label': 'Strongly Negative',
+            'display_text': 'Significant public opposition'
+        }
+    }
+
+    @classmethod
+    def get_sentiment_label(cls, score: float):
+        """Get sentiment label and display text from numeric score.
+
+        Args:
+            score: Sentiment score from -1.0 to 1.0
+
+        Returns:
+            Dict with 'label' and 'display_text' keys
+        """
+        for key, config in cls.SENTIMENT_LABELS.items():
+            min_score, max_score = config['range']
+            if min_score <= score <= max_score:
+                return {
+                    'label': config['label'],
+                    'display_text': config['display_text']
+                }
+        # Fallback for edge cases
+        return {
+            'label': 'Mixed/Neutral',
+            'display_text': 'Public opinion divided'
+        }
+
+    @classmethod
+    def get_all_policy_categories(cls):
+        """Get all policy categories (Tier 1 + Tier 2) as flat list."""
+        tier1 = cls.POLICY_CATEGORIES['tier1']['categories']
+        tier2 = cls.POLICY_CATEGORIES['tier2']['categories']
+        return tier1 + tier2
+
     @classmethod
     def get_program_config(cls, program_key: str):
         """Get configuration for a specific program."""

@@ -13,6 +13,17 @@ from database import db
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Import sentiment analyzer (lazy import to avoid circular dependencies)
+_sentiment_analyzer = None
+
+def get_sentiment_analyzer():
+    """Lazy-load sentiment analyzer to avoid circular imports."""
+    global _sentiment_analyzer
+    if _sentiment_analyzer is None:
+        from sentiment_analyzer import sentiment_analyzer
+        _sentiment_analyzer = sentiment_analyzer
+    return _sentiment_analyzer
+
 class RadioSummarizer:
     """Generates summaries for radio transcripts using OpenAI GPT."""
     
@@ -73,8 +84,21 @@ class RadioSummarizer:
                 
                 # Update block status
                 db.update_block_status(block_id, 'completed')
-                
+
                 logger.info(f"Summarization completed for block {block_id}")
+
+                # Run sentiment analysis after summarization
+                try:
+                    analyzer = get_sentiment_analyzer()
+                    sentiment_result = analyzer.analyze_block_sentiment(block_id)
+                    if sentiment_result:
+                        logger.info(f"✅ Sentiment analysis completed: {sentiment_result['label']} ({sentiment_result['overall_score']:.2f})")
+                    else:
+                        logger.warning(f"⚠️ Sentiment analysis returned no results for block {block_id}")
+                except Exception as e:
+                    logger.error(f"❌ Sentiment analysis failed for block {block_id}: {e}")
+                    # Don't fail the whole summarization if sentiment analysis fails
+
                 return summary_data
             else:
                 db.update_block_status(block_id, 'failed')
