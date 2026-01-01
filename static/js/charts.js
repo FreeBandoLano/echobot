@@ -410,6 +410,417 @@ window.EchobotCharts = (function() {
     });
   }
 
+  /* ====================================================================
+     TACTICAL THEME CHARTS (Grok-Inspired)
+     ==================================================================== */
+
+  // Tactical color configuration (matches tactical.css)
+  const TACTICAL_CONFIG = {
+    colors: {
+      bg: '#121823',
+      paper: '#1a2332',
+      text: '#e0e6ed',
+      textMuted: '#7d8896',
+      grid: '#2a3f5f',
+      red: '#b51227',
+      gold: '#f5c342',
+      positive: '#00ff41',
+      teal: '#4dd9d9',
+      negative: '#ff4444',
+      neutral: '#888888'
+    },
+    fonts: {
+      family: 'Roboto Mono, Courier New, monospace',
+      size: 12,
+      titleSize: 16
+    },
+    glow: {
+      enabled: true,
+      color: 'rgba(77, 217, 217, 0.6)',
+      width: 2
+    }
+  };
+
+  /**
+   * Get tactical layout template
+   * Factory function for consistent tactical chart styling
+   * @param {string} title - Chart title
+   * @param {object} options - Additional layout options to merge
+   * @returns {object} Plotly layout object
+   */
+  function getTacticalLayout(title, options = {}) {
+    const baseLayout = {
+      title: {
+        text: title,
+        font: {
+          family: TACTICAL_CONFIG.fonts.family,
+          size: TACTICAL_CONFIG.fonts.titleSize,
+          color: TACTICAL_CONFIG.colors.teal
+        },
+        x: 0.05,
+        xanchor: 'left'
+      },
+      paper_bgcolor: TACTICAL_CONFIG.colors.paper,
+      plot_bgcolor: TACTICAL_CONFIG.colors.bg,
+      font: {
+        family: TACTICAL_CONFIG.fonts.family,
+        size: TACTICAL_CONFIG.fonts.size,
+        color: TACTICAL_CONFIG.colors.text
+      },
+      xaxis: {
+        gridcolor: TACTICAL_CONFIG.colors.grid,
+        zerolinecolor: TACTICAL_CONFIG.colors.teal,
+        zerolinewidth: 2,
+        tickfont: { color: TACTICAL_CONFIG.colors.textMuted }
+      },
+      yaxis: {
+        gridcolor: TACTICAL_CONFIG.colors.grid,
+        zerolinecolor: TACTICAL_CONFIG.colors.teal,
+        zerolinewidth: 2,
+        tickfont: { color: TACTICAL_CONFIG.colors.textMuted }
+      },
+      margin: { l: 150, r: 50, t: 80, b: 60 },
+      hovermode: 'closest',
+      hoverlabel: {
+        bgcolor: TACTICAL_CONFIG.colors.paper,
+        bordercolor: TACTICAL_CONFIG.colors.teal,
+        font: { size: 11, color: TACTICAL_CONFIG.colors.text, family: TACTICAL_CONFIG.fonts.family }
+      }
+    };
+
+    // Deep merge options
+    return Object.assign({}, baseLayout, options, {
+      xaxis: { ...baseLayout.xaxis, ...(options.xaxis || {}) },
+      yaxis: { ...baseLayout.yaxis, ...(options.yaxis || {}) }
+    });
+  }
+
+  /**
+   * Create policy topics horizontal bar chart (Grok-style)
+   * Horizontal bars with colored BORDERS (not fills) based on sentiment
+   * @param {string} containerId - DOM element ID
+   * @param {Array} data - Policy data [{category, count, sentiment}, ...]
+   */
+  function createPolicyTopicsChart(containerId, data) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+      console.error('Container not found:', containerId);
+      return;
+    }
+
+    // Sort by count descending, take top 8
+    const sorted = data.sort((a, b) => b.count - a.count).slice(0, 8);
+
+    // Map sentiment to border color
+    function getBorderColor(sentiment) {
+      if (sentiment > 0.2) return TACTICAL_CONFIG.colors.positive;
+      if (sentiment < -0.2) return TACTICAL_CONFIG.colors.negative;
+      return TACTICAL_CONFIG.colors.neutral;
+    }
+
+    const trace = {
+      type: 'bar',
+      orientation: 'h',
+      y: sorted.map(d => d.category),
+      x: sorted.map(d => d.count),
+      marker: {
+        color: 'rgba(0, 0, 0, 0)',  // Transparent fill
+        line: {
+          color: sorted.map(d => getBorderColor(d.sentiment)),
+          width: 3
+        }
+      },
+      text: sorted.map(d => d.count),
+      textposition: 'outside',
+      textfont: {
+        color: TACTICAL_CONFIG.colors.text,
+        family: TACTICAL_CONFIG.fonts.family,
+        size: 13
+      },
+      hovertemplate: '<b>%{y}</b><br>Mentions: %{x}<br>Sentiment: %{customdata:.2f}<extra></extra>',
+      customdata: sorted.map(d => d.sentiment)
+    };
+
+    const layout = getTacticalLayout('Policy Category Activity', {
+      xaxis: {
+        title: 'Mention Count',
+        titlefont: { color: TACTICAL_CONFIG.colors.teal }
+      },
+      yaxis: {
+        automargin: true,
+        title: ''
+      },
+      height: 400
+    });
+
+    Plotly.newPlot(container, [trace], layout, DEFAULT_CONFIG);
+  }
+
+  /**
+   * Create sentiment distribution donut chart (Grok-style)
+   * Pie chart with hole=0.6, outside labels
+   * @param {string} containerId - DOM element ID
+   * @param {Array} data - Sentiment data [{label, value, color}, ...]
+   */
+  function createSentimentDonut(containerId, data) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+      console.error('Container not found:', containerId);
+      return;
+    }
+
+    const total = data.reduce((sum, d) => sum + d.value, 0);
+    const maxValue = Math.max(...data.map(d => d.value));
+
+    const trace = {
+      type: 'pie',
+      labels: data.map(d => d.label),
+      values: data.map(d => d.value),
+      hole: 0.6,  // Donut chart
+      marker: {
+        colors: data.map(d => d.color),
+        line: {
+          color: TACTICAL_CONFIG.colors.teal,
+          width: 2
+        }
+      },
+      textposition: 'outside',
+      textinfo: 'label+percent',
+      textfont: {
+        family: TACTICAL_CONFIG.fonts.family,
+        size: 11,
+        color: TACTICAL_CONFIG.colors.text
+      },
+      hovertemplate: '<b>%{label}</b><br>Count: %{value}<br>%{percent}<extra></extra>',
+      pull: data.map(d => d.value === maxValue ? 0.1 : 0)  // Pull out largest slice
+    };
+
+    const layout = getTacticalLayout('Sentiment Distribution', {
+      showlegend: false,
+      height: 400,
+      margin: { l: 100, r: 100, t: 80, b: 60 },
+      annotations: [{
+        text: total.toString(),
+        font: {
+          size: 32,
+          family: TACTICAL_CONFIG.fonts.family,
+          color: TACTICAL_CONFIG.colors.teal,
+          weight: 700
+        },
+        showarrow: false,
+        x: 0.5,
+        y: 0.5
+      }]
+    });
+
+    Plotly.newPlot(container, [trace], layout, DEFAULT_CONFIG);
+  }
+
+  /**
+   * Create topic sentiment diverging bar chart with line overlay (Grok-style)
+   * Diverging horizontal bars (positive=green, negative=red) + line graph for mention counts
+   * @param {string} containerId - DOM element ID
+   * @param {Array} data - Topic data [{topic, avgSentiment, count}, ...]
+   */
+  function createTopicSentimentChart(containerId, data) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+      console.error('Container not found:', containerId);
+      return;
+    }
+
+    // Sort by sentiment descending, take top 10
+    const sorted = data.sort((a, b) => b.avgSentiment - a.avgSentiment).slice(0, 10);
+
+    // Create diverging bar colors
+    const barColors = sorted.map(d =>
+      d.avgSentiment > 0 ? TACTICAL_CONFIG.colors.positive : TACTICAL_CONFIG.colors.negative
+    );
+
+    // Normalize counts to fit sentiment scale for overlay
+    const maxCount = Math.max(...sorted.map(d => d.count));
+    const normalizedCounts = sorted.map(d => (d.count / maxCount) * 2 - 1);  // Scale to [-1, 1]
+
+    // Trace 1: Diverging sentiment bars
+    const barTrace = {
+      type: 'bar',
+      orientation: 'h',
+      y: sorted.map(d => d.topic),
+      x: sorted.map(d => d.avgSentiment),
+      marker: {
+        color: barColors,
+        line: {
+          color: TACTICAL_CONFIG.colors.teal,
+          width: 1
+        },
+        opacity: 0.7
+      },
+      text: sorted.map(d => d.avgSentiment.toFixed(2)),
+      textposition: 'outside',
+      textfont: {
+        color: TACTICAL_CONFIG.colors.text,
+        family: TACTICAL_CONFIG.fonts.family,
+        size: 11
+      },
+      hovertemplate: '<b>%{y}</b><br>Sentiment: %{x:.2f}<extra></extra>',
+      name: 'Sentiment'
+    };
+
+    // Trace 2: Line overlay for mention counts
+    const lineTrace = {
+      type: 'scatter',
+      mode: 'lines+markers',
+      y: sorted.map(d => d.topic),
+      x: normalizedCounts,
+      marker: {
+        color: TACTICAL_CONFIG.colors.gold,
+        size: 8,
+        line: {
+          color: TACTICAL_CONFIG.colors.teal,
+          width: 1
+        }
+      },
+      line: {
+        color: TACTICAL_CONFIG.colors.gold,
+        width: 2,
+        dash: 'dot'
+      },
+      hovertemplate: '<b>%{y}</b><br>Mentions: %{customdata}<extra></extra>',
+      customdata: sorted.map(d => d.count),
+      name: 'Mention Count'
+    };
+
+    const layout = getTacticalLayout('Topic Sentiment Analysis', {
+      xaxis: {
+        title: 'Average Sentiment',
+        range: [-1, 1],
+        zeroline: true,
+        zerolinecolor: TACTICAL_CONFIG.colors.teal,
+        zerolinewidth: 4
+      },
+      yaxis: {
+        automargin: true,
+        title: ''
+      },
+      height: 500,
+      showlegend: true,
+      legend: {
+        font: { family: TACTICAL_CONFIG.fonts.family, color: TACTICAL_CONFIG.colors.text },
+        bgcolor: 'rgba(0,0,0,0)',
+        x: 1,
+        xanchor: 'right',
+        y: 1,
+        yanchor: 'top'
+      },
+      shapes: [
+        {
+          type: 'line',
+          x0: 0,
+          x1: 0,
+          y0: 0,
+          y1: 1,
+          yref: 'paper',
+          line: {
+            color: TACTICAL_CONFIG.colors.teal,
+            width: 4
+          }
+        }
+      ]
+    });
+
+    Plotly.newPlot(container, [barTrace, lineTrace], layout, DEFAULT_CONFIG);
+
+    // Add glow effect to zero line post-render (via CSS manipulation)
+    setTimeout(() => {
+      const zeroLine = container.querySelector('.zerolinelayer line');
+      if (zeroLine) {
+        zeroLine.style.filter = `drop-shadow(0 0 8px ${TACTICAL_CONFIG.colors.teal}) drop-shadow(0 0 12px ${TACTICAL_CONFIG.colors.teal})`;
+      }
+    }, 100);
+  }
+
+  /**
+   * Create parish radial chart (polar bar chart, Grok-style)
+   * Alternative to geographic map - shows parishes in radial layout
+   * @param {string} containerId - DOM element ID
+   * @param {Array} data - Parish data [{parish, sentiment, count}, ...]
+   */
+  function createParishRadialChart(containerId, data) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+      console.error('Container not found:', containerId);
+      return;
+    }
+
+    // Map sentiment to color
+    function getSentimentColor(sentiment) {
+      if (sentiment > 0.2) return TACTICAL_CONFIG.colors.positive;
+      if (sentiment < -0.2) return TACTICAL_CONFIG.colors.negative;
+      return TACTICAL_CONFIG.colors.neutral;
+    }
+
+    const colors = data.map(d => getSentimentColor(d.sentiment));
+
+    const trace = {
+      type: 'barpolar',
+      r: data.map(d => d.count),
+      theta: data.map(d => d.parish),
+      marker: {
+        color: colors,
+        line: {
+          color: TACTICAL_CONFIG.colors.teal,
+          width: 2
+        },
+        opacity: 0.8
+      },
+      text: data.map(d => `${d.count} mentions<br>Sentiment: ${d.sentiment.toFixed(2)}`),
+      hovertemplate: '<b>%{theta}</b><br>%{text}<extra></extra>',
+      name: 'Parish Mentions'
+    };
+
+    const layout = {
+      title: {
+        text: 'Parish Sentiment Radial',
+        font: {
+          family: TACTICAL_CONFIG.fonts.family,
+          size: TACTICAL_CONFIG.fonts.titleSize,
+          color: TACTICAL_CONFIG.colors.teal
+        }
+      },
+      paper_bgcolor: TACTICAL_CONFIG.colors.paper,
+      plot_bgcolor: TACTICAL_CONFIG.colors.bg,
+      font: {
+        family: TACTICAL_CONFIG.fonts.family,
+        size: TACTICAL_CONFIG.fonts.size,
+        color: TACTICAL_CONFIG.colors.text
+      },
+      polar: {
+        radialaxis: {
+          visible: true,
+          gridcolor: TACTICAL_CONFIG.colors.grid,
+          color: TACTICAL_CONFIG.colors.textMuted,
+          tickfont: { color: TACTICAL_CONFIG.colors.textMuted }
+        },
+        angularaxis: {
+          gridcolor: TACTICAL_CONFIG.colors.grid,
+          color: TACTICAL_CONFIG.colors.text,
+          tickfont: { color: TACTICAL_CONFIG.colors.text, size: 11 }
+        },
+        bgcolor: TACTICAL_CONFIG.colors.bg
+      },
+      showlegend: false,
+      height: 500,
+      margin: { l: 80, r: 80, t: 100, b: 80 },
+      hoverlabel: {
+        bgcolor: TACTICAL_CONFIG.colors.paper,
+        bordercolor: TACTICAL_CONFIG.colors.teal,
+        font: { size: 11, color: TACTICAL_CONFIG.colors.text, family: TACTICAL_CONFIG.fonts.family }
+      }
+    };
+
+    Plotly.newPlot(container, [trace], layout, DEFAULT_CONFIG);
+  }
+
   // Public API
   return {
     init,
@@ -418,10 +829,17 @@ window.EchobotCharts = (function() {
     createParishHeatmap,
     createPolicyCards,
     createUrgencyIndicators,
+    // Tactical theme charts (Grok-style)
+    createPolicyTopicsChart,
+    createSentimentDonut,
+    createTopicSentimentChart,
+    createParishRadialChart,
+    getTacticalLayout,
     // Utilities
     getSentimentCategory,
     SENTIMENT_COLORS,
-    CSS_VARS
+    CSS_VARS,
+    TACTICAL_CONFIG
   };
 })();
 

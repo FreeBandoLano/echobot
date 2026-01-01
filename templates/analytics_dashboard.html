@@ -463,141 +463,110 @@
       </div>
       {% endif %}
 
-      <!-- 1. Public Sentiment Overview -->
-      <section class="dashboard-section">
-        <div class="section-header">
-          <h2 class="section-title">
-            <i class="bi bi-graph-up-arrow"></i>
-            Public Sentiment Overview
-          </h2>
-          <div class="export-actions">
-            <a href="/dashboard/export/pdf?date={{ view_date }}" class="export-btn" title="Download PDF briefing">
-              <i class="bi bi-file-pdf"></i> PDF
-            </a>
-            <a href="/dashboard/export/csv?dataset=sentiment&date={{ view_date }}" class="export-btn" title="Export raw data">
-              <i class="bi bi-filetype-csv"></i> CSV
-            </a>
-            <a href="/dashboard/export/json?date={{ view_date }}" class="export-btn" title="API data">
-              <i class="bi bi-code-square"></i> JSON
-            </a>
-          </div>
-        </div>
+      <!-- TACTICAL ANALYTICS CHARTS (Grok-Inspired) -->
+      <div class="tactical-bg-pattern" style="padding: 2rem 0;">
 
-        <div class="row g-4">
-          <div class="col-md-4">
-            <div class="sentiment-card">
-              <div class="sentiment-label">Overall Sentiment</div>
-              <div class="sentiment-value {% if analytics.overall_sentiment.score >= 0 %}sentiment-positive{% elif analytics.overall_sentiment.score <= -0.3 %}sentiment-negative{% else %}sentiment-neutral{% endif %}">
-                {{ analytics.overall_sentiment.label }}
+        <!-- Row 1: Policy Topics + Sentiment Donut -->
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="card tactical-card-simple">
+              <div class="card-body" style="position: relative;">
+                <div id="policyTopicsChart" style="height: 400px;"></div>
+                <div class="chart-loading" id="policyTopicsLoading" style="display: none;">
+                  <div class="spinner-border text-info" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                </div>
               </div>
-              <div class="sentiment-text">{{ analytics.overall_sentiment.display_text or 'Analyzing public discourse...' }}</div>
             </div>
           </div>
-          <div class="col-md-4">
-            <div class="sentiment-card">
-              <div class="sentiment-label">Sentiment Score</div>
-              <div class="sentiment-value {% if analytics.overall_sentiment.score >= 0 %}sentiment-positive{% elif analytics.overall_sentiment.score <= -0.3 %}sentiment-negative{% else %}sentiment-neutral{% endif %}">
-                {{ (analytics.overall_sentiment.score * 100)|round }}%
+
+          <div class="col-lg-6">
+            <div class="card tactical-card-simple">
+              <div class="card-body" style="position: relative;">
+                <div id="sentimentDonutChart" style="height: 400px;"></div>
+                <div class="chart-loading" id="sentimentDonutLoading" style="display: none;">
+                  <div class="spinner-border text-info" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                </div>
               </div>
-              <div class="sentiment-text">Range: -100 (Very Negative) to +100 (Very Positive)</div>
             </div>
           </div>
-          <div class="col-md-4">
-            <div class="sentiment-card">
-              <div class="sentiment-label">Trend Indicator</div>
-              <div class="sentiment-value sentiment-neutral">
-                <i class="bi bi-arrow-right"></i>
+        </div>
+
+        <!-- Row 2: Topic Sentiment + Parish Radial -->
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="card tactical-card-simple">
+              <div class="card-body" style="position: relative;">
+                <div id="topicSentimentChart" style="height: 500px;"></div>
+                <div class="chart-loading" id="topicSentimentLoading" style="display: none;">
+                  <div class="spinner-border text-info" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                </div>
               </div>
-              <div class="sentiment-text">Stable (7-day comparison pending)</div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="card tactical-card-simple">
+              <div class="card-body" style="position: relative;">
+                <!-- Parish View Toggle -->
+                <div class="btn-group btn-group-sm mb-3" role="group">
+                  <button type="button" class="btn btn-outline-info active" id="parishRadialBtn">
+                    <i class="bi bi-radar"></i> Radial View
+                  </button>
+                  <button type="button" class="btn btn-outline-info" id="parishCardsBtn">
+                    <i class="bi bi-grid-3x3"></i> Card View
+                  </button>
+                </div>
+
+                <div id="parishRadialChart" style="height: 500px;"></div>
+                <div id="parishCardsView" style="display: none;">
+                  <div class="parish-map">
+                    {% for parish in analytics.parishes %}
+                    <div class="parish-card parish--{{ 'positive' if parish.label == 'Somewhat Positive' or parish.label == 'Strongly Positive' else 'negative' if 'Negative' in parish.label else 'neutral' if parish.mentions >= 5 else 'insufficient' }}">
+                      <div class="parish-name">{{ parish.name }}</div>
+                      <div class="parish-mentions">{{ parish.mentions }} mention{{ 's' if parish.mentions != 1 else '' }}</div>
+                      <div class="parish-sentiment {% if 'Negative' in parish.label %}sentiment-negative{% elif 'Positive' in parish.label %}sentiment-positive{% else %}sentiment-neutral{% endif %}">
+                        {{ parish.label }}
+                      </div>
+                      {% if parish.top_concern %}
+                      <div class="parish-concern">Primary: {{ parish.top_concern }}</div>
+                      {% endif %}
+                    </div>
+                    {% endfor %}
+                  </div>
+                </div>
+
+                <div class="chart-loading" id="parishRadialLoading" style="display: none;">
+                  <div class="spinner-border text-info" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </section>
 
-      <!-- 2. Parish Heatmap -->
-      <section class="dashboard-section">
-        <div class="section-header">
-          <h2 class="section-title">
-            <i class="bi bi-geo-alt-fill"></i>
-            Barbados Parish Sentiment Heatmap
-          </h2>
-          <small style="color: var(--text-tertiary); font-size: 0.75rem;">Based on caller mentions & issue localization</small>
-        </div>
+      </div>
 
-        <div class="parish-map">
-          {% for parish in analytics.parishes %}
-          <div class="parish-card parish--{{ 'positive' if parish.label == 'Somewhat Positive' or parish.label == 'Strongly Positive' else 'negative' if 'Negative' in parish.label else 'neutral' if parish.mentions >= 5 else 'insufficient' }}">
-            <div class="parish-name">{{ parish.name }}</div>
-            <div class="parish-mentions">{{ parish.mentions }} mention{{ 's' if parish.mentions != 1 else '' }}</div>
-            <div class="parish-sentiment {% if 'Negative' in parish.label %}sentiment-negative{% elif 'Positive' in parish.label %}sentiment-positive{% else %}sentiment-neutral{% endif %}">
-              {{ parish.label }}
-            </div>
-            {% if parish.top_concern %}
-            <div class="parish-concern">Primary: {{ parish.top_concern }}</div>
-            {% endif %}
-          </div>
-          {% endfor %}
+      <!-- Export Actions -->
+      <div class="text-center mb-4">
+        <div class="btn-group" role="group">
+          <a href="/dashboard/export/pdf?date={{ view_date }}" class="btn btn-outline-info">
+            <i class="bi bi-file-pdf"></i> Export PDF
+          </a>
+          <a href="/dashboard/export/csv?dataset=sentiment&date={{ view_date }}" class="btn btn-outline-info">
+            <i class="bi bi-filetype-csv"></i> Export CSV
+          </a>
+          <a href="/dashboard/export/json?date={{ view_date }}" class="btn btn-outline-info">
+            <i class="bi bi-code-square"></i> Export JSON
+          </a>
         </div>
-
-        <div style="margin-top: 1.5rem; padding: 1rem; background: var(--color-panel-alt); border-radius: var(--radius-md); font-size: 0.8rem; color: var(--text-secondary);">
-          <strong>Note:</strong> Parish assignments based on caller location references, issue geographic markers, and constituency mentions in discourse. Parishes with <5 mentions show insufficient data.
-        </div>
-      </section>
-
-      <!-- 3. Emerging Issues Alert -->
-      <section class="dashboard-section">
-        <div class="section-header">
-          <h2 class="section-title">
-            <i class="bi bi-exclamation-circle-fill"></i>
-            Emerging Issues Alert
-          </h2>
-          <span style="font-size: 0.75rem; color: var(--text-tertiary);">Algorithmic urgency detection</span>
-        </div>
-
-        <div class="alert-section">
-          {% for issue in analytics.emerging_issues %}
-          <div class="issue-alert {% if issue.urgency >= 0.7 %}alert-red{% elif issue.urgency >= 0.4 %}alert-orange{% else %}alert-green{% endif %}">
-            <span class="urgency-badge {% if issue.urgency >= 0.7 %}urgency-high{% elif issue.urgency >= 0.4 %}urgency-medium{% else %}urgency-low{% endif %}">
-              {% if issue.urgency >= 0.7 %}HIGH URGENCY{% elif issue.urgency >= 0.4 %}MODERATE{% else %}LOW{% endif %}
-            </span>
-            <div class="issue-topic">{{ issue.topic }}</div>
-            <div class="issue-trajectory">
-              {% if issue.trajectory == 'rising' %}
-              <i class="bi bi-arrow-up-right trajectory-icon" style="color: var(--color-danger);"></i>
-              {% elif issue.trajectory == 'falling' %}
-              <i class="bi bi-arrow-down-right trajectory-icon" style="color: var(--color-success);"></i>
-              {% else %}
-              <i class="bi bi-arrow-right trajectory-icon" style="color: var(--color-warn);"></i>
-              {% endif %}
-              <span>{{ issue.trajectory|capitalize }} trajectory • {{ (issue.urgency * 100)|round }}% urgency score</span>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-      </section>
-
-      <!-- 4. Policy Category Breakdown -->
-      <section class="dashboard-section">
-        <div class="section-header">
-          <h2 class="section-title">
-            <i class="bi bi-clipboard-data"></i>
-            Policy Category Sentiment
-          </h2>
-          <span style="font-size: 0.75rem; color: var(--text-tertiary);">12 core government portfolios</span>
-        </div>
-
-        <div class="policy-grid">
-          {% for category in analytics.policy_categories %}
-          <div class="policy-card">
-            <div class="policy-name">{{ category.category }}</div>
-            <div class="policy-indicator">
-              <span class="indicator-dot {% if category.score >= 0 %}indicator-positive{% elif category.score <= -0.3 %}indicator-negative{% else %}indicator-neutral{% endif %}"></span>
-              <span class="policy-score">{{ category.label }}</span>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-      </section>
+      </div>
 
       <!-- Footer Notes -->
       <div style="margin-top: 3rem; padding: 1.5rem; background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius-lg); font-size: 0.8rem; color: var(--text-secondary);">
@@ -616,6 +585,269 @@
       </div>
     </div>
   </main>
+
+  <!-- Chart Loading and API Integration -->
+  <script>
+    // =========================================================================
+    // PARISH VIEW TOGGLE (Radial Chart ↔ Card View)
+    // =========================================================================
+
+    const parishRadialBtn = document.getElementById('parishRadialBtn');
+    const parishCardsBtn = document.getElementById('parishCardsBtn');
+    const parishRadialChart = document.getElementById('parishRadialChart');
+    const parishCardsView = document.getElementById('parishCardsView');
+
+    if (parishRadialBtn && parishCardsBtn) {
+      parishRadialBtn.addEventListener('click', function() {
+        parishRadialChart.style.display = 'block';
+        parishCardsView.style.display = 'none';
+        this.classList.add('active');
+        parishCardsBtn.classList.remove('active');
+      });
+
+      parishCardsBtn.addEventListener('click', function() {
+        parishRadialChart.style.display = 'none';
+        parishCardsView.style.display = 'block';
+        this.classList.add('active');
+        parishRadialBtn.classList.remove('active');
+      });
+    }
+
+    // =========================================================================
+    // CHART LOADER FUNCTIONS
+    // =========================================================================
+
+    /**
+     * Load Policy Topics Chart (Horizontal Bars with Colored Borders)
+     */
+    async function loadPolicyTopicsChart() {
+      const loading = document.getElementById('policyTopicsLoading');
+      if (!loading) return;
+
+      loading.style.display = 'flex';
+
+      try {
+        // Fetch trending topics with category grouping
+        const response = await fetch('/api/analytics/topics/trending?days=7');
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Transform API data to chart format
+        // Expected format: [{ category: "Healthcare", count: 45, sentiment: 0.3 }]
+        const chartData = data.topics.map(topic => ({
+          category: topic.category || topic.topic_name || 'Uncategorized',
+          count: topic.count || topic.mention_count || 0,
+          sentiment: topic.avg_sentiment || topic.sentiment || 0
+        }));
+
+        // Sort by count descending, take top 10
+        chartData.sort((a, b) => b.count - a.count);
+        const top10 = chartData.slice(0, 10);
+
+        // Call chart function from charts.js
+        if (typeof EchobotCharts !== 'undefined' && EchobotCharts.createPolicyTopicsChart) {
+          EchobotCharts.createPolicyTopicsChart('policyTopicsChart', top10);
+        } else {
+          console.error('EchobotCharts.createPolicyTopicsChart not found');
+        }
+      } catch (error) {
+        console.error('Failed to load policy topics chart:', error);
+        document.getElementById('policyTopicsChart').innerHTML =
+          '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--tactical-text-muted);">' +
+          '<i class="bi bi-exclamation-triangle" style="margin-right: 0.5rem;"></i> Failed to load chart data' +
+          '</div>';
+      } finally {
+        loading.style.display = 'none';
+      }
+    }
+
+    /**
+     * Load Sentiment Donut Chart (5 Segments with Center Annotation)
+     */
+    async function loadSentimentDonutChart() {
+      const loading = document.getElementById('sentimentDonutLoading');
+      if (!loading) return;
+
+      loading.style.display = 'flex';
+
+      try {
+        // Fetch sentiment distribution
+        const response = await fetch('/api/analytics/sentiment?days=7');
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Transform to 5-segment donut format
+        // Expected format: [{ label: "Strongly Positive", value: 25, color: "#00ff41" }]
+        const chartData = [
+          {
+            label: 'Strongly Positive',
+            value: data.strongly_positive || 0,
+            color: TACTICAL_CONFIG.colors.positive
+          },
+          {
+            label: 'Somewhat Positive',
+            value: data.somewhat_positive || 0,
+            color: '#88ff88'
+          },
+          {
+            label: 'Mixed/Neutral',
+            value: data.neutral || 0,
+            color: TACTICAL_CONFIG.colors.neutral
+          },
+          {
+            label: 'Somewhat Negative',
+            value: data.somewhat_negative || 0,
+            color: '#ff8844'
+          },
+          {
+            label: 'Strongly Negative',
+            value: data.strongly_negative || 0,
+            color: TACTICAL_CONFIG.colors.negative
+          }
+        ];
+
+        const totalCount = chartData.reduce((sum, d) => sum + d.value, 0);
+
+        // Call chart function
+        if (typeof EchobotCharts !== 'undefined' && EchobotCharts.createSentimentDonut) {
+          EchobotCharts.createSentimentDonut('sentimentDonutChart', chartData, totalCount);
+        } else {
+          console.error('EchobotCharts.createSentimentDonut not found');
+        }
+      } catch (error) {
+        console.error('Failed to load sentiment donut chart:', error);
+        document.getElementById('sentimentDonutChart').innerHTML =
+          '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--tactical-text-muted);">' +
+          '<i class="bi bi-exclamation-triangle" style="margin-right: 0.5rem;"></i> Failed to load chart data' +
+          '</div>';
+      } finally {
+        loading.style.display = 'none';
+      }
+    }
+
+    /**
+     * Load Topic Sentiment Chart (Diverging Bars + Line Overlay)
+     */
+    async function loadTopicSentimentChart() {
+      const loading = document.getElementById('topicSentimentLoading');
+      if (!loading) return;
+
+      loading.style.display = 'flex';
+
+      try {
+        // Fetch top topics with sentiment data
+        const response = await fetch('/api/analytics/topics/trending?days=7');
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Transform to diverging bar format
+        // Expected format: [{ topic: "Healthcare Reform", avgSentiment: 0.45, count: 23 }]
+        const chartData = data.topics.map(topic => ({
+          topic: topic.topic_name || topic.category || 'Unknown Topic',
+          avgSentiment: topic.avg_sentiment || topic.sentiment || 0,
+          count: topic.count || topic.mention_count || 0
+        }));
+
+        // Sort by absolute sentiment (most polarizing topics first)
+        chartData.sort((a, b) => Math.abs(b.avgSentiment) - Math.abs(a.avgSentiment));
+        const top12 = chartData.slice(0, 12);
+
+        // Call chart function
+        if (typeof EchobotCharts !== 'undefined' && EchobotCharts.createTopicSentimentChart) {
+          EchobotCharts.createTopicSentimentChart('topicSentimentChart', top12);
+        } else {
+          console.error('EchobotCharts.createTopicSentimentChart not found');
+        }
+      } catch (error) {
+        console.error('Failed to load topic sentiment chart:', error);
+        document.getElementById('topicSentimentChart').innerHTML =
+          '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--tactical-text-muted);">' +
+          '<i class="bi bi-exclamation-triangle" style="margin-right: 0.5rem;"></i> Failed to load chart data' +
+          '</div>';
+      } finally {
+        loading.style.display = 'none';
+      }
+    }
+
+    /**
+     * Load Parish Radial Chart (Polar Bar Chart)
+     */
+    async function loadParishRadialChart() {
+      const loading = document.getElementById('parishRadialLoading');
+      if (!loading) return;
+
+      loading.style.display = 'flex';
+
+      try {
+        // Fetch parish data
+        const response = await fetch('/api/analytics/parishes?days=7');
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Transform to radial chart format
+        // Expected format: [{ parish: "St. Michael", sentiment: 0.3, count: 45 }]
+        const chartData = data.parishes.map(parish => ({
+          parish: parish.parish_name || parish.name || 'Unknown',
+          sentiment: parish.avg_sentiment || parish.sentiment || 0,
+          count: parish.mention_count || parish.count || 0
+        }));
+
+        // Sort by mention count descending
+        chartData.sort((a, b) => b.count - a.count);
+
+        // Call chart function
+        if (typeof EchobotCharts !== 'undefined' && EchobotCharts.createParishRadialChart) {
+          EchobotCharts.createParishRadialChart('parishRadialChart', chartData);
+        } else {
+          console.error('EchobotCharts.createParishRadialChart not found');
+        }
+      } catch (error) {
+        console.error('Failed to load parish radial chart:', error);
+        document.getElementById('parishRadialChart').innerHTML =
+          '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--tactical-text-muted);">' +
+          '<i class="bi bi-exclamation-triangle" style="margin-right: 0.5rem;"></i> Failed to load chart data' +
+          '</div>';
+      } finally {
+        loading.style.display = 'none';
+      }
+    }
+
+    // =========================================================================
+    // INITIALIZE ALL CHARTS ON PAGE LOAD
+    // =========================================================================
+
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('Initializing tactical analytics charts...');
+
+      // Load all 4 charts in parallel
+      Promise.all([
+        loadPolicyTopicsChart(),
+        loadSentimentDonutChart(),
+        loadTopicSentimentChart(),
+        loadParishRadialChart()
+      ]).then(() => {
+        console.log('All tactical charts loaded successfully');
+      }).catch(error => {
+        console.error('Error loading charts:', error);
+      });
+    });
+  </script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -1,0 +1,460 @@
+/**
+ * Tactical Theme CSS - Grok-Inspired Analytics Dashboard
+ *
+ * Visual Design System:
+ * - Dark tactical background (#121823)
+ * - Neon glow effects (teal/gold accents)
+ * - Corner brackets (HUD UI signature)
+ * - Hexagonal background patterns
+ * - Vertical striations on bars (fiber optic effect)
+ */
+
+/* ====================================================================
+   TACTICAL COLOR PALETTE
+   ==================================================================== */
+
+:root {
+  /* Background Colors */
+  --tactical-bg: #121823;
+  --tactical-card: #1a2332;
+  --tactical-border: #2a3f5f;
+
+  /* Brand Colors */
+  --tactical-red: #b51227;
+  --tactical-gold: #f5c342;
+
+  /* Sentiment Colors */
+  --tactical-positive: #00ff41;
+  --tactical-teal: #4dd9d9;
+  --tactical-negative: #ff4444;
+  --tactical-neutral: #888888;
+
+  /* Text Colors */
+  --tactical-text: #e0e6ed;
+  --tactical-text-muted: #7d8896;
+
+  /* Typography */
+  --tactical-font: 'Roboto Mono', 'Courier New', monospace;
+
+  /* Effects */
+  --tactical-glow: rgba(77, 217, 217, 0.4);
+  --tactical-glow-gold: rgba(245, 195, 66, 0.4);
+}
+
+
+/* ====================================================================
+   CORNER BRACKETS (HUD UI SIGNATURE)
+   ==================================================================== */
+
+.tactical-card {
+  position: relative;
+  background: var(--tactical-card);
+  border: 1px solid var(--tactical-border);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+/* Top-left corner */
+.tactical-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  border-top: 2px solid var(--tactical-teal);
+  border-left: 2px solid var(--tactical-teal);
+  z-index: 1;
+}
+
+/* Top-right corner */
+.tactical-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  border-top: 2px solid var(--tactical-teal);
+  border-right: 2px solid var(--tactical-teal);
+  z-index: 1;
+}
+
+/* Bottom corners (using data attributes for additional pseudo-elements) */
+.tactical-card {
+  /* Add bottom-left corner using box-shadow trick */
+  box-shadow:
+    /* Bottom-left */
+    -10px 10px 0 -8px var(--tactical-card),
+    -10px 10px 0 -8px var(--tactical-teal),
+    -2px calc(100% - 0px) 0 0 var(--tactical-teal),
+    -2px calc(100% - 20px) 0 0 var(--tactical-teal),
+    0 calc(100% - 2px) 0 0 var(--tactical-teal),
+    -20px calc(100% - 2px) 0 0 var(--tactical-teal),
+    /* Bottom-right */
+    calc(100% - 0px) calc(100% - 2px) 0 0 var(--tactical-teal),
+    calc(100% - 20px) calc(100% - 2px) 0 0 var(--tactical-teal),
+    calc(100% - 2px) calc(100% - 0px) 0 0 var(--tactical-teal),
+    calc(100% - 2px) calc(100% - 20px) 0 0 var(--tactical-teal);
+}
+
+/* Simplified corner brackets using border-image */
+.tactical-card-simple {
+  position: relative;
+  background: var(--tactical-card);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 20px;
+  background-clip: padding-box;
+}
+
+.tactical-card-simple::before,
+.tactical-card-simple::after {
+  content: '';
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--tactical-teal);
+}
+
+.tactical-card-simple::before {
+  top: -2px;
+  left: -2px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.tactical-card-simple::after {
+  bottom: -2px;
+  right: -2px;
+  border-left: none;
+  border-top: none;
+}
+
+
+/* ====================================================================
+   HEXAGONAL BACKGROUND PATTERN
+   ==================================================================== */
+
+.tactical-bg-pattern {
+  background-color: var(--tactical-bg);
+  background-image:
+    /* Hexagon pattern using SVG data URI */
+    url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 10 L45 20 L45 40 L30 50 L15 40 L15 20 Z' fill='none' stroke='%232a3f5f' stroke-width='1' stroke-opacity='0.3'/%3E%3C/svg%3E");
+  background-size: 60px 60px;
+  background-position: 0 0;
+}
+
+/* Alternative hexagon pattern using gradients */
+.tactical-hex-alt {
+  background-color: var(--tactical-bg);
+  background-image:
+    linear-gradient(30deg, rgba(255,255,255,0.03) 12%, transparent 12.5%, transparent 87%, rgba(255,255,255,0.03) 87.5%, rgba(255,255,255,0.03)),
+    linear-gradient(150deg, rgba(255,255,255,0.03) 12%, transparent 12.5%, transparent 87%, rgba(255,255,255,0.03) 87.5%, rgba(255,255,255,0.03)),
+    linear-gradient(30deg, rgba(255,255,255,0.03) 12%, transparent 12.5%, transparent 87%, rgba(255,255,255,0.03) 87.5%, rgba(255,255,255,0.03)),
+    linear-gradient(150deg, rgba(255,255,255,0.03) 12%, transparent 12.5%, transparent 87%, rgba(255,255,255,0.03) 87.5%, rgba(255,255,255,0.03));
+  background-size: 80px 140px;
+  background-position: 0 0, 0 0, 40px 70px, 40px 70px;
+}
+
+
+/* ====================================================================
+   NEON GLOW EFFECTS
+   ==================================================================== */
+
+.tactical-glow {
+  box-shadow:
+    0 0 10px var(--tactical-glow),
+    inset 0 0 10px var(--tactical-glow);
+  filter: drop-shadow(0 0 5px var(--tactical-teal));
+}
+
+.tactical-glow-gold {
+  box-shadow:
+    0 0 10px var(--tactical-glow-gold),
+    inset 0 0 10px var(--tactical-glow-gold);
+  filter: drop-shadow(0 0 5px var(--tactical-gold));
+}
+
+.tactical-glow-text {
+  text-shadow:
+    0 0 8px var(--tactical-teal),
+    0 0 16px var(--tactical-teal);
+  color: var(--tactical-teal);
+}
+
+/* Pulsing glow animation */
+@keyframes tactical-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 5px var(--tactical-teal));
+    opacity: 1;
+  }
+  50% {
+    filter: drop-shadow(0 0 15px var(--tactical-teal)) drop-shadow(0 0 25px var(--tactical-teal));
+    opacity: 0.8;
+  }
+}
+
+.tactical-pulse {
+  animation: tactical-pulse 2s ease-in-out infinite;
+}
+
+
+/* ====================================================================
+   VERTICAL STRIATIONS (FIBER OPTIC EFFECT)
+   ==================================================================== */
+
+.tactical-bar-striation {
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.05) 2px,
+    rgba(255, 255, 255, 0.05) 4px
+  );
+}
+
+/* For horizontal bars */
+.tactical-bar-striation-horizontal {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.05) 2px,
+    rgba(255, 255, 255, 0.05) 4px
+  );
+}
+
+
+/* ====================================================================
+   DASHBOARD OVERRIDES
+   ==================================================================== */
+
+/* Override default dashboard background */
+body {
+  background: var(--tactical-bg);
+  font-family: var(--tactical-font);
+  color: var(--tactical-text);
+}
+
+/* Analytics dashboard specific */
+.executive-view {
+  background: var(--tactical-bg);
+}
+
+/* Dashboard sections */
+.dashboard-section {
+  background: var(--tactical-card);
+  border: 1px solid var(--tactical-border);
+  border-radius: 12px;
+  position: relative;
+}
+
+/* Add teal accent bar to top of sections */
+.dashboard-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--tactical-teal), var(--tactical-gold));
+  border-radius: 12px 12px 0 0;
+  z-index: 1;
+}
+
+/* Chart containers */
+.chart-card {
+  background: var(--tactical-card);
+  border: 1px solid var(--tactical-border);
+}
+
+/* Bootstrap card overrides for tactical theme */
+.card {
+  background: var(--tactical-card);
+  border-color: var(--tactical-border);
+  color: var(--tactical-text);
+}
+
+.card-body {
+  background: transparent;
+}
+
+
+/* ====================================================================
+   LOADING STATES
+   ==================================================================== */
+
+.chart-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 24, 35, 0.8);
+  z-index: 10;
+}
+
+.chart-loading .spinner-border {
+  border-color: var(--tactical-teal);
+  border-right-color: transparent;
+  width: 3rem;
+  height: 3rem;
+}
+
+
+/* ====================================================================
+   BUTTONS & CONTROLS
+   ==================================================================== */
+
+.btn-outline-info {
+  color: var(--tactical-teal);
+  border-color: var(--tactical-teal);
+  font-family: var(--tactical-font);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-outline-info:hover {
+  background: var(--tactical-teal);
+  border-color: var(--tactical-teal);
+  color: var(--tactical-bg);
+  box-shadow: 0 0 10px var(--tactical-glow);
+}
+
+.btn-outline-info.active {
+  background: var(--tactical-teal);
+  border-color: var(--tactical-teal);
+  color: var(--tactical-bg);
+}
+
+
+/* ====================================================================
+   TYPOGRAPHY
+   ==================================================================== */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--tactical-font);
+  color: var(--tactical-teal);
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.section-title {
+  color: var(--tactical-gold);
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+}
+
+.chart-title {
+  color: var(--tactical-teal);
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+
+/* ====================================================================
+   RESPONSIVE DESIGN
+   ==================================================================== */
+
+@media (max-width: 768px) {
+  .tactical-card::before,
+  .tactical-card::after {
+    width: 15px;
+    height: 15px;
+  }
+
+  .tactical-card-simple::before,
+  .tactical-card-simple::after {
+    width: 20px;
+    height: 20px;
+  }
+
+  .chart-title {
+    font-size: 0.9rem;
+  }
+
+  .section-title {
+    font-size: 1.1rem;
+  }
+}
+
+
+/* ====================================================================
+   SCANLINE OVERLAY EFFECT (OPTIONAL)
+   ==================================================================== */
+
+.tactical-scanline {
+  position: relative;
+}
+
+.tactical-scanline::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.02) 2px,
+    rgba(255, 255, 255, 0.02) 4px
+  );
+  pointer-events: none;
+  z-index: 100;
+}
+
+
+/* ====================================================================
+   PLOTLY CHART CUSTOMIZATIONS
+   ==================================================================== */
+
+/* Override Plotly default backgrounds */
+.js-plotly-plot .plotly,
+.js-plotly-plot .plotly .main-svg {
+  background: transparent !important;
+}
+
+/* Glow effect on chart elements (applied via JS) */
+.plotly .point,
+.plotly .line {
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+/* Zero-line glow (applied via JS post-render) */
+.plotly .zerolinelayer path {
+  filter: drop-shadow(0 0 6px var(--tactical-teal)) drop-shadow(0 0 12px var(--tactical-teal));
+}
+
+
+/* ====================================================================
+   UTILITY CLASSES
+   ==================================================================== */
+
+.tactical-text-glow {
+  text-shadow: 0 0 10px var(--tactical-teal);
+}
+
+.tactical-border-glow {
+  box-shadow: 0 0 10px var(--tactical-glow);
+}
+
+.tactical-accent-bar {
+  border-left: 4px solid var(--tactical-gold);
+  padding-left: 15px;
+}
+
+.tactical-divider {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--tactical-teal), transparent);
+  margin: 2rem 0;
+}
