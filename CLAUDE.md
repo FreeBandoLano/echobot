@@ -134,18 +134,19 @@ Programs are configured in `config.py` with independent blocks and stream URLs:
 
 ## Key Configuration (Environment Variables)
 
-**⚠️ PRODUCTION VALUES - Keep this file secure**
+**⚠️ All secrets are stored in Azure App Service settings - NEVER commit real keys to git**
 
 ```bash
 # =============================================================================
-# CORE API KEYS
+# CORE API KEYS (set via Azure Portal or az cli)
 # =============================================================================
-OPENAI_API_KEY=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
+OPENAI_API_KEY=<stored-in-azure-app-settings>
 
 # =============================================================================
 # DATABASE (Azure SQL)
 # =============================================================================
-AZURE_SQL_CONNECTION_STRING=mssql+pyodbc://echobotadmin:EchoBot2025!@echobot-sql-server-v3.database.windows.net:1433/echobot-db?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&Connection+Timeout=30
+AZURE_SQL_CONNECTION_STRING=<stored-in-azure-app-settings>
+# Format: mssql+pyodbc://user:pass@server.database.windows.net:1433/db?driver=...
 
 # =============================================================================
 # RADIO STREAM URLS
@@ -179,10 +180,10 @@ CBC_BLOCK_F_END=11:00
 ENABLE_EMAIL=true
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=barbados.radio.synopsis@gmail.com
-SMTP_PASS=ndvdovqkmwuafxgb
-EMAIL_FROM=barbados.radio.synopsis@gmail.com
-EMAIL_TO=delano@futurebarbados.bb,anya@futurebarbados.bb,Roy.morris@barbados.gov.bb,delanowaithe@gmail.com,mattheweward181@gmail.com
+SMTP_USER=<stored-in-azure-app-settings>
+SMTP_PASS=<stored-in-azure-app-settings>
+EMAIL_FROM=<stored-in-azure-app-settings>
+EMAIL_TO=<stored-in-azure-app-settings>
 EMAIL_THEME=dark
 
 # =============================================================================
@@ -206,18 +207,6 @@ API_PORT=8000
 PORT=8000
 TZ=America/Barbados
 XDG_CACHE_HOME=/tmp/.cache
-
-# =============================================================================
-# AZURE CONTAINER REGISTRY
-# =============================================================================
-DOCKER_REGISTRY_SERVER_URL=https://echobotbb.azurecr.io
-DOCKER_REGISTRY_SERVER_USERNAME=echobotbb
-DOCKER_ENABLE_CI=true
-
-# =============================================================================
-# AZURE BUILD FLAGS
-# =============================================================================
-BUILD_FLAGS=UseExpressBuild
 ENABLE_ORYX_BUILD=false
 SCM_DO_BUILD_DURING_DEPLOYMENT=0
 WEBSITES_ENABLE_APP_SERVICE_STORAGE=false
