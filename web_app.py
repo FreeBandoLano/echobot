@@ -672,12 +672,359 @@ async def api_llm_toggle(enable: bool):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/dashboard/analytics", response_class=HTMLResponse)
+async def analytics_dashboard(request: Request, date_param: Optional[str] = None):
+    """Executive analytics dashboard for government stakeholders."""
+
+    # Parse date parameter or use today
+    if date_param:
+        try:
+            view_date = datetime.strptime(date_param, '%Y-%m-%d').date()
+        except ValueError:
+            view_date = get_local_date()
+    else:
+        view_date = get_local_date()
+
+    # MOCK DATA - Replace with real data from Workstream 2 APIs when available
+    mock_analytics = {
+        "overall_sentiment": {
+            "score": -0.35,
+            "label": "Somewhat Negative",
+            "display_text": "Growing public concern across multiple policy areas"
+        },
+        "parishes": [
+            {"name": "St. Michael", "mentions": 23, "label": "Strongly Negative", "top_concern": "Bus service delays"},
+            {"name": "Christ Church", "mentions": 12, "label": "Somewhat Negative", "top_concern": "Flooding infrastructure"},
+            {"name": "St. James", "mentions": 8, "label": "Neutral", "top_concern": "Tourism impact"},
+            {"name": "St. Philip", "mentions": 6, "label": "Somewhat Positive", "top_concern": "Agricultural support"},
+            {"name": "St. Lucy", "mentions": 2, "label": "Insufficient Data", "top_concern": None},
+            {"name": "St. Peter", "mentions": 4, "label": "Neutral", "top_concern": "Road maintenance"},
+            {"name": "St. Andrew", "mentions": 3, "label": "Insufficient Data", "top_concern": None},
+            {"name": "St. Joseph", "mentions": 5, "label": "Somewhat Negative", "top_concern": "Water supply"},
+            {"name": "St. John", "mentions": 7, "label": "Neutral", "top_concern": "Healthcare access"},
+            {"name": "St. George", "mentions": 9, "label": "Somewhat Negative", "top_concern": "Internet connectivity"},
+            {"name": "St. Thomas", "mentions": 6, "label": "Neutral", "top_concern": "School facilities"}
+        ],
+        "emerging_issues": [
+            {"topic": "Water Supply - South Coast", "urgency": 0.85, "trajectory": "rising"},
+            {"topic": "Public Transport Reliability", "urgency": 0.62, "trajectory": "rising"},
+            {"topic": "Telecommunication Data Act", "urgency": 0.48, "trajectory": "stable"},
+            {"topic": "Healthcare Wait Times", "urgency": 0.35, "trajectory": "falling"},
+            {"topic": "Road Infrastructure", "urgency": 0.28, "trajectory": "stable"}
+        ],
+        "policy_categories": [
+            {"category": "Healthcare", "score": -0.45, "label": "Somewhat Negative"},
+            {"category": "Education", "score": 0.25, "label": "Somewhat Positive"},
+            {"category": "Transportation", "score": -0.68, "label": "Strongly Negative"},
+            {"category": "Water & Utilities", "score": -0.72, "label": "Strongly Negative"},
+            {"category": "Telecommunications", "score": -0.38, "label": "Somewhat Negative"},
+            {"category": "Tourism", "score": 0.15, "label": "Neutral"},
+            {"category": "Agriculture", "score": 0.32, "label": "Somewhat Positive"},
+            {"category": "Justice & Security", "score": -0.12, "label": "Neutral"},
+            {"category": "Environment", "score": -0.28, "label": "Somewhat Negative"},
+            {"category": "Housing", "score": -0.55, "label": "Somewhat Negative"},
+            {"category": "Economy & Finance", "score": -0.18, "label": "Neutral"},
+            {"category": "Social Services", "score": 0.08, "label": "Neutral"}
+        ]
+    }
+
+    return templates.TemplateResponse("analytics_dashboard.html", {
+        "request": request,
+        "view_date": view_date,
+        "analytics": mock_analytics,
+        "is_today": view_date == get_local_date()
+    })
+
+@app.get("/dashboard/export/pdf")
+async def export_analytics_pdf(date: Optional[str] = None):
+    """Export executive analytics dashboard as PDF for ministerial briefings."""
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+
+    try:
+        # Parse date or use today
+        if date:
+            show_date = datetime.strptime(date, '%Y-%m-%d').date()
+        else:
+            show_date = get_local_date()
+
+        # Try to use ReportLab for PDF generation
+        try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+            from reportlab.lib.enums import TA_LEFT, TA_CENTER
+            from reportlab.lib import colors
+
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter,
+                                   leftMargin=0.75*inch, rightMargin=0.75*inch,
+                                   topMargin=0.75*inch, bottomMargin=0.75*inch)
+
+            styles = getSampleStyleSheet()
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=18,
+                textColor=colors.HexColor('#b51227'),
+                spaceAfter=6,
+                alignment=TA_CENTER,
+                fontName='Helvetica-Bold'
+            )
+
+            heading_style = ParagraphStyle(
+                'CustomHeading',
+                parent=styles['Heading2'],
+                fontSize=14,
+                textColor=colors.HexColor('#f5c342'),
+                spaceAfter=8,
+                spaceBefore=16,
+                fontName='Helvetica-Bold'
+            )
+
+            body_style = ParagraphStyle(
+                'CustomBody',
+                parent=styles['Normal'],
+                fontSize=10,
+                leading=14,
+                alignment=TA_LEFT
+            )
+
+            # Build PDF content
+            story = []
+
+            # Header
+            story.append(Paragraph("<b>EXECUTIVE ANALYTICS DASHBOARD</b>", title_style))
+            story.append(Paragraph(f"Government Intelligence Brief - {show_date.strftime('%B %d, %Y')}", styles['Normal']))
+            story.append(Paragraph("<i>CLASSIFICATION: Government Use Only</i>", ParagraphStyle('small', parent=styles['Normal'], fontSize=8, textColor=colors.grey)))
+            story.append(Spacer(1, 0.4*inch))
+
+            # Mock data (same as dashboard route)
+            story.append(Paragraph("<b>Overall Public Sentiment</b>", heading_style))
+            story.append(Paragraph("Sentiment: <b>Somewhat Negative</b> (-35%)", body_style))
+            story.append(Paragraph("Assessment: Growing public concern across multiple policy areas", body_style))
+            story.append(Spacer(1, 0.2*inch))
+
+            # Emerging issues
+            story.append(Paragraph("<b>High Priority Issues</b>", heading_style))
+            issues_data = [
+                ['Topic', 'Urgency', 'Trajectory'],
+                ['Water Supply - South Coast', 'HIGH (85%)', 'Rising'],
+                ['Public Transport Reliability', 'MEDIUM (62%)', 'Rising'],
+                ['Telecommunication Data Act', 'MEDIUM (48%)', 'Stable']
+            ]
+            issues_table = Table(issues_data, colWidths=[3.5*inch, 1.25*inch, 1.25*inch])
+            issues_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5c342')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
+            ]))
+            story.append(issues_table)
+            story.append(Spacer(1, 0.2*inch))
+
+            # Parish summary
+            story.append(Paragraph("<b>Parish Sentiment Summary</b>", heading_style))
+            parish_data = [
+                ['Parish', 'Mentions', 'Sentiment'],
+                ['St. Michael', '23', 'Strongly Negative'],
+                ['Christ Church', '12', 'Somewhat Negative'],
+                ['St. George', '9', 'Somewhat Negative'],
+                ['St. James', '8', 'Neutral'],
+                ['St. John', '7', 'Neutral']
+            ]
+            parish_table = Table(parish_data, colWidths=[2.5*inch, 1.5*inch, 2*inch])
+            parish_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5c342')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
+            ]))
+            story.append(parish_table)
+            story.append(Spacer(1, 0.3*inch))
+
+            # Footer
+            story.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M AST')}",
+                                 ParagraphStyle('footer', parent=styles['Normal'], fontSize=8, textColor=colors.grey)))
+            story.append(Paragraph("Source: Down to Brass Tacks (VOB 92.9 FM) - Automated Analysis",
+                                 ParagraphStyle('footer', parent=styles['Normal'], fontSize=8, textColor=colors.grey)))
+
+            # Build PDF
+            doc.build(story)
+            buffer.seek(0)
+
+            filename = f"executive_analytics_{show_date}.pdf"
+
+            return StreamingResponse(
+                buffer,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
+
+        except ImportError:
+            # Fallback: Return plain text if ReportLab not available
+            logger.warning("ReportLab not available for PDF export, returning text")
+            text_content = f"""EXECUTIVE ANALYTICS DASHBOARD
+Government Intelligence Brief - {show_date.strftime('%B %d, %Y')}
+
+OVERALL SENTIMENT: Somewhat Negative (-35%)
+Assessment: Growing public concern across multiple policy areas
+
+HIGH PRIORITY ISSUES:
+1. Water Supply - South Coast (85% urgency, rising)
+2. Public Transport Reliability (62% urgency, rising)
+3. Telecommunication Data Act (48% urgency, stable)
+
+PARISH SENTIMENT SUMMARY:
+St. Michael: 23 mentions, Strongly Negative
+Christ Church: 12 mentions, Somewhat Negative
+St. George: 9 mentions, Somewhat Negative
+
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M AST')}
+Source: Down to Brass Tacks (VOB 92.9 FM)
+"""
+
+            filename = f"executive_analytics_{show_date}.txt"
+            return StreamingResponse(
+                iter([text_content.encode()]),
+                media_type="text/plain",
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
+
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    except Exception as e:
+        logger.error(f"PDF export error: {e}")
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+@app.get("/dashboard/export/csv")
+async def export_analytics_csv(dataset: str = "sentiment", date: Optional[str] = None):
+    """Export analytics data as CSV for raw data analysis."""
+    from fastapi.responses import StreamingResponse
+    import csv
+    from io import StringIO
+
+    try:
+        # Parse date or use today
+        if date:
+            show_date = datetime.strptime(date, '%Y-%m-%d').date()
+        else:
+            show_date = get_local_date()
+
+        output = StringIO()
+
+        if dataset == "sentiment":
+            # Export sentiment data
+            writer = csv.writer(output)
+            writer.writerow(['Date', 'Overall_Score', 'Overall_Label', 'Assessment'])
+            writer.writerow([
+                show_date,
+                '-0.35',
+                'Somewhat Negative',
+                'Growing public concern across multiple policy areas'
+            ])
+
+        elif dataset == "parishes":
+            # Export parish data
+            writer = csv.writer(output)
+            writer.writerow(['Parish', 'Mentions', 'Sentiment_Label', 'Top_Concern'])
+            parishes = [
+                ['St. Michael', '23', 'Strongly Negative', 'Bus service delays'],
+                ['Christ Church', '12', 'Somewhat Negative', 'Flooding infrastructure'],
+                ['St. James', '8', 'Neutral', 'Tourism impact'],
+                ['St. Philip', '6', 'Somewhat Positive', 'Agricultural support'],
+                ['St. Lucy', '2', 'Insufficient Data', ''],
+                ['St. Peter', '4', 'Neutral', 'Road maintenance']
+            ]
+            writer.writerows(parishes)
+
+        elif dataset == "issues":
+            # Export emerging issues
+            writer = csv.writer(output)
+            writer.writerow(['Topic', 'Urgency_Score', 'Urgency_Level', 'Trajectory'])
+            issues = [
+                ['Water Supply - South Coast', '0.85', 'HIGH', 'rising'],
+                ['Public Transport Reliability', '0.62', 'MEDIUM', 'rising'],
+                ['Telecommunication Data Act', '0.48', 'MEDIUM', 'stable']
+            ]
+            writer.writerows(issues)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid dataset. Use: sentiment, parishes, or issues")
+
+        output.seek(0)
+        filename = f"analytics_{dataset}_{show_date}.csv"
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    except Exception as e:
+        logger.error(f"CSV export error: {e}")
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+@app.get("/dashboard/export/json")
+async def export_analytics_json(date: Optional[str] = None):
+    """Export complete analytics data as JSON for API consumers."""
+
+    try:
+        # Parse date or use today
+        if date:
+            show_date = datetime.strptime(date, '%Y-%m-%d').date()
+        else:
+            show_date = get_local_date()
+
+        # Return same mock data as dashboard route
+        analytics_data = {
+            "date": str(show_date),
+            "generated_at": datetime.now().isoformat(),
+            "overall_sentiment": {
+                "score": -0.35,
+                "label": "Somewhat Negative",
+                "display_text": "Growing public concern across multiple policy areas"
+            },
+            "parishes": [
+                {"name": "St. Michael", "mentions": 23, "label": "Strongly Negative", "top_concern": "Bus service delays"},
+                {"name": "Christ Church", "mentions": 12, "label": "Somewhat Negative", "top_concern": "Flooding infrastructure"},
+                {"name": "St. James", "mentions": 8, "label": "Neutral", "top_concern": "Tourism impact"}
+            ],
+            "emerging_issues": [
+                {"topic": "Water Supply - South Coast", "urgency": 0.85, "trajectory": "rising"},
+                {"topic": "Public Transport Reliability", "urgency": 0.62, "trajectory": "rising"}
+            ],
+            "policy_categories": [
+                {"category": "Healthcare", "score": -0.45, "label": "Somewhat Negative"},
+                {"category": "Education", "score": 0.25, "label": "Somewhat Positive"},
+                {"category": "Transportation", "score": -0.68, "label": "Strongly Negative"}
+            ],
+            "source": "Down to Brass Tacks (VOB 92.9 FM)",
+            "methodology": "AI-powered sentiment analysis with automated transcription"
+        }
+
+        return JSONResponse(analytics_data)
+
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    except Exception as e:
+        logger.error(f"JSON export error: {e}")
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
 @app.get("/api/digest/pdf")
 async def download_digest_pdf(date: str, program: str):
     """Generate and download a PDF of the program digest."""
     from io import BytesIO
     from fastapi.responses import StreamingResponse
-    
+
     try:
         # Parse date
         show_date = datetime.strptime(date, '%Y-%m-%d').date()

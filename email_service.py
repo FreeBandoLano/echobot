@@ -877,6 +877,200 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View details: https://echobo
         
         return html
     
+    def create_enhanced_digest_email(self, analytics_data: Dict, show_date: date) -> tuple:
+        """Create enhanced email digest with analytics summary.
+
+        Returns: (subject, body_text, body_html)
+        """
+
+        formatted_date = show_date.strftime('%B %d, %Y')
+
+        # Create subject with urgency indicator
+        high_urgency_count = len([i for i in analytics_data.get('emerging_issues', []) if i.get('urgency', 0) >= 0.7])
+        urgency_prefix = "[URGENT] " if high_urgency_count > 0 else ""
+        subject = f"{urgency_prefix}[Executive Brief] Analytics Summary – {formatted_date}"
+
+        # Plain text version
+        body_text = f"""EXECUTIVE ANALYTICS BRIEF
+{formatted_date}
+{'=' * 60}
+
+OVERALL SENTIMENT: {analytics_data.get('overall_sentiment', {}).get('label', 'Unknown')}
+Assessment: {analytics_data.get('overall_sentiment', {}).get('display_text', 'No data available')}
+
+"""
+
+        # Add high priority issues
+        high_priority = [i for i in analytics_data.get('emerging_issues', []) if i.get('urgency', 0) >= 0.7]
+        if high_priority:
+            body_text += "HIGH PRIORITY ISSUES:\n"
+            for idx, issue in enumerate(high_priority, 1):
+                body_text += f"{idx}. {issue.get('topic')} ({int(issue.get('urgency', 0) * 100)}% urgency, {issue.get('trajectory', 'unknown')})\n"
+            body_text += "\n"
+
+        # Add parish summary (top 5)
+        parishes = analytics_data.get('parishes', [])
+        top_parishes = sorted(parishes, key=lambda p: p.get('mentions', 0), reverse=True)[:5]
+        if top_parishes:
+            body_text += "TOP PARISH CONCERNS:\n"
+            for parish in top_parishes:
+                body_text += f"- {parish.get('name')}: {parish.get('mentions')} mentions, {parish.get('label', 'N/A')}\n"
+            body_text += "\n"
+
+        body_text += f"""
+{'=' * 60}
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M AST')}
+View full dashboard: https://echobot-docker-app.azurewebsites.net/dashboard/analytics
+"""
+
+        # HTML version with inline styles (email-compatible)
+        c = self._get_theme_colors('dark')  # Use executive dark theme
+
+        html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Analytics Brief</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: {c['bg']}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+
+    <!-- Main Container -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: {c['bg']};">
+        <tr>
+            <td align="center" style="padding: 20px;">
+
+                <!-- Email Card -->
+                <table width="680" cellpadding="0" cellspacing="0" style="background-color: {c['card_bg']}; border: 1px solid {c['border']}; border-radius: 12px; overflow: hidden;">
+
+                    <!-- Accent Header Bar -->
+                    <tr>
+                        <td style="height: 4px; background: linear-gradient(90deg, #b51227, #f5c342);"></td>
+                    </tr>
+
+                    <!-- Header Section -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #b51227 0%, #d92632 100%); padding: 30px; text-align: center; border-bottom: 1px solid {c['border']};">
+                            <div style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; display: inline-block; margin-bottom: 12px;">
+                                <span style="color: white; font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;">Government Intelligence Brief</span>
+                            </div>
+                            <h1 style="margin: 0; font-size: 22px; font-weight: 700; color: white; text-transform: uppercase; letter-spacing: 1px;">EXECUTIVE ANALYTICS SUMMARY</h1>
+                            <p style="margin: 10px 0 0 0; font-size: 13px; color: rgba(255,255,255,0.9); letter-spacing: 1px;">{formatted_date}</p>
+                        </td>
+                    </tr>
+
+                    <!-- Content Section -->
+                    <tr>
+                        <td style="padding: 35px 30px; color: {c['text']};">
+
+                            <!-- Overall Sentiment -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: {c['toc_bg']}; border-left: 3px solid {c['accent_secondary']}; margin-bottom: 25px;">
+                                <tr><td style="padding: 18px 20px;">
+                                    <h3 style="margin: 0 0 10px 0; font-size: 11px; color: {c['accent']}; text-transform: uppercase; letter-spacing: 2px; font-weight: 600;">Overall Public Sentiment</h3>
+                                    <div style="font-size: 20px; font-weight: 700; color: {c['text']}; margin-bottom: 8px;">{analytics_data.get('overall_sentiment', {}).get('label', 'Unknown')}</div>
+                                    <div style="font-size: 14px; color: {c['text_muted']}; line-height: 1.6;">{analytics_data.get('overall_sentiment', {}).get('display_text', 'No data available')}</div>
+                                </td></tr>
+                            </table>
+"""
+
+        # Add high priority issues with SVG indicators
+        high_priority = [i for i in analytics_data.get('emerging_issues', []) if i.get('urgency', 0) >= 0.7]
+        if high_priority:
+            html += f"""
+                            <h3 style="color: {c['h2_color']}; border-left: 4px solid #dc3545; padding-left: 15px; margin-top: 30px; margin-bottom: 20px; font-size: 18px; font-weight: 700;">⚠️ High Priority Issues</h3>
+                            <table width="100%" cellpadding="0" cellspacing="0">
+"""
+            for issue in high_priority:
+                urgency_pct = int(issue.get('urgency', 0) * 100)
+                trajectory_icon = "↗" if issue.get('trajectory') == 'rising' else "→"
+                html += f"""
+                                <tr><td style="padding: 12px 0;">
+                                    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: rgba(220, 53, 69, 0.08); border: 2px solid #dc3545; border-radius: 8px; padding: 15px;">
+                                        <tr><td>
+                                            <div style="background: #dc3545; color: white; padding: 4px 10px; border-radius: 12px; display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 1px; margin-bottom: 8px;">HIGH URGENCY</div>
+                                            <div style="font-size: 16px; font-weight: 600; color: {c['text']}; margin-bottom: 6px;">{issue.get('topic')}</div>
+                                            <div style="font-size: 12px; color: {c['text_secondary']};">{trajectory_icon} {issue.get('trajectory', 'unknown').capitalize()} trajectory • {urgency_pct}% urgency score</div>
+                                        </td></tr>
+                                    </table>
+                                </td></tr>
+"""
+            html += """
+                            </table>
+"""
+
+        # Add parish summary
+        parishes = analytics_data.get('parishes', [])
+        top_parishes = sorted(parishes, key=lambda p: p.get('mentions', 0), reverse=True)[:5]
+        if top_parishes:
+            html += f"""
+                            <h3 style="color: {c['h2_color']}; border-left: 4px solid {c['accent_secondary']}; padding-left: 15px; margin-top: 35px; margin-bottom: 20px; font-size: 18px; font-weight: 700;">📍 Top Parish Concerns</h3>
+                            <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid {c['border']}; border-radius: 8px; overflow: hidden;">
+                                <tr style="background-color: {c['toc_bg']};">
+                                    <th style="padding: 10px; text-align: left; font-size: 11px; color: {c['accent']}; text-transform: uppercase; letter-spacing: 1px;">Parish</th>
+                                    <th style="padding: 10px; text-align: center; font-size: 11px; color: {c['accent']}; text-transform: uppercase; letter-spacing: 1px;">Mentions</th>
+                                    <th style="padding: 10px; text-align: left; font-size: 11px; color: {c['accent']}; text-transform: uppercase; letter-spacing: 1px;">Sentiment</th>
+                                </tr>
+"""
+            for idx, parish in enumerate(top_parishes):
+                bg_color = c['card_bg'] if idx % 2 == 0 else c['toc_bg']
+                sentiment_color = '#dc3545' if 'Negative' in parish.get('label', '') else '#28a745' if 'Positive' in parish.get('label', '') else '#ffc107'
+                html += f"""
+                                <tr style="background-color: {bg_color};">
+                                    <td style="padding: 12px; font-size: 14px; color: {c['text']}; font-weight: 600;">{parish.get('name')}</td>
+                                    <td style="padding: 12px; text-align: center; font-size: 14px; color: {c['text']};">{parish.get('mentions')}</td>
+                                    <td style="padding: 12px; font-size: 13px; color: {sentiment_color}; font-weight: 600;">{parish.get('label', 'N/A')}</td>
+                                </tr>
+"""
+            html += """
+                            </table>
+"""
+
+        # Footer
+        html += f"""
+                        </td>
+                    </tr>
+
+                    <!-- Footer Section -->
+                    <tr>
+                        <td style="background-color: {c['footer_bg']}; padding: 25px 30px; text-align: center; border-top: 1px solid {c['border']};">
+                            <p style="margin: 0 0 12px 0; font-size: 13px; color: {c['text_secondary']};">SYSTEM GENERATED INTELLIGENCE • {datetime.now().strftime('%Y-%m-%d %H:%M AST')}</p>
+                            <p style="margin: 0;"><a href="https://echobot-docker-app.azurewebsites.net/dashboard/analytics" style="color: {c['link_color']}; text-decoration: none; font-weight: 600; font-size: 14px;">VIEW FULL EXECUTIVE DASHBOARD →</a></p>
+                        </td>
+                    </tr>
+
+                </table>
+
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>
+"""
+
+        return (subject, body_text, html)
+
+    def send_analytics_digest(self, analytics_data: Dict, show_date: date) -> bool:
+        """Send analytics digest email with sentiment summary and priority alerts."""
+
+        if not self.email_enabled:
+            logger.info(f"Email disabled. Would send analytics digest for {show_date}")
+            return True
+
+        try:
+            subject, body_text, body_html = self.create_enhanced_digest_email(analytics_data, show_date)
+
+            success = self._send_email(subject, body_text, body_html)
+            if success:
+                logger.info(f"📧 Analytics digest email delivered to {len(self.email_to)} recipients")
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Error sending analytics digest email: {e}")
+            return False
+
     def send_test_email(self) -> bool:
         """Send a test email to verify configuration."""
         subject = "[Brass Tacks] Test Email - System Configuration"
