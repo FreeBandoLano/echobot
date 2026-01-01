@@ -638,14 +638,226 @@ body::after {
   .panel { padding: 1.6rem 1.15rem; }
   .status-grid { grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); }
   .status-value { font-size: 1.55rem; }
-  
+
   .digest-box {
     padding: 1.25rem;
     font-size: 0.95rem;
     max-height: 400px;
   }
-  
+
   .program-digest-title {
     font-size: 1.25rem;
+  }
+}
+
+/* ============================================================================
+   Sentiment Color Coding (for Workstream 1: Frontend UI/UX Enhancement)
+   Target Audience: Government executives tracking public sentiment
+   ============================================================================ */
+
+/* Sentiment Color Variables */
+:root {
+  --sentiment-strong-positive: #33b07a;
+  --sentiment-somewhat-positive: #7bc99d;
+  --sentiment-mixed: #f5c342;
+  --sentiment-somewhat-negative: #e7a538;
+  --sentiment-strong-negative: #d34141;
+}
+
+/* Sentiment Card Base */
+.sentiment-card {
+  position: relative;
+  background: var(--color-panel-alt);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  transition: all var(--dur-ui) var(--ease-standard);
+}
+
+.sentiment-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elev-2);
+}
+
+/* Sentiment Card Variants (based on score ranges from CLAUDE.md) */
+.sentiment-card--stronglyPositive {
+  border: 2px solid var(--sentiment-strong-positive);
+  background: linear-gradient(135deg,
+    rgba(51, 176, 122, 0.08) 0%,
+    var(--color-panel-alt) 100%
+  );
+}
+
+.sentiment-card--stronglyPositive::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--sentiment-strong-positive);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+.sentiment-card--somewhatPositive {
+  border: 2px solid var(--sentiment-somewhat-positive);
+  background: linear-gradient(135deg,
+    rgba(123, 201, 157, 0.06) 0%,
+    var(--color-panel-alt) 100%
+  );
+}
+
+.sentiment-card--somewhatPositive::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--sentiment-somewhat-positive);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+.sentiment-card--mixed {
+  border: 2px solid var(--sentiment-mixed);
+  background: linear-gradient(135deg,
+    rgba(245, 195, 66, 0.06) 0%,
+    var(--color-panel-alt) 100%
+  );
+}
+
+.sentiment-card--mixed::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--sentiment-mixed);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+.sentiment-card--somewhatNegative {
+  border: 2px solid var(--sentiment-somewhat-negative);
+  background: linear-gradient(135deg,
+    rgba(231, 165, 56, 0.06) 0%,
+    var(--color-panel-alt) 100%
+  );
+}
+
+.sentiment-card--somewhatNegative::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--sentiment-somewhat-negative);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+.sentiment-card--stronglyNegative {
+  border: 2px solid var(--sentiment-strong-negative);
+  background: linear-gradient(135deg,
+    rgba(211, 65, 65, 0.08) 0%,
+    var(--color-panel-alt) 100%
+  );
+}
+
+.sentiment-card--stronglyNegative::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--sentiment-strong-negative);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+/* Sentiment Badge (for inline sentiment indicators) */
+.sentiment-badge {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid;
+}
+
+.sentiment-badge--stronglyPositive {
+  background: rgba(51, 176, 122, 0.15);
+  border-color: var(--sentiment-strong-positive);
+  color: var(--sentiment-strong-positive);
+}
+
+.sentiment-badge--somewhatPositive {
+  background: rgba(123, 201, 157, 0.12);
+  border-color: var(--sentiment-somewhat-positive);
+  color: var(--sentiment-somewhat-positive);
+}
+
+.sentiment-badge--mixed {
+  background: rgba(245, 195, 66, 0.12);
+  border-color: var(--sentiment-mixed);
+  color: var(--sentiment-mixed);
+}
+
+.sentiment-badge--somewhatNegative {
+  background: rgba(231, 165, 56, 0.12);
+  border-color: var(--sentiment-somewhat-negative);
+  color: var(--sentiment-somewhat-negative);
+}
+
+.sentiment-badge--stronglyNegative {
+  background: rgba(211, 65, 65, 0.15);
+  border-color: var(--sentiment-strong-negative);
+  color: var(--sentiment-strong-negative);
+}
+
+/* Sentiment Score Display */
+.sentiment-score {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  margin: 0;
+}
+
+.sentiment-score--positive {
+  color: var(--sentiment-strong-positive);
+}
+
+.sentiment-score--negative {
+  color: var(--sentiment-strong-negative);
+}
+
+.sentiment-score--neutral {
+  color: var(--sentiment-mixed);
+}
+
+/* Sentiment Label (executive-friendly descriptions) */
+.sentiment-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Mobile Responsiveness for Sentiment Cards */
+@media (max-width: 650px) {
+  .sentiment-card {
+    padding: 1rem;
+  }
+
+  .sentiment-score {
+    font-size: 1.6rem;
+  }
+
+  .sentiment-badge {
+    font-size: 0.6rem;
+    padding: 0.2rem 0.5rem;
   }
 }

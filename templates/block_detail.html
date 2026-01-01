@@ -1,571 +1,562 @@
+{% extends "base.html" %}
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Block {{ block.block_code }} • Radio Synopsis</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/theme.css">
-    <style>
-        .detail-meta { display:flex; flex-wrap:wrap; gap:.75rem; font-size:.7rem; color:var(--text-tertiary); margin: .25rem 0 1.25rem; }
-        .pill { background: var(--color-panel-alt); padding:.35rem .7rem; border-radius: var(--radius-pill); border:1px solid var(--color-border); }
-        .sub-heading { font-size:.8rem; text-transform:uppercase; letter-spacing:.12em; color:var(--text-tertiary); margin:1.5rem 0 .6rem; font-weight:600; }
-        .quote { border-left:3px solid var(--color-gold); padding:.4rem .85rem; margin:.6rem 0; background: var(--color-panel-alt); border-radius: var(--radius-sm); font-size:.8rem; }
-        .quote footer { font-size:.65rem; letter-spacing:.05em; margin-top:.25rem; color:var(--text-tertiary); }
-        .entity-badge { display:inline-block; background: var(--color-overlay); border:1px solid var(--color-border); padding:.35rem .6rem; border-radius: var(--radius-pill); font-size:.6rem; letter-spacing:.08em; margin:0 .4rem .4rem 0; text-transform:uppercase; }
-        .transcript-seg { margin:0 0 .75rem; padding:.55rem .75rem .6rem; background: var(--color-panel-alt); border:1px solid var(--color-border); border-radius: var(--radius-sm); font-size:.75rem; line-height:1.4; }
-        .transcript-seg small { display:block; font-size:.6rem; letter-spacing:.1em; color:var(--text-tertiary); margin-bottom:.25rem; }
-        .back-links { display:flex; gap:.5rem; flex-wrap:wrap; margin:0 0 1.2rem; }
-        .back-links a { text-decoration:none; font-size:.65rem; letter-spacing:.1em; padding:.5rem .85rem; border-radius: var(--radius-pill); background: var(--grad-active); color: var(--text-inverse); font-weight:600; }
-        .summary-text { font-size:.85rem; line-height:1.5; color:var(--text-secondary); white-space:pre-wrap; }
-    .emergent-grid { display:grid; gap:1rem; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); margin:.75rem 0 1.5rem; }
-    .emergent-card { background:var(--color-panel-alt); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:.75rem .85rem .9rem; position:relative; }
-    .emergent-card h4 { font-size:.7rem; letter-spacing:.12em; margin:0 0 .4rem; text-transform:uppercase; color:var(--text-tertiary); font-weight:600; }
-    .theme-title { font-size:.78rem; font-weight:600; color:var(--text-primary); margin:0 0 .35rem; }
-    .theme-bullets { list-style:disc; padding-left:1.1rem; margin:0 0 .35rem; }
-    .theme-bullets li { font-size:.68rem; line-height:1.35; margin:.25rem 0; color:var(--text-secondary); }
-    .mini-badge { display:inline-block; background:var(--color-overlay); border:1px solid var(--color-border); padding:.2rem .45rem .25rem; border-radius:var(--radius-pill); font-size:.55rem; letter-spacing:.08em; font-weight:500; color:var(--text-tertiary); }
-    .positions-list, .actions-list { list-style:none; padding:0; margin:0; }
-    .positions-list li, .actions-list li { font-size:.65rem; line-height:1.3; padding:.4rem .5rem .45rem; background:var(--color-panel-alt); border:1px solid var(--color-border); border-radius:var(--radius-sm); margin:0 0 .45rem; }
-    .raw-json-wrap { display:none; margin-top:.75rem; }
-    .toggle-raw { appearance:none; border:none; background:var(--grad-active); color:var(--text-inverse); font-size:.55rem; letter-spacing:.12em; font-weight:600; padding:.45rem .7rem .5rem; border-radius:var(--radius-pill); cursor:pointer; }
-    pre.raw-json { max-height:300px; overflow:auto; font-size:.6rem; line-height:1.2; background:var(--color-panel-alt); border:1px solid var(--color-border); padding:.6rem .7rem; border-radius:var(--radius-sm); }
-    .seg-filler { opacity:.55; }
-    .filler-pill-ok { background: var(--color-panel-alt); }
-    .filler-pill-warn { background: linear-gradient(90deg, rgba(255,165,0,0.15), rgba(255,165,0,0.25)); border-color: rgba(255,165,0,0.6); }
-    .filler-pill-high { background: linear-gradient(90deg, rgba(220,53,69,0.15), rgba(220,53,69,0.3)); border-color: rgba(220,53,69,0.6); }
+{% block title %}Block {{ block.block_code }} • Radio Synopsis{% endblock %}
 
-        /* Mobile-specific styles for block detail page */
-        @media (max-width: 768px) {
-            .detail-meta {
-                flex-direction: column;
-                gap: 0.5rem;
-                font-size: 0.75rem;
-            }
-            
-            .pill {
-                padding: 0.4rem 0.8rem;
-                font-size: 0.7rem;
-                display: inline-block;
-                margin-bottom: 0.25rem;
-            }
-            
-            .back-links {
-                flex-direction: column;
-                gap: 0.4rem;
-            }
-            
-            .back-links a {
-                padding: 0.6rem 1rem;
-                font-size: 0.7rem;
-                text-align: center;
-            }
-            
-            .emergent-grid {
-                grid-template-columns: 1fr;
-                gap: 0.75rem;
-            }
-            
-            .emergent-card {
-                padding: 0.6rem 0.7rem 0.75rem;
-            }
-            
-            .theme-title {
-                font-size: 0.8rem;
-            }
-            
-            .theme-bullets li {
-                font-size: 0.7rem;
-            }
-            
-            .entities-grid {
-                grid-template-columns: 1fr !important;
-            }
-            
-            .entity-group {
-                margin-bottom: 1rem;
-            }
-            
-            .actions-list li {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 0.25rem;
-            }
-            
-            .metrics-grid {
-                grid-template-columns: repeat(2, 1fr) !important;
-            }
-            
-            .metric-card {
-                padding: 0.5rem !important;
-            }
-            
-            .metric-card div:first-child {
-                font-size: 1rem !important;
-            }
-            
-            .metric-card div:last-child {
-                font-size: 0.6rem !important;
-            }
-            
-            .transcript-seg {
-                padding: 0.6rem;
-                font-size: 0.8rem;
-            }
-            
-            .transcript-seg small {
-                font-size: 0.65rem;
-            }
-            
-            /* Mobile action bar styles */
-            .mobile-action-bar {
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                background: var(--color-panel);
-                border-top: 1px solid var(--color-border);
-                padding: 0.75rem;
-                display: flex;
-                justify-content: space-around;
-                align-items: center;
-                z-index: 1000;
-                box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-            }
-            
-            .mobile-action-bar button {
-                background: none;
-                border: none;
-                padding: 0.5rem;
-                border-radius: 8px;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                gap: 0.25rem;
-                font-size: 0.75rem;
-                color: var(--text-secondary);
-                transition: all 0.2s ease;
-                min-width: 60px;
-                cursor: pointer;
-            }
-            
-            .mobile-action-bar button:hover {
-                background: var(--color-panel-alt);
-                color: var(--color-accent);
-            }
-            
-            .mobile-action-bar button.active {
-                color: var(--color-accent);
-                background: rgba(52, 152, 219, 0.1);
-            }
-            
-            .mobile-action-bar button i {
-                font-size: 1.2rem;
-            }
-            
-            .mobile-action-bar button span {
-                font-size: 0.7rem;
-                font-weight: 500;
-            }
-            
-            /* Adjust main content for mobile action bar */
-            main {
-                padding-bottom: 5rem;
-            }
+{% block head_extra %}
+<style>
+    .detail-meta { display:flex; flex-wrap:wrap; gap:.75rem; font-size:.7rem; color:var(--text-tertiary); margin: .25rem 0 1.25rem; }
+    .pill { background: var(--color-panel-alt); padding:.35rem .7rem; border-radius: var(--radius-pill); border:1px solid var(--color-border); }
+    .sub-heading { font-size:.8rem; text-transform:uppercase; letter-spacing:.12em; color:var(--text-tertiary); margin:1.5rem 0 .6rem; font-weight:600; }
+    .quote { border-left:3px solid var(--color-gold); padding:.4rem .85rem; margin:.6rem 0; background: var(--color-panel-alt); border-radius: var(--radius-sm); font-size:.8rem; }
+    .quote footer { font-size:.65rem; letter-spacing:.05em; margin-top:.25rem; color:var(--text-tertiary); }
+    .entity-badge { display:inline-block; background: var(--color-overlay); border:1px solid var(--color-border); padding:.35rem .6rem; border-radius: var(--radius-pill); font-size:.6rem; letter-spacing:.08em; margin:0 .4rem .4rem 0; text-transform:uppercase; }
+    .transcript-seg { margin:0 0 .75rem; padding:.55rem .75rem .6rem; background: var(--color-panel-alt); border:1px solid var(--color-border); border-radius: var(--radius-sm); font-size:.75rem; line-height:1.4; }
+    .transcript-seg small { display:block; font-size:.6rem; letter-spacing:.1em; color:var(--text-tertiary); margin-bottom:.25rem; }
+    .back-links { display:flex; gap:.5rem; flex-wrap:wrap; margin:0 0 1.2rem; }
+    .back-links a { text-decoration:none; font-size:.65rem; letter-spacing:.1em; padding:.5rem .85rem; border-radius: var(--radius-pill); background: var(--grad-active); color: var(--text-inverse); font-weight:600; }
+    .summary-text { font-size:.85rem; line-height:1.5; color:var(--text-secondary); white-space:pre-wrap; }
+.emergent-grid { display:grid; gap:1rem; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); margin:.75rem 0 1.5rem; }
+.emergent-card { background:var(--color-panel-alt); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:.75rem .85rem .9rem; position:relative; }
+.emergent-card h4 { font-size:.7rem; letter-spacing:.12em; margin:0 0 .4rem; text-transform:uppercase; color:var(--text-tertiary); font-weight:600; }
+.theme-title { font-size:.78rem; font-weight:600; color:var(--text-primary); margin:0 0 .35rem; }
+.theme-bullets { list-style:disc; padding-left:1.1rem; margin:0 0 .35rem; }
+.theme-bullets li { font-size:.68rem; line-height:1.35; margin:.25rem 0; color:var(--text-secondary); }
+.mini-badge { display:inline-block; background:var(--color-overlay); border:1px solid var(--color-border); padding:.2rem .45rem .25rem; border-radius:var(--radius-pill); font-size:.55rem; letter-spacing:.08em; font-weight:500; color:var(--text-tertiary); }
+.positions-list, .actions-list { list-style:none; padding:0; margin:0; }
+.positions-list li, .actions-list li { font-size:.65rem; line-height:1.3; padding:.4rem .5rem .45rem; background:var(--color-panel-alt); border:1px solid var(--color-border); border-radius:var(--radius-sm); margin:0 0 .45rem; }
+.raw-json-wrap { display:none; margin-top:.75rem; }
+.toggle-raw { appearance:none; border:none; background:var(--grad-active); color:var(--text-inverse); font-size:.55rem; letter-spacing:.12em; font-weight:600; padding:.45rem .7rem .5rem; border-radius:var(--radius-pill); cursor:pointer; }
+pre.raw-json { max-height:300px; overflow:auto; font-size:.6rem; line-height:1.2; background:var(--color-panel-alt); border:1px solid var(--color-border); padding:.6rem .7rem; border-radius:var(--radius-sm); }
+.seg-filler { opacity:.55; }
+.filler-pill-ok { background: var(--color-panel-alt); }
+.filler-pill-warn { background: linear-gradient(90deg, rgba(255,165,0,0.15), rgba(255,165,0,0.25)); border-color: rgba(255,165,0,0.6); }
+.filler-pill-high { background: linear-gradient(90deg, rgba(220,53,69,0.15), rgba(220,53,69,0.3)); border-color: rgba(220,53,69,0.6); }
+
+    /* Mobile-specific styles for block detail page */
+    @media (max-width: 768px) {
+        .detail-meta {
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.75rem;
         }
-        
-        /* Hide mobile action bar on desktop */
-        @media (min-width: 769px) {
-            .mobile-action-bar {
-                display: none;
-            }
-            
-            main {
-                padding-bottom: 2rem;
-            }
+
+        .pill {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.7rem;
+            display: inline-block;
+            margin-bottom: 0.25rem;
         }
-    </style>
-</head>
-<body>
-    <header class="app-header">
-        <a href="/" class="app-logo"><i class="bi bi-broadcast"></i> <span>Radio Synopsis</span></a>
-        <nav class="app-nav">
-            <a href="/" class="app-nav__link">Today</a>
-            <a href="/archive" class="app-nav__link">Archive</a>
-        </nav>
-    </header>
-    <main>
-        <section class="panel" data-active="true">
-            <div class="back-links">
-                <a href="/">DASHBOARD</a>
-                {% if show_date %}<a href="/?date_param={{ show_date }}">VIEW DAY</a>{% endif %}
-                <a href="/archive">ARCHIVE</a>
-            </div>
-            <h2><i class="bi bi-list-ul"></i> Block {{ block.block_code }} – {{ block.block_name }}</h2>
-            <div class="detail-meta">
-                {% if block.start_time %}<span class="pill"><i class="bi bi-clock"></i> Start {{ block.start_time }}</span>{% endif %}
-                {% if block.end_time %}<span class="pill"><i class="bi bi-stopwatch"></i> End {{ block.end_time }}</span>{% endif %}
-                {% if block.duration_minutes %}<span class="pill"><i class="bi bi-hourglass"></i> {{ block.duration_minutes }} min</span>{% endif %}
-                <span class="pill"><i class="bi bi-activity"></i> {{ block.status|upper }}</span>
-                {% if block.summary and block.summary.caller_count is not none %}<span class="pill"><i class="bi bi-people"></i> {{ block.summary.caller_count }} callers</span>{% endif %}
-                {% if block.filler_stats %}
-                    {% set fp = block.filler_stats.filler_pct %}
-                    {% set cls = 'ok' %}
-                    {% if fp > 50 %}{% set cls='high' %}{% elif fp > 35 %}{% set cls='warn' %}{% endif %}
-                    <span class="pill filler-pill-{{ cls }}" title="Filler share (ads, jingles, promos, inserts) of total segment duration."><i class="bi bi-music-note-beamed"></i> {{ fp }}% filler</span>
+
+        .back-links {
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .back-links a {
+            padding: 0.6rem 1rem;
+            font-size: 0.7rem;
+            text-align: center;
+        }
+
+        .emergent-grid {
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
+        }
+
+        .emergent-card {
+            padding: 0.6rem 0.7rem 0.75rem;
+        }
+
+        .theme-title {
+            font-size: 0.8rem;
+        }
+
+        .theme-bullets li {
+            font-size: 0.7rem;
+        }
+
+        .entities-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        .entity-group {
+            margin-bottom: 1rem;
+        }
+
+        .actions-list li {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.25rem;
+        }
+
+        .metrics-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+        }
+
+        .metric-card {
+            padding: 0.5rem !important;
+        }
+
+        .metric-card div:first-child {
+            font-size: 1rem !important;
+        }
+
+        .metric-card div:last-child {
+            font-size: 0.6rem !important;
+        }
+
+        .transcript-seg {
+            padding: 0.6rem;
+            font-size: 0.8rem;
+        }
+
+        .transcript-seg small {
+            font-size: 0.65rem;
+        }
+
+        /* Mobile action bar styles */
+        .mobile-action-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--color-panel);
+            border-top: 1px solid var(--color-border);
+            padding: 0.75rem;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 1000;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .mobile-action-bar button {
+            background: none;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+            min-width: 60px;
+            cursor: pointer;
+        }
+
+        .mobile-action-bar button:hover {
+            background: var(--color-panel-alt);
+            color: var(--color-accent);
+        }
+
+        .mobile-action-bar button.active {
+            color: var(--color-accent);
+            background: rgba(52, 152, 219, 0.1);
+        }
+
+        .mobile-action-bar button i {
+            font-size: 1.2rem;
+        }
+
+        .mobile-action-bar button span {
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+
+        /* Adjust main content for mobile action bar */
+        main {
+            padding-bottom: 5rem;
+        }
+    }
+
+    /* Hide mobile action bar on desktop */
+    @media (min-width: 769px) {
+        .mobile-action-bar {
+            display: none;
+        }
+
+        main {
+            padding-bottom: 2rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    <section class="panel" data-active="true">
+        <div class="back-links">
+            <a href="/">DASHBOARD</a>
+            {% if show_date %}<a href="/?date_param={{ show_date }}">VIEW DAY</a>{% endif %}
+            <a href="/archive">ARCHIVE</a>
+        </div>
+        <h2><i class="bi bi-list-ul"></i> Block {{ block.block_code }} – {{ block.block_name }}</h2>
+        <div class="detail-meta">
+            {% if block.start_time %}<span class="pill"><i class="bi bi-clock"></i> Start {{ block.start_time }}</span>{% endif %}
+            {% if block.end_time %}<span class="pill"><i class="bi bi-stopwatch"></i> End {{ block.end_time }}</span>{% endif %}
+            {% if block.duration_minutes %}<span class="pill"><i class="bi bi-hourglass"></i> {{ block.duration_minutes }} min</span>{% endif %}
+            <span class="pill"><i class="bi bi-activity"></i> {{ block.status|upper }}</span>
+            {% if block.summary and block.summary.caller_count is not none %}<span class="pill"><i class="bi bi-people"></i> {{ block.summary.caller_count }} callers</span>{% endif %}
+            {% if block.filler_stats %}
+                {% set fp = block.filler_stats.filler_pct %}
+                {% set cls = 'ok' %}
+                {% if fp > 50 %}{% set cls='high' %}{% elif fp > 35 %}{% set cls='warn' %}{% endif %}
+                <span class="pill filler-pill-{{ cls }}" title="Filler share (ads, jingles, promos, inserts) of total segment duration."><i class="bi bi-music-note-beamed"></i> {{ fp }}% filler</span>
+            {% endif %}
+        </div>
+        {% if block.summary %}
+            <h3 class="sub-heading">Summary</h3>
+            <div class="summary-text">{{ block.summary.summary_text.split('{')[0].strip() if '{' in block.summary.summary_text else block.summary.summary_text }}</div>
+            {% if block.summary.key_points %}
+                <h3 class="sub-heading">Key Points</h3>
+                <ul style="font-size:.8rem; color:var(--text-secondary); line-height:1.45; margin:0 0 1rem; padding-left:1.1rem;">
+                    {% for point in block.summary.key_points %}
+                        <li style="margin:.35rem 0;">{{ point }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            {% if block.summary.quotes %}
+                <h3 class="sub-heading">💬 Notable Quotes & Context</h3>
+                {% for quote in block.summary.quotes %}
+                    <div class="quote">
+                        "{{ quote.text }}"
+                        <footer>— {{ quote.speaker }}{% if quote.timestamp %} @ {{ quote.timestamp }}{% endif %}</footer>
+                        {% if quote.context %}
+                            <div style="margin-top:.5rem; padding-top:.5rem; border-top:1px solid var(--color-border); font-size:.7rem; color:var(--text-secondary); font-style:italic;">
+                                → {{ quote.context }}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            {# Metrics Dashboard - moved from duplicate section, now uses CSS variables #}
+            {% if block.summary.metrics %}
+                <h3 class="sub-heading" style="margin-top: 1.5rem;">📊 Block Metrics</h3>
+                <div class="metrics-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-top: 10px;">
+                    <div class="metric-card" style="background: var(--color-panel-alt); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--color-border);">
+                        <div style="font-size: 1.4rem; font-weight: 700; color: var(--color-info);">{{ block.summary.metrics.caller_count or 0 }}</div>
+                        <div style="font-size: 0.65rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px;">Callers</div>
+                    </div>
+                    <div class="metric-card" style="background: var(--color-panel-alt); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--color-border);">
+                        <div style="font-size: 1.4rem; font-weight: 700; color: var(--color-success);">{{ ((block.summary.metrics.caller_talk_ratio or 0) * 100)|round|int }}%</div>
+                        <div style="font-size: 0.65rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px;">Talk Time</div>
+                    </div>
+                    <div class="metric-card" style="background: var(--color-panel-alt); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--color-border);">
+                        <div style="font-size: 1.4rem; font-weight: 700; color: var(--color-warn);">{{ ((block.summary.metrics.filler_ratio or 0) * 100)|round|int }}%</div>
+                        <div style="font-size: 0.65rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px;">Filler</div>
+                    </div>
+                    <div class="metric-card" style="background: var(--color-panel-alt); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--color-border);">
+                        <div style="font-size: 1.4rem; font-weight: 700; color: var(--text-secondary);">{{ block.summary.metrics.ads_count or 0 }}</div>
+                        <div style="font-size: 0.65rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px;">Ads</div>
+                    </div>
+                </div>
+            {% endif %}
+
+            {# Official Announcements - uses CSS variables for dark mode compatibility #}
+            {% if block.summary.official_announcements %}
+                <h3 class="sub-heading" style="margin-top: 1.5rem;">📢 Official Announcements</h3>
+                {% for ann in block.summary.official_announcements %}
+                    <div class="emergent-card" style="border-left: 3px solid var(--color-info); margin-bottom: 0.5rem;">
+                        <div class="theme-title" style="color: var(--text-primary);">{{ ann.topic }}</div>
+                        <p style="font-size: 0.78rem; line-height: 1.45; color: var(--text-secondary); margin: 0.3rem 0 0;">{{ ann.summary }}</p>
+                        {% if ann.key_quotes %}
+                            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
+                                {% for quote in ann.key_quotes[:2] %}
+                                    <div style="font-size: 0.7rem; font-style: italic; color: var(--text-tertiary); margin: 3px 0;">"{{ quote }}"</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            {# Commercial Content - uses CSS variables #}
+            {% if block.summary.commercial_items %}
+                <h3 class="sub-heading" style="margin-top: 1.5rem;">🛍️ Commercial Content</h3>
+                <div style="background: var(--color-panel-alt); border-left: 3px solid var(--color-warn); padding: 10px 12px; border-radius: var(--radius-sm);">
+                    {% for item in block.summary.commercial_items %}
+                        <span class="entity-badge" style="background: var(--color-overlay); border: 1px solid var(--color-border); margin: 2px;">{{ item }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% if block.emergent %}
+                <h3 class="sub-heading" style="margin-top:1.75rem;">Analysis Overview</h3>
+                <div class="mobile-collapse" data-collapsed="false" data-title="Analysis Overview" data-section="analysis"></div>
+
+                <!-- Key Themes -->
+                {% if block.emergent.key_themes %}
+                    <h4 style="margin:1rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">📋 Key Discussion Topics</h4>
+                    <div class="emergent-grid">
+                        {% for theme in block.emergent.key_themes %}
+                            <div class="emergent-card">
+                                <div class="theme-title">{{ theme.title }}</div>
+                                {% if theme.summary_bullets %}
+                                    <ul class="theme-bullets">
+                                        {% for bullet in theme.summary_bullets %}
+                                            <li>{{ bullet | replace('•','') | trim }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                                <span class="mini-badge">{{ theme.callers or 0 }} callers</span>
+                            </div>
+                        {% endfor %}
+                    </div>
                 {% endif %}
-            </div>
-            {% if block.summary %}
-                <h3 class="sub-heading">Summary</h3>
-                <div class="summary-text">{{ block.summary.summary_text.split('{')[0].strip() if '{' in block.summary.summary_text else block.summary.summary_text }}</div>
-                {% if block.summary.key_points %}
-                    <h3 class="sub-heading">Key Points</h3>
-                    <ul style="font-size:.8rem; color:var(--text-secondary); line-height:1.45; margin:0 0 1rem; padding-left:1.1rem;">
-                        {% for point in block.summary.key_points %}
-                            <li style="margin:.35rem 0;">{{ point }}</li>
+
+                {# Official Announcements already shown above - only show in emergent if not displayed #}
+                {% if block.emergent.official_announcements and not block.summary.official_announcements %}
+                    <h4 style="margin:1.5rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">📢 Official Announcements</h4>
+                    {% for announcement in block.emergent.official_announcements %}
+                        <div class="emergent-card" style="border-left: 4px solid var(--color-gold);">
+                            <div class="theme-title">{{ announcement.topic }}</div>
+                            <p style="font-size:.75rem; line-height:1.4; color:var(--text-secondary); margin:.4rem 0;">{{ announcement.summary }}</p>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                <!-- Public Concerns -->
+                {% if block.emergent.public_concerns %}
+                    <h4 style="margin:1.5rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">🗣️ Public Concerns</h4>
+                    {% for concern in block.emergent.public_concerns %}
+                        <div class="emergent-card" style="border-left: 4px solid var(--color-danger);">
+                            <div class="theme-title">{{ concern.topic }}</div>
+                            <p style="font-size:.75rem; line-height:1.4; color:var(--text-secondary); margin:.4rem 0;">{{ concern.summary }}</p>
+                            <span class="mini-badge">{{ concern.urgency|upper }}</span>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                <!-- Entities (Government, Private Sector, etc.) -->
+                {% if block.emergent.entities %}
+                    <h4 style="margin:1.5rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">🏛️ Key Entities Mentioned</h4>
+                    <div class="entities-grid" style="display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit, minmax(200px,1fr));">
+                        {% if block.emergent.entities.government %}
+                            <div class="entity-group">
+                                <h5 style="font-size:.7rem; color:var(--text-tertiary); margin:0 0 .4rem;">Government</h5>
+                                {% for entity in block.emergent.entities.government %}
+                                    <span class="entity-badge" style="background: rgba(51,176,122,0.15); border-color: var(--color-success);">{{ entity }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        {% if block.emergent.entities.private_sector %}
+                            <div class="entity-group">
+                                <h5 style="font-size:.7rem; color:var(--text-tertiary); margin:0 0 .4rem;">Private Sector</h5>
+                                {% for entity in block.emergent.entities.private_sector %}
+                                    <span class="entity-badge" style="background: rgba(74,123,217,0.15); border-color: var(--color-info);">{{ entity }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        {% if block.emergent.entities.civil_society %}
+                            <div class="entity-group">
+                                <h5 style="font-size:.7rem; color:var(--text-tertiary); margin:0 0 .4rem;">Civil Society</h5>
+                                {% for entity in block.emergent.entities.civil_society %}
+                                    <span class="entity-badge" style="background: rgba(245,195,66,0.15); border-color: var(--color-gold);">{{ entity }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        {% if block.emergent.entities.individuals %}
+                            <div class="entity-group">
+                                <h5 style="font-size:.7rem; color:var(--text-tertiary); margin:0 0 .4rem;">Individuals</h5>
+                                {% for entity in block.emergent.entities.individuals %}
+                                    <span class="entity-badge" style="background: var(--color-overlay); border-color: var(--color-border-strong);">{{ entity }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                <!-- Actions / Follow-Ups -->
+                {% if block.emergent.actions %}
+                    <h4 style="margin:1.5rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">✅ Action Items & Follow-Ups</h4>
+                    <ul class="actions-list">
+                        {% for action in block.emergent.actions %}
+                            <li style="display:flex; align-items:flex-start; gap:.5rem;">
+                                <span style="font-weight:600; color:var(--text-primary); min-width:fit-content;">{{ action.who }}:</span>
+                                <span style="flex:1;">{{ action.what }}</span>
+                                {% if action.urgency %}
+                                    <span class="mini-badge urgency-{{ action.urgency }}">{{ action.urgency|upper }}</span>
+                                {% endif %}
+                            </li>
                         {% endfor %}
                     </ul>
                 {% endif %}
-                {% if block.summary.quotes %}
-                    <h3 class="sub-heading">💬 Notable Quotes & Context</h3>
-                    {% for quote in block.summary.quotes %}
-                        <div class="quote">
-                            "{{ quote.text }}"
-                            <footer>— {{ quote.speaker }}{% if quote.timestamp %} @ {{ quote.timestamp }}{% endif %}</footer>
-                            {% if quote.context %}
-                                <div style="margin-top:.5rem; padding-top:.5rem; border-top:1px solid var(--color-border); font-size:.7rem; color:var(--text-secondary); font-style:italic;">
-                                    → {{ quote.context }}
-                                </div>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-                
-                {# Metrics Dashboard - moved from duplicate section, now uses CSS variables #}
-                {% if block.summary.metrics %}
-                    <h3 class="sub-heading" style="margin-top: 1.5rem;">📊 Block Metrics</h3>
-                    <div class="metrics-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-top: 10px;">
-                        <div class="metric-card" style="background: var(--color-panel-alt); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--color-border);">
-                            <div style="font-size: 1.4rem; font-weight: 700; color: var(--color-info);">{{ block.summary.metrics.caller_count or 0 }}</div>
-                            <div style="font-size: 0.65rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px;">Callers</div>
-                        </div>
-                        <div class="metric-card" style="background: var(--color-panel-alt); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--color-border);">
-                            <div style="font-size: 1.4rem; font-weight: 700; color: var(--color-success);">{{ ((block.summary.metrics.caller_talk_ratio or 0) * 100)|round|int }}%</div>
-                            <div style="font-size: 0.65rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px;">Talk Time</div>
-                        </div>
-                        <div class="metric-card" style="background: var(--color-panel-alt); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--color-border);">
-                            <div style="font-size: 1.4rem; font-weight: 700; color: var(--color-warn);">{{ ((block.summary.metrics.filler_ratio or 0) * 100)|round|int }}%</div>
-                            <div style="font-size: 0.65rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px;">Filler</div>
-                        </div>
-                        <div class="metric-card" style="background: var(--color-panel-alt); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--color-border);">
-                            <div style="font-size: 1.4rem; font-weight: 700; color: var(--text-secondary);">{{ block.summary.metrics.ads_count or 0 }}</div>
-                            <div style="font-size: 0.65rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px;">Ads</div>
-                        </div>
+
+                {# Show Metrics only if not already displayed above #}
+                {% if block.emergent.metrics and not block.summary.metrics %}
+                    <h4 style="margin:1.5rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">📊 Program Metrics</h4>
+                    <div class="metrics-grid" style="display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit, minmax(120px,1fr));">
+                        {% if block.emergent.metrics.caller_count is defined %}
+                            <div class="metric-card" style="text-align:center; padding:.6rem; background:var(--color-panel-alt); border:1px solid var(--color-border); border-radius:var(--radius-sm);">
+                                <div style="font-size:1.2rem; font-weight:600; color:var(--text-primary);">{{ block.emergent.metrics.caller_count }}</div>
+                                <div style="font-size:.6rem; color:var(--text-tertiary);">CALLERS</div>
+                            </div>
+                        {% endif %}
+                        {% if block.emergent.metrics.caller_talk_ratio is defined %}
+                            <div class="metric-card" style="text-align:center; padding:.6rem; background:var(--color-panel-alt); border:1px solid var(--color-border); border-radius:var(--radius-sm);">
+                                <div style="font-size:1.2rem; font-weight:600; color:var(--text-primary);">{{ (block.emergent.metrics.caller_talk_ratio * 100)|round }}%</div>
+                                <div style="font-size:.6rem; color:var(--text-tertiary);">CALLER TALK TIME</div>
+                            </div>
+                        {% endif %}
+                        {% if block.emergent.metrics.filler_ratio is defined %}
+                            <div class="metric-card" style="text-align:center; padding:.6rem; background:var(--color-panel-alt); border:1px solid var(--color-border); border-radius:var(--radius-sm);">
+                                <div style="font-size:1.2rem; font-weight:600; color:var(--text-primary);">{{ (block.emergent.metrics.filler_ratio * 100)|round }}%</div>
+                                <div style="font-size:.6rem; color:var(--text-tertiary);">FILLER</div>
+                            </div>
+                        {% endif %}
                     </div>
                 {% endif %}
-                
-                {# Official Announcements - uses CSS variables for dark mode compatibility #}
-                {% if block.summary.official_announcements %}
-                    <h3 class="sub-heading" style="margin-top: 1.5rem;">📢 Official Announcements</h3>
-                    {% for ann in block.summary.official_announcements %}
-                        <div class="emergent-card" style="border-left: 3px solid var(--color-info); margin-bottom: 0.5rem;">
-                            <div class="theme-title" style="color: var(--text-primary);">{{ ann.topic }}</div>
-                            <p style="font-size: 0.78rem; line-height: 1.45; color: var(--text-secondary); margin: 0.3rem 0 0;">{{ ann.summary }}</p>
-                            {% if ann.key_quotes %}
-                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
-                                    {% for quote in ann.key_quotes[:2] %}
-                                        <div style="font-size: 0.7rem; font-style: italic; color: var(--text-tertiary); margin: 3px 0;">"{{ quote }}"</div>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-                
-                {# Commercial Content - uses CSS variables #}
-                {% if block.summary.commercial_items %}
-                    <h3 class="sub-heading" style="margin-top: 1.5rem;">🛍️ Commercial Content</h3>
-                    <div style="background: var(--color-panel-alt); border-left: 3px solid var(--color-warn); padding: 10px 12px; border-radius: var(--radius-sm);">
-                        {% for item in block.summary.commercial_items %}
-                            <span class="entity-badge" style="background: var(--color-overlay); border: 1px solid var(--color-border); margin: 2px;">{{ item }}</span>
+
+                {# Commercial Items in emergent only shown if not already displayed above #}
+                {% if block.emergent.commercial_items and not block.summary.commercial_items %}
+                    <h4 style="margin:1.5rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">📺 Commercial Content</h4>
+                    <div style="font-size:.75rem; color:var(--text-secondary); line-height:1.4;">
+                        {% for item in block.emergent.commercial_items %}
+                            <span class="entity-badge" style="background: var(--color-overlay); border-color: var(--color-border); margin:.2rem .3rem .2rem 0;">{{ item }}</span>
                         {% endfor %}
                     </div>
                 {% endif %}
-                
-                {% if block.emergent %}
-                    <h3 class="sub-heading" style="margin-top:1.75rem;">Analysis Overview</h3>
-                    <div class="mobile-collapse" data-collapsed="false" data-title="Analysis Overview" data-section="analysis"></div>
-                    
-                    <!-- Key Themes -->
-                    {% if block.emergent.key_themes %}
-                        <h4 style="margin:1rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">📋 Key Discussion Topics</h4>
-                        <div class="emergent-grid">
-                            {% for theme in block.emergent.key_themes %}
-                                <div class="emergent-card">
-                                    <div class="theme-title">{{ theme.title }}</div>
-                                    {% if theme.summary_bullets %}
-                                        <ul class="theme-bullets">
-                                            {% for bullet in theme.summary_bullets %}
-                                                <li>{{ bullet | replace('•','') | trim }}</li>
-                                            {% endfor %}
-                                        </ul>
-                                    {% endif %}
-                                    <span class="mini-badge">{{ theme.callers or 0 }} callers</span>
-                                </div>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
-
-                    {# Official Announcements already shown above - only show in emergent if not displayed #}
-                    {% if block.emergent.official_announcements and not block.summary.official_announcements %}
-                        <h4 style="margin:1.5rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">📢 Official Announcements</h4>
-                        {% for announcement in block.emergent.official_announcements %}
-                            <div class="emergent-card" style="border-left: 4px solid var(--color-gold);">
-                                <div class="theme-title">{{ announcement.topic }}</div>
-                                <p style="font-size:.75rem; line-height:1.4; color:var(--text-secondary); margin:.4rem 0;">{{ announcement.summary }}</p>
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-
-                    <!-- Public Concerns -->
-                    {% if block.emergent.public_concerns %}
-                        <h4 style="margin:1.5rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">🗣️ Public Concerns</h4>
-                        {% for concern in block.emergent.public_concerns %}
-                            <div class="emergent-card" style="border-left: 4px solid var(--color-danger);">
-                                <div class="theme-title">{{ concern.topic }}</div>
-                                <p style="font-size:.75rem; line-height:1.4; color:var(--text-secondary); margin:.4rem 0;">{{ concern.summary }}</p>
-                                <span class="mini-badge">{{ concern.urgency|upper }}</span>
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-
-                    <!-- Entities (Government, Private Sector, etc.) -->
-                    {% if block.emergent.entities %}
-                        <h4 style="margin:1.5rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">🏛️ Key Entities Mentioned</h4>
-                        <div class="entities-grid" style="display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit, minmax(200px,1fr));">
-                            {% if block.emergent.entities.government %}
-                                <div class="entity-group">
-                                    <h5 style="font-size:.7rem; color:var(--text-tertiary); margin:0 0 .4rem;">Government</h5>
-                                    {% for entity in block.emergent.entities.government %}
-                                        <span class="entity-badge" style="background: rgba(51,176,122,0.15); border-color: var(--color-success);">{{ entity }}</span>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                            {% if block.emergent.entities.private_sector %}
-                                <div class="entity-group">
-                                    <h5 style="font-size:.7rem; color:var(--text-tertiary); margin:0 0 .4rem;">Private Sector</h5>
-                                    {% for entity in block.emergent.entities.private_sector %}
-                                        <span class="entity-badge" style="background: rgba(74,123,217,0.15); border-color: var(--color-info);">{{ entity }}</span>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                            {% if block.emergent.entities.civil_society %}
-                                <div class="entity-group">
-                                    <h5 style="font-size:.7rem; color:var(--text-tertiary); margin:0 0 .4rem;">Civil Society</h5>
-                                    {% for entity in block.emergent.entities.civil_society %}
-                                        <span class="entity-badge" style="background: rgba(245,195,66,0.15); border-color: var(--color-gold);">{{ entity }}</span>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                            {% if block.emergent.entities.individuals %}
-                                <div class="entity-group">
-                                    <h5 style="font-size:.7rem; color:var(--text-tertiary); margin:0 0 .4rem;">Individuals</h5>
-                                    {% for entity in block.emergent.entities.individuals %}
-                                        <span class="entity-badge" style="background: var(--color-overlay); border-color: var(--color-border-strong);">{{ entity }}</span>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-
-                    <!-- Actions / Follow-Ups -->
-                    {% if block.emergent.actions %}
-                        <h4 style="margin:1.5rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">✅ Action Items & Follow-Ups</h4>
-                        <ul class="actions-list">
-                            {% for action in block.emergent.actions %}
-                                <li style="display:flex; align-items:flex-start; gap:.5rem;">
-                                    <span style="font-weight:600; color:var(--text-primary); min-width:fit-content;">{{ action.who }}:</span>
-                                    <span style="flex:1;">{{ action.what }}</span>
-                                    {% if action.urgency %}
-                                        <span class="mini-badge urgency-{{ action.urgency }}">{{ action.urgency|upper }}</span>
-                                    {% endif %}
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    {% endif %}
-
-                    {# Show Metrics only if not already displayed above #}
-                    {% if block.emergent.metrics and not block.summary.metrics %}
-                        <h4 style="margin:1.5rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">📊 Program Metrics</h4>
-                        <div class="metrics-grid" style="display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit, minmax(120px,1fr));">
-                            {% if block.emergent.metrics.caller_count is defined %}
-                                <div class="metric-card" style="text-align:center; padding:.6rem; background:var(--color-panel-alt); border:1px solid var(--color-border); border-radius:var(--radius-sm);">
-                                    <div style="font-size:1.2rem; font-weight:600; color:var(--text-primary);">{{ block.emergent.metrics.caller_count }}</div>
-                                    <div style="font-size:.6rem; color:var(--text-tertiary);">CALLERS</div>
-                                </div>
-                            {% endif %}
-                            {% if block.emergent.metrics.caller_talk_ratio is defined %}
-                                <div class="metric-card" style="text-align:center; padding:.6rem; background:var(--color-panel-alt); border:1px solid var(--color-border); border-radius:var(--radius-sm);">
-                                    <div style="font-size:1.2rem; font-weight:600; color:var(--text-primary);">{{ (block.emergent.metrics.caller_talk_ratio * 100)|round }}%</div>
-                                    <div style="font-size:.6rem; color:var(--text-tertiary);">CALLER TALK TIME</div>
-                                </div>
-                            {% endif %}
-                            {% if block.emergent.metrics.filler_ratio is defined %}
-                                <div class="metric-card" style="text-align:center; padding:.6rem; background:var(--color-panel-alt); border:1px solid var(--color-border); border-radius:var(--radius-sm);">
-                                    <div style="font-size:1.2rem; font-weight:600; color:var(--text-primary);">{{ (block.emergent.metrics.filler_ratio * 100)|round }}%</div>
-                                    <div style="font-size:.6rem; color:var(--text-tertiary);">FILLER</div>
-                                </div>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-
-                    {# Commercial Items in emergent only shown if not already displayed above #}
-                    {% if block.emergent.commercial_items and not block.summary.commercial_items %}
-                        <h4 style="margin:1.5rem 0 .75rem; font-size:.8rem; color:var(--text-primary); font-weight:600;">📺 Commercial Content</h4>
-                        <div style="font-size:.75rem; color:var(--text-secondary); line-height:1.4;">
-                            {% for item in block.emergent.commercial_items %}
-                                <span class="entity-badge" style="background: var(--color-overlay); border-color: var(--color-border); margin:.2rem .3rem .2rem 0;">{{ item }}</span>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
-            {% endif %}
-            {% if block.transcript %}
-                <h3 class="sub-heading" style="margin-top:2rem;">Transcript</h3>
-                <div class="mobile-collapse" data-collapsed="true" data-title="Transcript" data-section="transcript"></div>
-                {% if block.guard_band_stats %}
-                <div class="gb-stats">
-                    <span>{{ block.guard_band_stats.count }} filler segments</span>
-                    <span>{{ block.guard_band_stats.duration_seconds }}s filler</span>
-                    {% if block.guard_band_stats.content_seconds is not none and block.guard_band_stats.total_seconds %}
-                        <span>{{ block.guard_band_stats.content_seconds }}s content of {{ block.guard_band_stats.total_seconds }}s total</span>
-                    {% endif %}
-                </div>
+        {% endif %}
+        {% if block.transcript %}
+            <h3 class="sub-heading" style="margin-top:2rem;">Transcript</h3>
+            <div class="mobile-collapse" data-collapsed="true" data-title="Transcript" data-section="transcript"></div>
+            {% if block.guard_band_stats %}
+            <div class="gb-stats">
+                <span>{{ block.guard_band_stats.count }} filler segments</span>
+                <span>{{ block.guard_band_stats.duration_seconds }}s filler</span>
+                {% if block.guard_band_stats.content_seconds is not none and block.guard_band_stats.total_seconds %}
+                    <span>{{ block.guard_band_stats.content_seconds }}s content of {{ block.guard_band_stats.total_seconds }}s total</span>
                 {% endif %}
-                <div style="max-height:600px; overflow:auto; padding-right:.5rem;" id="transcriptContainer">
-                    {% if block.transcript.segments %}
-                        {% for segment in block.transcript.segments %}
-                            <div class="transcript-seg{% if segment.guard_band %} guard-band{% endif %}" data-guard-band="{{ segment.guard_band|default(false) }}">
-                                <small>[{{ "%.0f" | format(segment.start) }}s] {{ segment.speaker or 'Speaker' }}</small>
-                                {{ segment.text }}
-                            </div>
+            </div>
+            {% endif %}
+            <div style="max-height:600px; overflow:auto; padding-right:.5rem;" id="transcriptContainer">
+                {% if block.transcript.segments %}
+                    {% for segment in block.transcript.segments %}
+                        <div class="transcript-seg{% if segment.guard_band %} guard-band{% endif %}" data-guard-band="{{ segment.guard_band|default(false) }}">
+                            <small>[{{ "%.0f" | format(segment.start) }}s] {{ segment.speaker or 'Speaker' }}</small>
+                            {{ segment.text }}
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="transcript-seg">{{ block.transcript.text }}</div>
+                {% endif %}
+            </div>
+        {% endif %}
+        {% if segments %}
+            <h3 class="sub-heading" style="margin-top:2rem;">Segments (Phase 1 Stored)</h3>
+            <div class="mobile-collapse" data-collapsed="true" data-title="Segments" data-section="segments"></div>
+            <div class="segments-wrapper" style="max-height:300px; overflow:auto; border:1px solid var(--color-border); border-radius:var(--radius-sm);">
+                <table class="segments-table responsive-collapse" style="width:100%; font-size:.65rem; border-collapse:collapse;">
+                    <thead style="position:sticky; top:0; background:var(--color-panel);">
+                        <tr style="text-align:left;">
+                            <th class="col-start" style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Start</th>
+                            <th class="col-end" style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">End</th>
+                            <th class="col-speaker" style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Speaker</th>
+                            <th class="col-filler" style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Filler</th>
+                            <th class="col-text" style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Text</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in segments %}
+                        <tr style="border-bottom:1px solid var(--color-border);" class="seg-row {% if s.guard_band %}seg-filler{% endif %}">
+                            <td class="col-start" style="padding:.35rem .5rem; white-space:nowrap;">{{ '%.1f'|format(s.start_sec) }}</td>
+                            <td class="col-end" style="padding:.35rem .5rem; white-space:nowrap;">{{ '%.1f'|format(s.end_sec) }}</td>
+                            <td class="col-speaker" style="padding:.35rem .5rem; white-space:nowrap;">{{ s.speaker or '-' }}</td>
+                            <td class="col-filler" style="padding:.35rem .5rem; white-space:nowrap;">{% if s.guard_band %}YES{% else %}NO{% endif %}</td>
+                            <td class="col-text" style="padding:.35rem .5rem;">{{ s.text }}</td>
+                        </tr>
                         {% endfor %}
-                    {% else %}
-                        <div class="transcript-seg">{{ block.transcript.text }}</div>
-                    {% endif %}
-                </div>
-            {% endif %}
-            {% if segments %}
-                <h3 class="sub-heading" style="margin-top:2rem;">Segments (Phase 1 Stored)</h3>
-                <div class="mobile-collapse" data-collapsed="true" data-title="Segments" data-section="segments"></div>
-                <div class="segments-wrapper" style="max-height:300px; overflow:auto; border:1px solid var(--color-border); border-radius:var(--radius-sm);">
-                    <table class="segments-table responsive-collapse" style="width:100%; font-size:.65rem; border-collapse:collapse;">
-                        <thead style="position:sticky; top:0; background:var(--color-panel);">
-                            <tr style="text-align:left;">
-                                <th class="col-start" style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Start</th>
-                                <th class="col-end" style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">End</th>
-                                <th class="col-speaker" style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Speaker</th>
-                                <th class="col-filler" style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Filler</th>
-                                <th class="col-text" style="padding:.4rem .5rem; border-bottom:1px solid var(--color-border);">Text</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for s in segments %}
-                            <tr style="border-bottom:1px solid var(--color-border);" class="seg-row {% if s.guard_band %}seg-filler{% endif %}">
-                                <td class="col-start" style="padding:.35rem .5rem; white-space:nowrap;">{{ '%.1f'|format(s.start_sec) }}</td>
-                                <td class="col-end" style="padding:.35rem .5rem; white-space:nowrap;">{{ '%.1f'|format(s.end_sec) }}</td>
-                                <td class="col-speaker" style="padding:.35rem .5rem; white-space:nowrap;">{{ s.speaker or '-' }}</td>
-                                <td class="col-filler" style="padding:.35rem .5rem; white-space:nowrap;">{% if s.guard_band %}YES{% else %}NO{% endif %}</td>
-                                <td class="col-text" style="padding:.35rem .5rem;">{{ s.text }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% endif %}
-            {% endif %}
-        </section>
-    </main>
-    <script>
-    // Mobile collapsible sections
-    (function(){
-        const isSmall = () => window.matchMedia('(max-width:760px)').matches;
-        function applyCollapses(){
-            document.querySelectorAll('.mobile-collapse').forEach(anchor => {
-                let targetSection = anchor.getAttribute('data-section');
-                // The section content is the next sibling elements until next heading or collapse marker
-                if(!anchor.dataset.bound){
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'collapse-toggle';
-                    btn.innerHTML = `<i class="bi bi-chevron-down"></i> <span>${anchor.getAttribute('data-title')||'Section'}</span>`;
-                    anchor.appendChild(btn);
-                    btn.addEventListener('click', ()=>{
-                        const state = anchor.getAttribute('data-collapsed') === 'true';
-                        anchor.setAttribute('data-collapsed', state ? 'false':'true');
-                        btn.querySelector('i').className = state ? 'bi bi-chevron-up':'bi bi-chevron-down';
-                    });
-                    anchor.dataset.bound = '1';
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+        {% endif %}
+    </section>
+{% endblock %}
+
+{% block mobile_action_bar %}
+    <!-- Mobile Action Bar -->
+    <nav class="mobile-action-bar" aria-label="Quick actions">
+        <button onclick="location.href='/'"><i class="bi bi-house"></i><span>Home</span></button>
+        <button onclick="location.href='/archive'"><i class="bi bi-archive"></i><span>Archive</span></button>
+        <button onclick="window.history.back()"><i class="bi bi-arrow-left"></i><span>Back</span></button>
+    </nav>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Mobile collapsible sections
+(function(){
+    const isSmall = () => window.matchMedia('(max-width:760px)').matches;
+    function applyCollapses(){
+        document.querySelectorAll('.mobile-collapse').forEach(anchor => {
+            let targetSection = anchor.getAttribute('data-section');
+            // The section content is the next sibling elements until next heading or collapse marker
+            if(!anchor.dataset.bound){
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'collapse-toggle';
+                btn.innerHTML = `<i class="bi bi-chevron-down"></i> <span>${anchor.getAttribute('data-title')||'Section'}</span>`;
+                anchor.appendChild(btn);
+                btn.addEventListener('click', ()=>{
+                    const state = anchor.getAttribute('data-collapsed') === 'true';
+                    anchor.setAttribute('data-collapsed', state ? 'false':'true');
+                    btn.querySelector('i').className = state ? 'bi bi-chevron-up':'bi bi-chevron-down';
+                });
+                anchor.dataset.bound = '1';
+            }
+            // Wrap following siblings until next collapse marker or end of section
+            if(!anchor.nextElementSibling) return;
+            if(!anchor._wrapper){
+                const wrap = document.createElement('div');
+                wrap.className = 'collapse-body';
+                // Move siblings into wrapper until another .mobile-collapse or end marker encountered
+                let cursor = anchor.nextElementSibling;
+                const collected = [];
+                while(cursor && !cursor.classList.contains('mobile-collapse')){
+                    const next = cursor.nextElementSibling;
+                    collected.push(cursor);
+                    cursor = next;
                 }
-                // Wrap following siblings until next collapse marker or end of section
-                if(!anchor.nextElementSibling) return;
-                if(!anchor._wrapper){
-                    const wrap = document.createElement('div');
-                    wrap.className = 'collapse-body';
-                    // Move siblings into wrapper until another .mobile-collapse or end marker encountered
-                    let cursor = anchor.nextElementSibling;
-                    const collected = [];
-                    while(cursor && !cursor.classList.contains('mobile-collapse')){
-                        const next = cursor.nextElementSibling;
-                        collected.push(cursor);
-                        cursor = next;
-                    }
-                    collected.forEach(el=>wrap.appendChild(el));
-                    anchor.parentElement.insertBefore(wrap, cursor||null);
-                    anchor._wrapper = wrap;
-                }
-                if(isSmall()){
-                    anchor._wrapper.style.display = anchor.getAttribute('data-collapsed') === 'true' ? 'none':'block';
-                    anchor.style.display = 'block';
-                } else {
-                    anchor._wrapper.style.display = 'block';
-                    anchor.style.display = 'none';
-                }
-            });
-        }
-        window.addEventListener('resize', applyCollapses);
-        window.addEventListener('load', applyCollapses);
-    })();
-    </script>
-    <style>
-    /* Collapsible sections */
-    .mobile-collapse{ margin:.75rem 0 1rem; }
-    .mobile-collapse .collapse-toggle{ width:100%; background:var(--color-panel-alt); border:1px solid var(--color-border); color:var(--text-secondary); padding:.55rem .85rem; border-radius:var(--radius-sm); font-size:.65rem; letter-spacing:.1em; font-weight:600; display:flex; align-items:center; gap:.55rem; cursor:pointer; }
-    .mobile-collapse .collapse-toggle:hover{ border-color:var(--color-border-strong); color:var(--text-primary); }
-    .mobile-collapse[data-collapsed='true'] .collapse-toggle i{ transform:rotate(0deg); }
-    .mobile-collapse[data-collapsed='false'] .collapse-toggle i{ transform:rotate(180deg); }
-    /* Responsive segment table -> cards */
-    @media (max-width:760px){
-      .segments-wrapper{ max-height:none !important; overflow:visible !important; }
-      table.segments-table{ border:0; }
-      .segments-table thead{ display:none; }
-      .segments-table tbody tr{ display:block; padding:.6rem .65rem .55rem; margin:.55rem 0; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-panel-alt); }
-      .segments-table tbody tr.seg-filler{ opacity:.55; }
-      .segments-table tbody tr td{ display:block; padding:.15rem 0 .15rem 0 !important; font-size:.58rem; letter-spacing:.05em; }
-      .segments-table tbody tr td.col-text{ font-size:.65rem; margin-top:.25rem; line-height:1.3; }
-      .segments-table tbody tr td.col-start:before{ content:'Start '; font-weight:600; }
-      .segments-table tbody tr td.col-end:before{ content:'End '; font-weight:600; }
-      .segments-table tbody tr td.col-speaker:before{ content:'Speaker '; font-weight:600; }
-      .segments-table tbody tr td.col-filler:before{ content:'Filler '; font-weight:600; }
+                collected.forEach(el=>wrap.appendChild(el));
+                anchor.parentElement.insertBefore(wrap, cursor||null);
+                anchor._wrapper = wrap;
+            }
+            if(isSmall()){
+                anchor._wrapper.style.display = anchor.getAttribute('data-collapsed') === 'true' ? 'none':'block';
+                anchor.style.display = 'block';
+            } else {
+                anchor._wrapper.style.display = 'block';
+                anchor.style.display = 'none';
+            }
+        });
     }
-    </style>
-
-        <!-- Mobile Action Bar -->
-        <nav class="mobile-action-bar" aria-label="Quick actions">
-            <button onclick="location.href='/'"><i class="bi bi-house"></i><span>Home</span></button>
-            <button onclick="location.href='/archive'"><i class="bi bi-archive"></i><span>Archive</span></button>
-            <button onclick="window.history.back()"><i class="bi bi-arrow-left"></i><span>Back</span></button>
-        </nav>
-</body>
-</html>
+    window.addEventListener('resize', applyCollapses);
+    window.addEventListener('load', applyCollapses);
+})();
+</script>
+<style>
+/* Collapsible sections */
+.mobile-collapse{ margin:.75rem 0 1rem; }
+.mobile-collapse .collapse-toggle{ width:100%; background:var(--color-panel-alt); border:1px solid var(--color-border); color:var(--text-secondary); padding:.55rem .85rem; border-radius:var(--radius-sm); font-size:.65rem; letter-spacing:.1em; font-weight:600; display:flex; align-items:center; gap:.55rem; cursor:pointer; }
+.mobile-collapse .collapse-toggle:hover{ border-color:var(--color-border-strong); color:var(--text-primary); }
+.mobile-collapse[data-collapsed='true'] .collapse-toggle i{ transform:rotate(0deg); }
+.mobile-collapse[data-collapsed='false'] .collapse-toggle i{ transform:rotate(180deg); }
+/* Responsive segment table -> cards */
+@media (max-width:760px){
+  .segments-wrapper{ max-height:none !important; overflow:visible !important; }
+  table.segments-table{ border:0; }
+  .segments-table thead{ display:none; }
+  .segments-table tbody tr{ display:block; padding:.6rem .65rem .55rem; margin:.55rem 0; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-panel-alt); }
+  .segments-table tbody tr.seg-filler{ opacity:.55; }
+  .segments-table tbody tr td{ display:block; padding:.15rem 0 .15rem 0 !important; font-size:.58rem; letter-spacing:.05em; }
+  .segments-table tbody tr td.col-text{ font-size:.65rem; margin-top:.25rem; line-height:1.3; }
+  .segments-table tbody tr td.col-start:before{ content:'Start '; font-weight:600; }
+  .segments-table tbody tr td.col-end:before{ content:'End '; font-weight:600; }
+  .segments-table tbody tr td.col-speaker:before{ content:'Speaker '; font-weight:600; }
+  .segments-table tbody tr td.col-filler:before{ content:'Filler '; font-weight:600; }
+}
+</style>
+{% endblock %}
