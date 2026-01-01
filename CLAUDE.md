@@ -82,24 +82,110 @@ Programs are configured in `config.py` with independent blocks and stream URLs:
 
 ## Key Configuration (Environment Variables)
 
+**⚠️ PRODUCTION VALUES - Keep this file secure**
+
 ```bash
-# Required
-OPENAI_API_KEY                 # OpenAI API key
-RADIO_STREAM_URL               # Radio stream URL (or AUDIO_INPUT_DEVICE for local)
+# =============================================================================
+# CORE API KEYS
+# =============================================================================
+OPENAI_API_KEY=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
 
-# Recording Schedule (HH:MM format)
-BLOCK_A_START=10:00  BLOCK_A_END=12:00
-BLOCK_B_START=12:05  BLOCK_B_END=12:30
-# ... etc
+# =============================================================================
+# DATABASE (Azure SQL)
+# =============================================================================
+AZURE_SQL_CONNECTION_STRING=mssql+pyodbc://echobotadmin:EchoBot2025!@echobot-sql-server-v3.database.windows.net:1433/echobot-db?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&Connection+Timeout=30
 
-# Feature Flags
-ENABLE_LLM=true                # Toggle AI summarization
+# =============================================================================
+# RADIO STREAM URLS
+# =============================================================================
+RADIO_STREAM_URL=https://ice66.securenetsystems.net/VOB929?playSessionID=DYNAMIC
+CBC_STREAM_URL=http://108.178.16.190:8000/1007fm.mp3
+
+# =============================================================================
+# VOB BRASS TACKS SCHEDULE (Blocks A-D)
+# =============================================================================
+BLOCK_A_START=10:00
+BLOCK_A_END=12:00
+BLOCK_B_START=12:05
+BLOCK_B_END=12:30
+BLOCK_C_START=12:40
+BLOCK_C_END=13:30
+BLOCK_D_START=13:35
+BLOCK_D_END=14:00
+
+# =============================================================================
+# CBC LET'S TALK SCHEDULE (Blocks E-F)
+# =============================================================================
+CBC_BLOCK_E_START=09:00
+CBC_BLOCK_E_END=10:00
+CBC_BLOCK_F_START=10:00
+CBC_BLOCK_F_END=11:00
+
+# =============================================================================
+# EMAIL CONFIGURATION (Gmail SMTP)
+# =============================================================================
+ENABLE_EMAIL=true
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=barbados.radio.synopsis@gmail.com
+SMTP_PASS=ndvdovqkmwuafxgb
+EMAIL_FROM=barbados.radio.synopsis@gmail.com
+EMAIL_TO=delano@futurebarbados.bb,anya@futurebarbados.bb,Roy.morris@barbados.gov.bb,delanowaithe@gmail.com,mattheweward181@gmail.com
+EMAIL_THEME=dark
+
+# =============================================================================
+# FEATURE FLAGS
+# =============================================================================
+ENABLE_LLM=true
 ENABLE_DAILY_DIGEST=true
-DIGEST_CREATOR=task_manager    # 'scheduler' (time-based) or 'task_manager' (completion-based)
+ENABLE_STRUCTURED_OUTPUT=true
+ENABLE_CONVERSATION_EVOLUTION=true
+ENABLE_TOPIC_DEEP_DIVE=true
+ENABLE_DETAILED_QUOTES=true
+DIGEST_CREATOR=task_manager
+DAILY_DIGEST_TARGET_WORDS=4000
+MAX_SUMMARY_LENGTH=1000
+EXPOSE_COST_ENDPOINT=false
 
-# Web Server
-API_PORT=8001
-API_HOST=0.0.0.0
+# =============================================================================
+# WEB SERVER / DOCKER
+# =============================================================================
+API_PORT=8000
+PORT=8000
+TZ=America/Barbados
+XDG_CACHE_HOME=/tmp/.cache
+
+# =============================================================================
+# AZURE CONTAINER REGISTRY
+# =============================================================================
+DOCKER_REGISTRY_SERVER_URL=https://echobotbb.azurecr.io
+DOCKER_REGISTRY_SERVER_USERNAME=echobotbb
+DOCKER_ENABLE_CI=true
+
+# =============================================================================
+# AZURE BUILD FLAGS
+# =============================================================================
+BUILD_FLAGS=UseExpressBuild
+ENABLE_ORYX_BUILD=false
+SCM_DO_BUILD_DURING_DEPLOYMENT=0
+WEBSITES_ENABLE_APP_SERVICE_STORAGE=false
+WEBSITE_HTTPLOGGING_RETENTION_DAYS=1
+```
+
+### Updating Azure Environment Variables
+
+```bash
+# Update a single setting
+az webapp config appsettings set \
+  --name echobot-docker-app \
+  --resource-group echobot-rg \
+  --settings VARIABLE_NAME="value"
+
+# Restart after changes
+az webapp restart --name echobot-docker-app --resource-group echobot-rg
+
+# View all current settings
+az webapp config appsettings list --name echobot-docker-app --resource-group echobot-rg --output table
 ```
 
 ## Development Notes

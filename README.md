@@ -453,6 +453,143 @@ curl "https://your-app.azurewebsites.net/api/filler/trend?days=30"
 
 ---
 
+## Troubleshooting
+
+### Email Service Issues
+
+#### Gmail SMTP Setup Requirements
+
+1. **Enable 2-Factor Authentication (2FA)** on the Gmail account
+2. **Generate an App Password** at https://myaccount.google.com/apppasswords
+   - Select "Mail" and "Other (Custom name)"
+   - Use the generated 16-character password (no spaces) for `SMTP_PASS`
+3. **Required Environment Variables:**
+   ```
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your-email@gmail.com
+   SMTP_PASS=your-16-char-app-password
+   ENABLE_EMAIL=true
+   ```
+
+#### Verifying Azure Environment Variables
+
+SSH into the container and check that email variables are properly injected:
+
+```bash
+# SSH into container
+az webapp ssh -n echobot-docker-app -g echobot-rg
+
+# Verify environment variables (inside container)
+env | grep -E "SMTP|EMAIL"
+```
+
+Expected output should show all SMTP_* and EMAIL_* variables. If missing:
+1. Verify variables are set in Azure Portal → App Service → Settings → Environment variables
+2. Restart the app: `az webapp restart -n echobot-docker-app -g echobot-rg`
+3. Wait 1-2 minutes, then SSH in again to verify
+
+#### Testing SMTP Connection
+
+Test SMTP authentication from inside the Azure container:
+
+```python
+import smtplib
+server = smtplib.SMTP('smtp.gmail.com', 587)
+server.starttls()
+server.login('your-email@gmail.com', 'your-app-password')
+print('SUCCESS!')
+server.quit()
+```
+
+#### Google Security Block (Too Many Failed Attempts)
+
+If you see `535-5.7.8 Username and Password not accepted`, Google may have blocked SMTP access due to:
+- Multiple failed login attempts
+- New app password not yet recognized
+- Suspicious activity detection
+
+**Resolution Steps:**
+
+1. **Check for security notifications:**
+   - Log into Gmail web interface
+   - Look for "Critical security alert" emails
+   - Check Google Account → Security → Recent security activity
+
+2. **Unlock the account:**
+   - Visit https://accounts.google.com/DisplayUnlockCaptcha
+   - Complete verification
+   - Try SMTP again within 10 minutes
+
+3. **If still blocked, wait 24 hours:**
+   - Google enforces temporary blocks for security
+   - After 24 hours, generate a NEW app password
+   - Update `SMTP_PASS` in Azure environment variables
+   - Restart the app
+
+4. **Manual digest sending (fallback):**
+   If email is blocked but digests are needed urgently:
+   ```bash
+   # SSH into container
+   az webapp ssh -n echobot-docker-app -g echobot-rg
+   
+   # Generate digest without emailing
+   cd /home/site/wwwroot
+   python simple_digest_generator.py --date 2025-12-26
+   
+   # View the digest in the web interface
+   # https://echobot-docker-app.azurewebsites.net/api/digest?date=2025-12-26
+   ```
+
+#### Common Email Error Messages
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `email service may be disabled` | `ENABLE_EMAIL` not set or `false` | Set `ENABLE_EMAIL=true` in Azure env vars |
+| `535-5.7.8 Username and Password not accepted` | Wrong password or security block | Generate new app password, wait 24h if blocked |
+| `SMTPAuthenticationError` | 2FA not enabled or wrong password format | Enable 2FA, use app password (not regular password) |
+| `Connection timed out` | Firewall or network issue | Check Azure outbound rules for port 587 |
+| `make_anchor is not defined` | Code deployment issue | Redeploy from latest commit |
+
+### Azure Container Issues
+
+#### Container Not Starting
+
+```bash
+# Check logs
+az webapp log tail -n echobot-docker-app -g echobot-rg
+
+# Force restart
+az webapp restart -n echobot-docker-app -g echobot-rg
+```
+
+#### Environment Variables Not Loading
+
+1. Verify variables exist in Azure Portal
+2. Check that variable names don't have leading/trailing spaces
+3. Restart the app after any environment variable changes
+4. Variables are only injected at container startup, not hot-reloaded
+
+### Database Issues
+
+#### Digest Not Generating
+
+1. Check that blocks exist for the target date:
+   ```bash
+   curl "https://echobot-docker-app.azurewebsites.net/api/status?date=2025-12-26"
+   ```
+2. Verify blocks have `completed` status
+3. Check logs for summarization errors
+
+#### Program Digest Lookup Failures
+
+If "No digest found for program", verify `program_key` matches exactly:
+- `VOB_BRASS_TACKS` (not `BRASS_TACKS`)
+- `VOB_DOWN_TO_BRASS_TACKS` (not `DOWN_TO_BRASS_TACKS`)
+- `VOB_CALL_IN` (catch-all for unspecified)
+
+---
+
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 

@@ -23,6 +23,17 @@ class EmailService:
     """Handles automated email delivery for radio synopsis."""
     
     def __init__(self):
+        # Initialize with None to force fresh reads from env vars
+        # This allows hot-reloading of config without restart
+        self._config_cached = False
+        self._reload_config()
+    
+    def _reload_config(self):
+        """Reload configuration from environment variables.
+        
+        Called on init and can be called to refresh config without restart.
+        This fixes the issue where env vars weren't available at module import time.
+        """
         self.smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
         self.smtp_port = int(os.getenv('SMTP_PORT', 587))
         self.smtp_user = os.getenv('SMTP_USER', '')
@@ -37,6 +48,9 @@ class EmailService:
         if self.email_enabled and not self._validate_config():
             logger.warning("Email configuration incomplete. Email delivery disabled.")
             self.email_enabled = False
+        
+        self._config_cached = True
+        logger.info(f"Email config loaded: enabled={self.email_enabled}, host={self.smtp_host}, user={self.smtp_user[:10] + '...' if self.smtp_user else 'None'}")
     
     def _validate_config(self) -> bool:
         """Validate email configuration."""
