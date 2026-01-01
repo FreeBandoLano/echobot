@@ -1,0 +1,72 @@
+I'm working on Echobot v2.0 in GitHub Codespaces for testing and debugging. Here's the context:
+
+## What Was Just Implemented (v2.0)
+
+We merged 3 parallel feature branches that add a comprehensive analytics system:
+- **Sentiment Analysis**: GPT-4 analyzes public sentiment after each block summarization (automatic)
+- **Parish Tracking**: Extracts/normalizes Barbados parish mentions (11 parishes)
+- **Executive Dashboard**: `/dashboard/analytics` with Plotly.js charts
+- **Analytics APIs**: 5 new endpoints at `/api/analytics/*`
+- **Enhanced UI**: All templates now extend `base.html`, Plotly.js integrated
+- **New Tables**: `sentiment_scores`, `parish_mentions` in Azure SQL
+
+Key files: `sentiment_analyzer.py`, `parish_normalizer.py`, `monitor_analytics.py`, `test_analytics.py`
+
+## Quick Verification Commands
+
+```bash
+# Start web server
+python main.py web
+
+# Test analytics APIs
+curl http://localhost:8001/api/analytics/overview | jq
+curl http://localhost:8001/api/analytics/sentiment?days=7 | jq
+curl http://localhost:8001/api/analytics/parishes?days=7 | jq
+
+# Run integration tests
+python test_analytics.py
+
+# Monitor analytics data
+python monitor_analytics.py
+python monitor_analytics.py --sentiment
+python monitor_analytics.py --parishes
+python monitor_analytics.py --recent 10
+```
+
+## Testing Scenarios I Need Help With
+
+1. **Test New UI/UX**: Verify all templates extend base.html and have Plotly.js loaded
+2. **Test Sentiment Analysis**: Manually trigger sentiment on a block and verify it saves to DB
+3. **Test Parish Normalization**: Verify "Bridgetown" → "St. Michael", "St. Lucie" → "St. Lucy"
+4. **Test Analytics Dashboard**: Verify `/dashboard/analytics` loads with chart containers
+5. **Regenerate Digest**: Create digest for recent date to see new UI/email enhancements
+6. **Query Azure SQL**: Check if production has sentiment_scores and parish_mentions data
+
+## Key Questions to Answer
+
+- Are sentiment scores being saved to the database after blocks are summarized?
+- Do analytics APIs return valid JSON (or empty arrays if no data yet)?
+- Does the analytics dashboard load without errors?
+- Are parish names being normalized correctly from transcripts?
+- Do all templates properly extend the new base.html?
+
+## Expected Behavior
+
+- Sentiment analysis runs AUTOMATICALLY after summarization (summarization.py:90-98)
+- Analytics will be EMPTY until new blocks are processed (this is normal)
+- All analytics APIs should return valid JSON (may be empty `[]`)
+- Parish normalizer should handle common transcription errors
+
+## Common Issues
+
+- **Empty analytics**: Normal if no blocks processed since merge - wait for recordings OR manually test on old block
+- **API 500 errors**: Check database tables exist (test_analytics.py verifies this)
+- **Charts not rendering**: Verify Plotly.js CDN in base.html source
+
+## Full Documentation
+
+See `CODESPACES_GUIDE.md` for detailed testing scenarios, or `CLAUDE.md` for complete system documentation.
+
+---
+
+Please help me verify the v2.0 analytics system is working correctly in this Codespaces environment.
