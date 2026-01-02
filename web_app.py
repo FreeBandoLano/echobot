@@ -1645,52 +1645,83 @@ async def generate_enhanced_digest(date: str = Form(...)):
 @app.post("/api/generate-program-digests")
 async def generate_program_digests(request: Request):
     """Generate program-specific digests for given dates."""
-    
+
     try:
         body = await request.json()
-        
+
         # Support both 'date' (single) and 'dates' (array)
         if 'date' in body:
             dates_str = [body['date']]
         else:
             dates_str = body.get('dates', [])
-        
+
         # Parse dates
         dates = [datetime.strptime(d, '%Y-%m-%d').date() for d in dates_str]
-        
+
         results = []
-        
+        overall_success_count = 0
+        overall_not_ready_count = 0
+        overall_error_count = 0
+
         for target_date in dates:
             date_results = {'date': str(target_date), 'digests': []}
-            
+
             for prog_key in Config.get_all_programs():
                 prog_config = Config.get_program_config(prog_key)
                 prog_name = prog_config['name']
-                
+
                 try:
                     digest_text = summarizer.create_program_digest(target_date, prog_key)
-                    
+
                     if digest_text:
                         date_results['digests'].append({
                             'program': prog_name,
+                            'program_key': prog_key,
                             'status': 'success',
                             'length': len(digest_text)
                         })
+                        overall_success_count += 1
                     else:
+                        # Get block status to provide helpful message
+                        blocks = db.get_blocks_by_date(target_date)
+                        prog_blocks = [b for b in blocks if b.get('program_name') == prog_name]
+                        completed = [b for b in prog_blocks if b['status'] == 'completed']
+
                         date_results['digests'].append({
                             'program': prog_name,
-                            'status': 'not_ready'
+                            'program_key': prog_key,
+                            'status': 'not_ready',
+                            'reason': f'{len(completed)}/{len(prog_blocks)} blocks completed' if prog_blocks else 'No blocks found'
                         })
+                        overall_not_ready_count += 1
                 except Exception as e:
                     date_results['digests'].append({
                         'program': prog_name,
+                        'program_key': prog_key,
                         'status': 'error',
                         'error': str(e)
                     })
-            
+                    overall_error_count += 1
+
             results.append(date_results)
-        
-        return {'status': 'success', 'results': results}
+
+        # Provide accurate overall status
+        if overall_success_count > 0 and overall_not_ready_count == 0 and overall_error_count == 0:
+            overall_status = 'success'
+        elif overall_success_count > 0:
+            overall_status = 'partial'
+        else:
+            overall_status = 'failed'
+
+        return {
+            'status': overall_status,
+            'summary': {
+                'success': overall_success_count,
+                'not_ready': overall_not_ready_count,
+                'errors': overall_error_count
+            },
+            'results': results
+        }
         
     except Exception as e:
         logger.error(f"Program digest generation failed: {e}")
