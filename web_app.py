@@ -281,12 +281,15 @@ async def dashboard(request: Request, date_param: Optional[str] = None, message:
     # ✅ NEW: Load program-specific digests from DATABASE (persistent storage)
     program_digests = []
     db_digests = db.get_program_digests(view_date)
+    logger.info(f"🔍 DEBUG: Retrieved {len(db_digests)} program digests from database for {view_date}")
     for digest_record in db_digests:
+        logger.info(f"🔍 DEBUG: Loading digest - program_key={digest_record['program_key']}, program_name={digest_record['program_name']}")
         program_digests.append({
             'program_key': digest_record['program_key'],
             'program_name': digest_record['program_name'],
             'content': digest_record['digest_text']
         })
+    logger.info(f"🔍 DEBUG: Final program_digests list has {len(program_digests)} items")
     
     # ⚠️ DEPRECATED: Fallback to files if no database digests (migration period only)
     if not program_digests:
@@ -1992,6 +1995,38 @@ async def debug_station_settings():
         }
         
     except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/debug/digests")
+async def debug_digests(date_param: Optional[str] = None):
+    """Debug endpoint to check what program digests exist in the database."""
+    try:
+        if date_param:
+            view_date = datetime.strptime(date_param, '%Y-%m-%d').date()
+        else:
+            view_date = get_local_date()
+
+        # Get digests from database
+        db_digests = db.get_program_digests(view_date)
+
+        return {
+            "date": str(view_date),
+            "digest_count": len(db_digests),
+            "digests": [
+                {
+                    "id": d.get('id'),
+                    "program_key": d.get('program_key'),
+                    "program_name": d.get('program_name'),
+                    "content_length": len(d.get('digest_text', '')),
+                    "blocks_processed": d.get('blocks_processed'),
+                    "total_callers": d.get('total_callers'),
+                    "created_at": str(d.get('created_at'))
+                }
+                for d in db_digests
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Debug digests error: {e}")
         return {"error": str(e)}
 
 @app.get("/debug/stream-test")
