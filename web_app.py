@@ -2060,6 +2060,54 @@ async def debug_digests(date_param: Optional[str] = None):
         logger.error(f"Debug digests error: {e}")
         return {"error": str(e)}
 
+@app.get("/debug/blocks")
+async def debug_blocks(date_param: Optional[str] = None):
+    """Debug endpoint to check block statuses for a given date."""
+    try:
+        if date_param:
+            view_date = datetime.strptime(date_param, '%Y-%m-%d').date()
+        else:
+            view_date = get_local_date()
+
+        # Get all blocks for this date
+        blocks = db.get_blocks_by_date(view_date)
+
+        # Group by program
+        vob_blocks = [b for b in blocks if b.get('program_name') == 'Down to Brass Tacks']
+        cbc_blocks = [b for b in blocks if b.get('program_name') == "Let's Talk About It"]
+
+        return {
+            "date": str(view_date),
+            "total_blocks": len(blocks),
+            "vob": {
+                "total": len(vob_blocks),
+                "completed": len([b for b in vob_blocks if b['status'] == 'completed']),
+                "blocks": [
+                    {
+                        "block_code": b['block_code'],
+                        "status": b['status'],
+                        "has_summary": db.get_summary(b['id']) is not None
+                    }
+                    for b in vob_blocks
+                ]
+            },
+            "cbc": {
+                "total": len(cbc_blocks),
+                "completed": len([b for b in cbc_blocks if b['status'] == 'completed']),
+                "blocks": [
+                    {
+                        "block_code": b['block_code'],
+                        "status": b['status'],
+                        "has_summary": db.get_summary(b['id']) is not None
+                    }
+                    for b in cbc_blocks
+                ]
+            }
+        }
+    except Exception as e:
+        logger.error(f"Debug blocks error: {e}")
+        return {"error": str(e)}
+
 @app.get("/debug/stream-test")
 async def debug_stream_test():
     """Debug endpoint to test stream connectivity with dynamic session."""
