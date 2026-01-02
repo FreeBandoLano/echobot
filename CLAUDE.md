@@ -70,7 +70,8 @@ Radio Stream → Audio Recorder → Database → Task Manager Pipeline
 - **summarization.py**: GPT-4 summarization with adaptive model fallback, cost tracking, **triggers sentiment analysis**
 - **sentiment_analyzer.py**: **NEW** - GPT-4 based sentiment scoring with human-readable labels, parish extraction
 - **parish_normalizer.py**: **NEW** - Barbados parish name normalization (handles transcription variations)
-- **email_service.py**: SMTP integration, HTML templates with themes, PDF digest generation via ReportLab
+- **email_service.py**: SMTP integration, HTML templates with themes, PDF digest generation via ReportLab, **tactical chart embedding**
+- **email_chart_generator.py**: **NEW** - Server-side Plotly PNG chart generation for email digests (kaleido)
 - **config.py**: Environment-driven, multi-program support, policy categories for analytics
 
 ### Task Pipeline States
@@ -122,6 +123,13 @@ Programs are configured in `config.py` with independent blocks and stream URLs:
    - Parish heatmap
    - Emerging issues alerts
    - Export capabilities (PDF, CSV, JSON)
+
+5. **Email Chart Integration**: Tactical charts embedded in digest emails
+   - `email_chart_generator.py` generates server-side PNG charts using Plotly + kaleido
+   - 4 chart types: Policy Topics, Sentiment Donut, Topic Sentiment, Parish Radial
+   - Charts auto-included in `send_program_digests()` when analytics data available
+   - Uses MIME multipart/related for inline CID image embedding
+   - Charts also attached as downloadable PNG files
 
 **Sentiment Labels**:
 | Score Range | Label | Display Text |
@@ -289,6 +297,12 @@ python -c "from sentiment_analyzer import sentiment_analyzer; print(sentiment_an
 
 # Test parish normalizer
 python -c "from parish_normalizer import normalize_parish; print(normalize_parish('Bridgetown'))"
+
+# Test email chart generator (generates 4 PNG files in /tmp/echobot_charts/)
+python email_chart_generator.py
+
+# Verify chart PNG files
+ls -la /tmp/echobot_charts/
 ```
 
 ### Parallel Development Workflow
