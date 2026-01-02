@@ -35,6 +35,10 @@ pyodbc==5.0.1
 # PDF generation
 reportlab==4.0.7
 
+# Chart generation for email digests
+plotly>=5.18.0
+kaleido>=0.2.1
+
 # Optional audio system dependencies (uncomment if needed)
 # sounddevice==0.4.6
 # soundfile==0.12.1

@@ -6,8 +6,9 @@ import re
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
+from email.mime.image import MIMEImage
 from email import encoders
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from datetime import datetime, date
 from pathlib import Path
 import json
@@ -114,11 +115,114 @@ class EmailService:
             
             logger.info(f"Email sent successfully: {subject}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to send email '{subject}': {e}")
             return False
-    
+
+    def _send_email_with_inline_images(self, subject: str, body_text: str, body_html: str,
+                                        inline_images: Dict[str, Path],
+                                        attachments: List[Path] = None) -> bool:
+        """Send email with inline images embedded in HTML and optional attachments.
+
+        Uses MIME multipart/related for inline images with CID references.
+        Images are both embedded (for viewing) and attached (for download).
+
+        Args:
+            subject: Email subject line
+            body_text: Plain text version
+            body_html: HTML version with <img src="cid:image_name"> references
+            inline_images: Dict mapping image CID names to file paths
+            attachments: Optional additional file attachments
+
+        Returns:
+            True if email sent successfully
+        """
+        if not self.email_enabled:
+            logger.info(f"Email disabled. Would send: {subject}")
+            return True
+
+        try:
+            # Create root message as mixed (for attachments)
+            msg_root = MIMEMultipart('mixed')
+            msg_root['From'] = self.email_from
+            msg_root['To'] = ', '.join(self.email_to)
+            msg_root['Subject'] = subject
+
+            # Create related part (for inline images)
+            msg_related = MIMEMultipart('related')
+
+            # Create alternative part (for text/html versions)
+            msg_alternative = MIMEMultipart('alternative')
+
+            # Add text version
+            msg_alternative.attach(MIMEText(body_text, 'plain', 'utf-8'))
+
+            # Add HTML version
+            msg_alternative.attach(MIMEText(body_html, 'html', 'utf-8'))
+
+            # Add alternative to related
+            msg_related.attach(msg_alternative)
+
+            # Add inline images to related part
+            for cid_name, image_path in inline_images.items():
+                if image_path.exists():
+                    with open(image_path, 'rb') as img_file:
+                        img_data = img_file.read()
+
+                    # Determine image type from extension
+                    ext = image_path.suffix.lower()
+                    subtype = 'png' if ext == '.png' else 'jpeg'
+
+                    img = MIMEImage(img_data, _subtype=subtype)
+                    img.add_header('Content-ID', f'<{cid_name}>')
+                    img.add_header('Content-Disposition', 'inline', filename=image_path.name)
+                    msg_related.attach(img)
+                    logger.debug(f"Attached inline image: {cid_name}")
+                else:
+                    logger.warning(f"Image not found for CID {cid_name}: {image_path}")
+
+            # Add related part to root
+            msg_root.attach(msg_related)
+
+            # Add file attachments (for download)
+            if attachments:
+                for attachment_path in attachments:
+                    if attachment_path.exists():
+                        with open(attachment_path, 'rb') as f:
+                            part = MIMEBase('application', 'octet-stream')
+                            part.set_payload(f.read())
+                            encoders.encode_base64(part)
+                            part.add_header(
+                                'Content-Disposition',
+                                f'attachment; filename="{attachment_path.name}"'
+                            )
+                            msg_root.attach(part)
+
+            # Also attach images as separate files for download
+            for cid_name, image_path in inline_images.items():
+                if image_path.exists():
+                    with open(image_path, 'rb') as f:
+                        part = MIMEBase('image', 'png')
+                        part.set_payload(f.read())
+                        encoders.encode_base64(part)
+                        part.add_header(
+                            'Content-Disposition',
+                            f'attachment; filename="{image_path.name}"'
+                        )
+                        msg_root.attach(part)
+
+            # Send email
+            with self._create_smtp_connection() as server:
+                server.send_message(msg_root)
+
+            logger.info(f"Email with inline images sent successfully: {subject}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send email with images '{subject}': {e}")
+            return False
+
     def send_block_summary(self, block_id: int) -> bool:
         """Send block summary email to stakeholders."""
         try:
@@ -376,19 +480,111 @@ https://echobot-docker-app.azurewebsites.net/
         
         return html
     
-    def send_program_digests(self, show_date: date, theme: str = None) -> bool:
-        """Send separate digest emails for each program (VOB and CBC)."""
-        
+    def _generate_digest_charts(self, show_date: date) -> Tuple[Dict[str, Path], Dict]:
+        """Generate tactical analytics charts for email digest.
+
+        Args:
+            show_date: Date to generate charts for
+
+        Returns:
+            Tuple of (chart_paths dict, analytics_data dict)
+        """
+        chart_paths = {}
+        analytics_data = {}
+
+        try:
+            from email_chart_generator import generate_all_analytics_charts, SENTIMENT_COLORS
+
+            # Fetch analytics data
+            from sentiment_analyzer import sentiment_analyzer
+
+            # Get trending topics from database
+            topics = db.get_top_topics(days=7, limit=10)
+
+            # Get parish sentiment map from sentiment_analyzer
+            parish_data = sentiment_analyzer.get_parish_sentiment_map(days=7)
+
+            # Get sentiment distribution for the date
+            sentiment_data = sentiment_analyzer.get_sentiment_for_date(show_date)
+            sentiment_dist = sentiment_data.get('sentiment_distribution', {}) if sentiment_data else {}
+
+            # Build analytics data structure for chart generator
+            analytics_data = {
+                'topics': [
+                    {
+                        'topic': t.get('topic', 'Unknown'),
+                        'count': t.get('count', 0),
+                        'sentiment': t.get('avg_sentiment', 0)
+                    }
+                    for t in (topics or [])
+                ],
+                # Map label names from sentiment_analyzer to chart format
+                'sentiment_distribution': [
+                    {'label': 'Strongly Positive', 'value': sentiment_dist.get('Strongly Positive', 0), 'color': SENTIMENT_COLORS['strongly_positive']},
+                    {'label': 'Somewhat Positive', 'value': sentiment_dist.get('Somewhat Positive', 0), 'color': SENTIMENT_COLORS['somewhat_positive']},
+                    {'label': 'Mixed/Neutral', 'value': sentiment_dist.get('Mixed/Neutral', sentiment_dist.get('Mixed', 0)), 'color': SENTIMENT_COLORS['mixed']},
+                    {'label': 'Somewhat Negative', 'value': sentiment_dist.get('Somewhat Negative', 0), 'color': SENTIMENT_COLORS['somewhat_negative']},
+                    {'label': 'Strongly Negative', 'value': sentiment_dist.get('Strongly Negative', 0), 'color': SENTIMENT_COLORS['strongly_negative']},
+                ] if sentiment_dist else [],
+                'parishes': [
+                    {
+                        'parish': p.get('parish', 'Unknown'),
+                        'mention_count': p.get('mention_count', 0),
+                        'avg_sentiment': p.get('avg_sentiment', 0)
+                    }
+                    for p in (parish_data or [])
+                ]
+            }
+
+            # Only generate charts if we have data
+            has_data = (
+                analytics_data.get('topics') or
+                analytics_data.get('parishes') or
+                any(d.get('value', 0) > 0 for d in analytics_data.get('sentiment_distribution', []))
+            )
+
+            if has_data:
+                chart_paths = generate_all_analytics_charts(analytics_data)
+                logger.info(f"Generated {len(chart_paths)} tactical charts for {show_date}")
+            else:
+                logger.info(f"No analytics data available for {show_date}, skipping charts")
+
+        except ImportError as e:
+            logger.warning(f"Chart generation not available (missing kaleido?): {e}")
+        except Exception as e:
+            logger.error(f"Failed to generate digest charts: {e}")
+
+        return chart_paths, analytics_data
+
+    def _cleanup_chart_files(self, chart_paths: Dict[str, Path]) -> None:
+        """Clean up temporary chart PNG files."""
+        for name, path in chart_paths.items():
+            try:
+                if path.exists():
+                    path.unlink()
+                    logger.debug(f"Cleaned up chart file: {path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up {name} chart: {e}")
+
+    def send_program_digests(self, show_date: date, theme: str = None, include_charts: bool = True) -> bool:
+        """Send separate digest emails for each program (VOB and CBC).
+
+        Args:
+            show_date: Date of the digest
+            theme: Email theme ('dark' or 'light')
+            include_charts: Whether to include tactical analytics charts (default True)
+        """
+
         if theme is None:
             theme = os.getenv('EMAIL_THEME', 'dark')
-        
+
         from config import Config
-        
+
         # ✅ DUPLICATE EMAIL FIX: Check if already sent
         try:
             import time
             cache_file = Config.WEB_DIR / f".program_digests_email_sent_{show_date}.lock"
-            
+
             if cache_file.exists():
                 # Check if lock is recent (within last 2 hours)
                 lock_age = time.time() - cache_file.stat().st_mtime
@@ -398,10 +594,16 @@ https://echobot-docker-app.azurewebsites.net/
         except Exception as lock_err:
             logger.warning(f"Failed to check email lock: {lock_err}")
             # Continue anyway - better to send duplicate than not send at all
-        
+
+        # Generate tactical charts if enabled
+        chart_paths = {}
+        analytics_data = {}
+        if include_charts:
+            chart_paths, analytics_data = self._generate_digest_charts(show_date)
+
         success_count = 0
         programs_to_send = Config.get_all_programs()
-        
+
         for program_key in programs_to_send:
             try:
                 # Get program digest from database
@@ -409,40 +611,54 @@ https://echobot-docker-app.azurewebsites.net/
                 if not digest:
                     logger.warning(f"Program digest for {program_key} on {show_date} not found, skipping")
                     continue
-                
+
                 # Get program configuration
                 prog_config = Config.get_program_config(program_key)
                 if not prog_config:
                     logger.error(f"Unknown program key: {program_key}")
                     continue
-                
+
                 program_name = prog_config['name']
                 station = prog_config.get('station', 'Radio')
-                
+
                 # Format date
                 formatted_date = show_date.strftime('%B %d, %Y')
-                
+
                 # Create program-specific subject
                 subject = f"[{program_name}] Daily Brief – {formatted_date}"
-                
-                # Create email body
+
+                # Create email body (with optional chart sections)
                 body_text = self._create_program_digest_text(digest, show_date, program_name, station)
-                body_html = self._create_program_digest_html(digest, show_date, program_name, station, theme=theme)
-                
+                body_html = self._create_program_digest_html(
+                    digest, show_date, program_name, station,
+                    theme=theme, chart_paths=chart_paths, analytics_data=analytics_data
+                )
+
                 # Log digest length for monitoring
                 digest_length = len(digest.get('digest_text', ''))
                 email_length = len(body_text)
-                logger.info(f"📊 {program_name} digest: {digest_length} chars core content, {email_length} chars total email")
-                
-                # Send email
-                if self._send_email(subject, body_text, body_html):
+                chart_count = len(chart_paths)
+                logger.info(f"📊 {program_name} digest: {digest_length} chars, {chart_count} charts")
+
+                # Send email (with inline images if charts available)
+                if chart_paths:
+                    inline_images = {f"chart_{name}": path for name, path in chart_paths.items()}
+                    success = self._send_email_with_inline_images(subject, body_text, body_html, inline_images)
+                else:
+                    success = self._send_email(subject, body_text, body_html)
+
+                if success:
                     logger.info(f"📧 {program_name} digest email delivered to {len(self.email_to)} recipients")
                     success_count += 1
                 else:
                     logger.error(f"Failed to send {program_name} digest email")
-                    
+
             except Exception as e:
                 logger.error(f"Error sending {program_key} digest email: {e}")
+
+        # Clean up chart files after all emails sent
+        if chart_paths:
+            self._cleanup_chart_files(chart_paths)
         
         # ✅ DUPLICATE EMAIL FIX: Create lock file if at least one email sent
         if success_count > 0:
@@ -591,10 +807,80 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View full archive: https://e
                 'footer_bg': '#0d1117',        # Match main bg
             }
 
+    def _generate_charts_html_section(self, c: Dict, chart_paths: Dict[str, Path] = None,
+                                       analytics_data: Dict = None) -> str:
+        """Generate HTML section for tactical analytics charts.
+
+        Args:
+            c: Color theme dictionary
+            chart_paths: Dict of chart name -> Path
+            analytics_data: Analytics data for context
+
+        Returns:
+            HTML string for charts section (empty if no charts)
+        """
+        if not chart_paths:
+            return ""
+
+        # Build chart rows
+        chart_rows = []
+
+        # Chart titles and descriptions
+        chart_info = {
+            'policy_topics': ('Policy Category Activity', 'Top policy topics by mention count with sentiment indicators'),
+            'sentiment_donut': ('Sentiment Distribution', 'Breakdown of public sentiment across all discussions'),
+            'topic_sentiment': ('Topic Sentiment Analysis', 'Average sentiment by topic with mention frequency'),
+            'parish_radial': ('Parish Sentiment Radial', 'Geographic distribution of mentions and sentiment by parish')
+        }
+
+        for chart_name, chart_path in chart_paths.items():
+            if chart_name in chart_info:
+                title, description = chart_info[chart_name]
+                chart_rows.append(f"""
+                    <tr>
+                        <td style="padding: 20px 35px;">
+                            <h3 style="color: {c['accent']}; margin: 0 0 8px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; font-weight: 600;">{title}</h3>
+                            <p style="color: {c['text_secondary']}; font-size: 12px; margin: 0 0 15px 0;">{description}</p>
+                            <img src="cid:chart_{chart_name}" alt="{title}" style="width: 100%; max-width: 650px; border: 1px solid {c['border']}; border-radius: 8px;">
+                        </td>
+                    </tr>
+""")
+
+        if not chart_rows:
+            return ""
+
+        # Wrap in analytics section
+        return f"""
+                    <!-- Analytics Charts Section -->
+                    <tr>
+                        <td style="padding: 30px 35px 10px; border-top: 1px solid {c['border']};">
+                            <h2 style="color: {c['accent']}; margin: 0; font-size: 18px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700;">
+                                Analytics Dashboard
+                            </h2>
+                            <p style="color: {c['text_secondary']}; font-size: 13px; margin: 8px 0 0 0;">
+                                Visual insights from the past 7 days of public sentiment analysis
+                            </p>
+                        </td>
+                    </tr>
+                    {''.join(chart_rows)}
+"""
+
     def _create_program_digest_html(self, digest: Dict, show_date: date,
-                                   program_name: str, station: str, theme: str = 'dark') -> str:
-        """Create HTML program digest email with inline styles for email client compatibility."""
-        
+                                   program_name: str, station: str, theme: str = 'dark',
+                                   chart_paths: Dict[str, Path] = None,
+                                   analytics_data: Dict = None) -> str:
+        """Create HTML program digest email with inline styles for email client compatibility.
+
+        Args:
+            digest: Digest data from database
+            show_date: Date of the digest
+            program_name: Name of the program (e.g., "Brass Tacks")
+            station: Station name (e.g., "VOB 92.9")
+            theme: Color theme ('dark' or 'light')
+            chart_paths: Optional dict of chart name -> Path for inline images
+            analytics_data: Optional analytics data for context
+        """
+
         def make_anchor(text: str) -> str:
             """Create URL-safe anchor from text."""
             return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
@@ -744,7 +1030,9 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View full archive: https://e
                             {html_content}
                         </td>
                     </tr>
-                    
+
+                    {self._generate_charts_html_section(c, chart_paths, analytics_data)}
+
                     <!-- Footer Section -->
                     <tr>
                         <td style="background-color: {c['footer_bg']}; padding: 30px; text-align: center; border-top: 1px solid {c['border']};">
@@ -1070,6 +1358,303 @@ View full dashboard: https://echobot-docker-app.azurewebsites.net/dashboard/anal
         except Exception as e:
             logger.error(f"Error sending analytics digest email: {e}")
             return False
+
+    def send_tactical_analytics_digest(self, analytics_data: Dict, show_date: date) -> bool:
+        """Send tactical-themed analytics digest with embedded chart images.
+
+        Generates 4 PNG charts matching the Grok-inspired dashboard and embeds
+        them inline in the HTML email. Charts are also attached for download.
+
+        Charts included:
+        1. Policy Topics - Horizontal bars with colored borders
+        2. Sentiment Donut - Distribution pie chart
+        3. Topic Sentiment - Diverging bars with line overlay
+        4. Parish Radial - Polar chart for geographic sentiment
+
+        Args:
+            analytics_data: Dict from /api/analytics/overview endpoint
+            show_date: Date for the digest
+
+        Returns:
+            True if email sent successfully
+        """
+        try:
+            # Import chart generator (lazy import to avoid circular deps)
+            from email_chart_generator import (
+                generate_all_analytics_charts,
+                cleanup_chart_files,
+                TACTICAL_COLORS
+            )
+
+            logger.info(f"Generating tactical analytics charts for {show_date}")
+
+            # Generate all 4 charts
+            chart_paths = generate_all_analytics_charts(analytics_data)
+
+            if not chart_paths:
+                logger.warning("No charts generated, falling back to standard digest")
+                return self.send_analytics_digest(analytics_data, show_date)
+
+            # Create email content
+            formatted_date = show_date.strftime('%B %d, %Y')
+            subject = f"[TACTICAL BRIEF] Analytics Dashboard - {formatted_date}"
+
+            # Plain text version
+            body_text = self._create_tactical_digest_text(analytics_data, show_date)
+
+            # HTML version with embedded chart references
+            body_html = self._create_tactical_digest_html(analytics_data, show_date, chart_paths)
+
+            # Map chart names to CID references
+            inline_images = {}
+            for chart_name, chart_path in chart_paths.items():
+                cid_name = f"chart_{chart_name}"
+                inline_images[cid_name] = chart_path
+
+            # Send email with inline images
+            success = self._send_email_with_inline_images(
+                subject=subject,
+                body_text=body_text,
+                body_html=body_html,
+                inline_images=inline_images
+            )
+
+            # Clean up temp chart files
+            cleanup_chart_files(chart_paths)
+
+            if success:
+                logger.info(f"📊 Tactical analytics digest with {len(chart_paths)} charts sent to {len(self.email_to)} recipients")
+
+            return success
+
+        except ImportError as e:
+            logger.error(f"Chart generator not available: {e}. Install kaleido: pip install kaleido")
+            # Fall back to standard analytics digest
+            return self.send_analytics_digest(analytics_data, show_date)
+
+        except Exception as e:
+            logger.error(f"Error sending tactical analytics digest: {e}")
+            return False
+
+    def _create_tactical_digest_text(self, analytics_data: Dict, show_date: date) -> str:
+        """Create plain text tactical digest."""
+        formatted_date = show_date.strftime('%B %d, %Y')
+
+        text = f"""TACTICAL ANALYTICS BRIEF
+{'=' * 60}
+Date: {formatted_date}
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M AST')}
+
+OVERALL SENTIMENT
+{'-' * 20}
+"""
+        overall = analytics_data.get('overall_sentiment', {})
+        text += f"Assessment: {overall.get('label', 'Unknown')}\n"
+        text += f"Score: {overall.get('score', 0):.2f}\n"
+        text += f"Insight: {overall.get('display_text', 'No data available')}\n\n"
+
+        # High priority issues
+        high_priority = [i for i in analytics_data.get('emerging_issues', [])
+                        if i.get('urgency', 0) >= 0.7]
+        if high_priority:
+            text += f"HIGH PRIORITY ISSUES ({len(high_priority)})\n{'-' * 20}\n"
+            for issue in high_priority:
+                text += f"• {issue.get('topic')} - {int(issue.get('urgency', 0) * 100)}% urgency\n"
+            text += "\n"
+
+        # Top topics
+        topics = analytics_data.get('topics', [])[:5]
+        if topics:
+            text += f"TOP POLICY TOPICS\n{'-' * 20}\n"
+            for t in topics:
+                name = t.get('topic', t.get('category', 'Unknown'))
+                count = t.get('count', t.get('mentions', 0))
+                text += f"• {name}: {count} mentions\n"
+            text += "\n"
+
+        # Parish summary
+        parishes = analytics_data.get('parishes', [])[:5]
+        if parishes:
+            text += f"PARISH ACTIVITY\n{'-' * 20}\n"
+            for p in parishes:
+                name = p.get('parish', p.get('name', 'Unknown'))
+                mentions = p.get('mention_count', p.get('mentions', 0))
+                text += f"• {name}: {mentions} mentions\n"
+
+        text += f"""
+{'=' * 60}
+Charts attached as PNG files for detailed analysis.
+View interactive dashboard: https://echobot-docker-app.azurewebsites.net/dashboard/analytics
+"""
+        return text
+
+    def _create_tactical_digest_html(self, analytics_data: Dict, show_date: date,
+                                     chart_paths: Dict[str, 'Path']) -> str:
+        """Create HTML tactical digest with embedded chart images."""
+        formatted_date = show_date.strftime('%B %d, %Y')
+
+        # Tactical theme colors
+        c = {
+            'bg': '#121823',
+            'card': '#1a2332',
+            'border': '#2a3f5f',
+            'teal': '#4dd9d9',
+            'gold': '#f5c342',
+            'red': '#b51227',
+            'text': '#e0e6ed',
+            'text_muted': '#7d8896',
+            'positive': '#00ff41',
+            'negative': '#ff4444'
+        }
+
+        # Get overall sentiment
+        overall = analytics_data.get('overall_sentiment', {})
+        sentiment_color = c['positive'] if overall.get('score', 0) > 0.2 else (
+            c['negative'] if overall.get('score', 0) < -0.2 else c['gold']
+        )
+
+        # Build chart sections
+        chart_sections = ""
+
+        # Chart 1: Policy Topics
+        if 'policy_topics' in chart_paths:
+            chart_sections += f"""
+                <tr>
+                    <td style="padding: 20px;">
+                        <h3 style="color: {c['teal']}; margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">Policy Category Activity</h3>
+                        <img src="cid:chart_policy_topics" alt="Policy Topics Chart" style="width: 100%; max-width: 700px; border: 1px solid {c['border']}; border-radius: 8px;">
+                    </td>
+                </tr>
+"""
+
+        # Chart 2: Sentiment Donut
+        if 'sentiment_donut' in chart_paths:
+            chart_sections += f"""
+                <tr>
+                    <td style="padding: 20px;">
+                        <h3 style="color: {c['teal']}; margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">Sentiment Distribution</h3>
+                        <img src="cid:chart_sentiment_donut" alt="Sentiment Donut Chart" style="width: 100%; max-width: 500px; border: 1px solid {c['border']}; border-radius: 8px;">
+                    </td>
+                </tr>
+"""
+
+        # Chart 3: Topic Sentiment
+        if 'topic_sentiment' in chart_paths:
+            chart_sections += f"""
+                <tr>
+                    <td style="padding: 20px;">
+                        <h3 style="color: {c['teal']}; margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">Topic Sentiment Analysis</h3>
+                        <img src="cid:chart_topic_sentiment" alt="Topic Sentiment Chart" style="width: 100%; max-width: 700px; border: 1px solid {c['border']}; border-radius: 8px;">
+                    </td>
+                </tr>
+"""
+
+        # Chart 4: Parish Radial
+        if 'parish_radial' in chart_paths:
+            chart_sections += f"""
+                <tr>
+                    <td style="padding: 20px;">
+                        <h3 style="color: {c['teal']}; margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">Parish Sentiment Radial</h3>
+                        <img src="cid:chart_parish_radial" alt="Parish Radial Chart" style="width: 100%; max-width: 500px; border: 1px solid {c['border']}; border-radius: 8px;">
+                    </td>
+                </tr>
+"""
+
+        # High priority issues section
+        high_priority_html = ""
+        high_priority = [i for i in analytics_data.get('emerging_issues', [])
+                        if i.get('urgency', 0) >= 0.7]
+        if high_priority:
+            issues_list = "".join([
+                f'<tr><td style="padding: 8px 15px; border-left: 3px solid {c["negative"]}; background: rgba(255,68,68,0.1); margin-bottom: 8px;">'
+                f'<span style="color: {c["text"]}; font-weight: 600;">{i.get("topic")}</span>'
+                f'<span style="color: {c["text_muted"]}; margin-left: 10px;">({int(i.get("urgency", 0) * 100)}% urgency)</span>'
+                f'</td></tr>'
+                for i in high_priority
+            ])
+            high_priority_html = f"""
+                <tr>
+                    <td style="padding: 20px;">
+                        <h3 style="color: {c['negative']}; margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">⚠ High Priority Issues</h3>
+                        <table width="100%" cellpadding="0" cellspacing="8">
+                            {issues_list}
+                        </table>
+                    </td>
+                </tr>
+"""
+
+        html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tactical Analytics Brief</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: {c['bg']}; font-family: 'Roboto Mono', 'Courier New', monospace;">
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: {c['bg']};">
+        <tr>
+            <td align="center" style="padding: 20px;">
+
+                <!-- Email Card -->
+                <table width="750" cellpadding="0" cellspacing="0" style="background-color: {c['card']}; border: 1px solid {c['border']}; border-radius: 12px; overflow: hidden;">
+
+                    <!-- Tactical Header Bar -->
+                    <tr>
+                        <td style="height: 4px; background: linear-gradient(90deg, {c['teal']}, {c['gold']}, {c['red']});"></td>
+                    </tr>
+
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 30px; text-align: center; border-bottom: 1px solid {c['border']};">
+                            <div style="display: inline-block; border: 2px solid {c['teal']}; padding: 8px 20px; margin-bottom: 15px;">
+                                <span style="color: {c['teal']}; font-size: 11px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;">TACTICAL ANALYTICS BRIEF</span>
+                            </div>
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: {c['text']}; letter-spacing: 1px;">EXECUTIVE DASHBOARD</h1>
+                            <p style="margin: 10px 0 0 0; font-size: 14px; color: {c['text_muted']};">{formatted_date}</p>
+                        </td>
+                    </tr>
+
+                    <!-- Overall Sentiment -->
+                    <tr>
+                        <td style="padding: 25px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: {c['bg']}; border: 2px solid {sentiment_color}; border-radius: 8px;">
+                                <tr>
+                                    <td style="padding: 20px; text-align: center;">
+                                        <div style="font-size: 11px; color: {c['teal']}; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px;">Overall Public Sentiment</div>
+                                        <div style="font-size: 32px; font-weight: 700; color: {sentiment_color};">{overall.get('label', 'Unknown')}</div>
+                                        <div style="font-size: 14px; color: {c['text_muted']}; margin-top: 8px;">{overall.get('display_text', 'No data available')}</div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- High Priority Issues -->
+                    {high_priority_html}
+
+                    <!-- Charts -->
+                    {chart_sections}
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 25px; text-align: center; border-top: 1px solid {c['border']}; background-color: {c['bg']};">
+                            <p style="margin: 0 0 10px 0; font-size: 11px; color: {c['text_muted']}; text-transform: uppercase; letter-spacing: 1px;">SYSTEM GENERATED • {datetime.now().strftime('%Y-%m-%d %H:%M AST')}</p>
+                            <p style="margin: 0;"><a href="https://echobot-docker-app.azurewebsites.net/dashboard/analytics" style="color: {c['teal']}; text-decoration: none; font-weight: 600; font-size: 13px; letter-spacing: 1px;">VIEW INTERACTIVE DASHBOARD →</a></p>
+                        </td>
+                    </tr>
+
+                </table>
+
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>
+"""
+        return html
 
     def send_test_email(self) -> bool:
         """Send a test email to verify configuration."""
