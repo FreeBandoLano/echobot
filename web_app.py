@@ -870,6 +870,7 @@ async def api_llm_toggle(enable: bool):
 @app.get("/dashboard/analytics", response_class=HTMLResponse)
 async def analytics_dashboard(request: Request, date_param: Optional[str] = None):
     """Executive analytics dashboard for government stakeholders."""
+    from sentiment_analyzer import sentiment_analyzer
 
     # Parse date parameter or use today
     if date_param:
@@ -880,53 +881,142 @@ async def analytics_dashboard(request: Request, date_param: Optional[str] = None
     else:
         view_date = get_local_date()
 
-    # MOCK DATA - Replace with real data from Workstream 2 APIs when available
-    mock_analytics = {
-        "overall_sentiment": {
-            "score": -0.35,
-            "label": "Somewhat Negative",
-            "display_text": "Growing public concern across multiple policy areas"
-        },
-        "parishes": [
-            {"name": "St. Michael", "mentions": 23, "label": "Strongly Negative", "top_concern": "Bus service delays"},
-            {"name": "Christ Church", "mentions": 12, "label": "Somewhat Negative", "top_concern": "Flooding infrastructure"},
-            {"name": "St. James", "mentions": 8, "label": "Neutral", "top_concern": "Tourism impact"},
-            {"name": "St. Philip", "mentions": 6, "label": "Somewhat Positive", "top_concern": "Agricultural support"},
-            {"name": "St. Lucy", "mentions": 2, "label": "Insufficient Data", "top_concern": None},
-            {"name": "St. Peter", "mentions": 4, "label": "Neutral", "top_concern": "Road maintenance"},
-            {"name": "St. Andrew", "mentions": 3, "label": "Insufficient Data", "top_concern": None},
-            {"name": "St. Joseph", "mentions": 5, "label": "Somewhat Negative", "top_concern": "Water supply"},
-            {"name": "St. John", "mentions": 7, "label": "Neutral", "top_concern": "Healthcare access"},
-            {"name": "St. George", "mentions": 9, "label": "Somewhat Negative", "top_concern": "Internet connectivity"},
-            {"name": "St. Thomas", "mentions": 6, "label": "Neutral", "top_concern": "School facilities"}
-        ],
-        "emerging_issues": [
-            {"topic": "Water Supply - South Coast", "urgency": 0.85, "trajectory": "rising"},
-            {"topic": "Public Transport Reliability", "urgency": 0.62, "trajectory": "rising"},
-            {"topic": "Telecommunication Data Act", "urgency": 0.48, "trajectory": "stable"},
-            {"topic": "Healthcare Wait Times", "urgency": 0.35, "trajectory": "falling"},
-            {"topic": "Road Infrastructure", "urgency": 0.28, "trajectory": "stable"}
-        ],
-        "policy_categories": [
-            {"category": "Healthcare", "score": -0.45, "label": "Somewhat Negative"},
-            {"category": "Education", "score": 0.25, "label": "Somewhat Positive"},
-            {"category": "Transportation", "score": -0.68, "label": "Strongly Negative"},
-            {"category": "Water & Utilities", "score": -0.72, "label": "Strongly Negative"},
-            {"category": "Telecommunications", "score": -0.38, "label": "Somewhat Negative"},
-            {"category": "Tourism", "score": 0.15, "label": "Neutral"},
-            {"category": "Agriculture", "score": 0.32, "label": "Somewhat Positive"},
-            {"category": "Justice & Security", "score": -0.12, "label": "Neutral"},
-            {"category": "Environment", "score": -0.28, "label": "Somewhat Negative"},
-            {"category": "Housing", "score": -0.55, "label": "Somewhat Negative"},
-            {"category": "Economy & Finance", "score": -0.18, "label": "Neutral"},
-            {"category": "Social Services", "score": 0.08, "label": "Neutral"}
-        ]
-    }
+    # Fetch REAL data from sentiment analyzer and database
+    try:
+        # Get overall sentiment for the date
+        sentiment_data = sentiment_analyzer.get_sentiment_for_date(view_date)
+        avg_score = sentiment_data.get('average_sentiment', 0) if sentiment_data else 0
+
+        # Map score to label and display text
+        if avg_score >= 0.6:
+            sentiment_label = "Strongly Positive"
+            display_text = "Public strongly supports current policies"
+        elif avg_score >= 0.2:
+            sentiment_label = "Somewhat Positive"
+            display_text = "Generally favorable public reception"
+        elif avg_score >= -0.2:
+            sentiment_label = "Mixed/Neutral"
+            display_text = "Public opinion divided on key issues"
+        elif avg_score >= -0.6:
+            sentiment_label = "Somewhat Negative"
+            display_text = "Growing public concern across policy areas"
+        else:
+            sentiment_label = "Strongly Negative"
+            display_text = "Significant public opposition detected"
+
+        overall_sentiment = {
+            "score": round(avg_score, 2),
+            "label": sentiment_label,
+            "display_text": display_text,
+            "blocks_analyzed": sentiment_data.get('blocks_analyzed', 0) if sentiment_data else 0
+        }
+
+        # Get parish data (last 7 days)
+        parish_raw = sentiment_analyzer.get_parish_sentiment_map(days=7)
+        parishes = []
+        for p in (parish_raw or []):
+            score = p.get('avg_sentiment', 0)
+            mentions = p.get('mention_count', 0)
+
+            # Determine label based on score and data sufficiency
+            if mentions < 3:
+                label = "Insufficient Data"
+            elif score >= 0.6:
+                label = "Strongly Positive"
+            elif score >= 0.2:
+                label = "Somewhat Positive"
+            elif score >= -0.2:
+                label = "Neutral"
+            elif score >= -0.6:
+                label = "Somewhat Negative"
+            else:
+                label = "Strongly Negative"
+
+            parishes.append({
+                "name": p.get('parish', 'Unknown'),
+                "mentions": mentions,
+                "label": label,
+                "score": round(score, 2),
+                "top_concern": (p.get('topics', '') or '').split(',')[0].strip() or None
+            })
+
+        # Get emerging issues from recent topics
+        recent_topics = db.get_top_topics(days=3, limit=10)
+        emerging_issues = []
+        for topic in (recent_topics or []):
+            blocks = topic.get('blocks', topic.get('count', 1))
+            weight = topic.get('total_weight', topic.get('count', 1))
+
+            if blocks > 0:
+                intensity = weight / blocks
+                # Normalize urgency to 0-1 scale
+                urgency = min(1.0, intensity / 3.0)
+
+                emerging_issues.append({
+                    "topic": topic.get('topic', topic.get('name', 'Unknown')),
+                    "urgency": round(urgency, 2),
+                    "trajectory": "rising" if urgency > 0.5 else "stable",
+                    "mentions": blocks
+                })
+
+        # Sort by urgency
+        emerging_issues.sort(key=lambda x: x['urgency'], reverse=True)
+        emerging_issues = emerging_issues[:5]
+
+        # Get policy category sentiment from topics
+        policy_topics = db.get_top_topics(days=7, limit=20)
+        policy_categories = []
+        tier1_cats = Config.POLICY_CATEGORIES.get('tier1', {}).get('categories', [])
+        tier2_cats = Config.POLICY_CATEGORIES.get('tier2', {}).get('categories', [])
+        all_cats = tier1_cats + tier2_cats
+
+        for cat in all_cats:
+            # Find matching topic data
+            matching = [t for t in (policy_topics or [])
+                       if cat.lower() in t.get('topic', t.get('name', '')).lower()]
+
+            if matching:
+                avg_cat_score = sum(t.get('avg_sentiment', 0) for t in matching) / len(matching)
+            else:
+                avg_cat_score = 0
+
+            # Map to label
+            if avg_cat_score >= 0.2:
+                cat_label = "Somewhat Positive"
+            elif avg_cat_score >= -0.2:
+                cat_label = "Neutral"
+            elif avg_cat_score >= -0.6:
+                cat_label = "Somewhat Negative"
+            else:
+                cat_label = "Strongly Negative"
+
+            policy_categories.append({
+                "category": cat,
+                "score": round(avg_cat_score, 2),
+                "label": cat_label
+            })
+
+        analytics = {
+            "overall_sentiment": overall_sentiment,
+            "parishes": parishes,
+            "emerging_issues": emerging_issues,
+            "policy_categories": policy_categories
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching analytics data: {e}")
+        # Fallback to empty state
+        analytics = {
+            "overall_sentiment": {"score": 0, "label": "No Data", "display_text": "No analytics data available yet", "blocks_analyzed": 0},
+            "parishes": [],
+            "emerging_issues": [],
+            "policy_categories": []
+        }
 
     return templates.TemplateResponse("analytics_dashboard.html", {
         "request": request,
         "view_date": view_date,
-        "analytics": mock_analytics,
+        "analytics": analytics,
         "is_today": view_date == get_local_date()
     })
 
