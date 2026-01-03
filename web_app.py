@@ -1934,32 +1934,6 @@ async def health_check():
         "timestamp": datetime.now().isoformat()
     }
 
-@app.get("/debug/blocks")
-async def debug_blocks():
-    """Debug endpoint to check block status."""
-    
-    try:
-        blocks = db.get_blocks_by_date(get_local_date())
-        block_list = []
-        for block in blocks:
-            block_info = {
-                "id": block["id"],
-                "block_code": block["block_code"], 
-                "status": block["status"],
-                "audio_file_path": block.get("audio_file_path"),
-                "transcript_file_path": block.get("transcript_file_path"),
-                "start_time": str(block.get("start_time")),
-                "end_time": str(block.get("end_time"))
-            }
-            block_list.append(block_info)
-        
-        return {
-            "date": str(get_local_date()),
-            "blocks": block_list
-        }
-    except Exception as e:
-        return {"error": str(e)}
-
 @app.post("/debug/reset-block-status")
 async def reset_block_status(block_code: str = Form(...)):
     """Reset block status to 'recorded' for debugging."""
