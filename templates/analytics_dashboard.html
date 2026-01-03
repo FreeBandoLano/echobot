@@ -589,6 +589,21 @@
   <!-- Chart Loading and API Integration -->
   <script>
     // =========================================================================
+    // DATE CONFIGURATION
+    // =========================================================================
+    const VIEW_DATE = '{{ view_date.strftime("%Y-%m-%d") if view_date else "" }}';
+    const ANALYTICS_DAYS = 7;
+
+    // Build query string with date support
+    function buildAnalyticsQuery(days = ANALYTICS_DAYS) {
+      let query = `days=${days}`;
+      if (VIEW_DATE) {
+        query += `&end_date=${VIEW_DATE}`;
+      }
+      return query;
+    }
+
+    // =========================================================================
     // PARISH VIEW TOGGLE (Radial Chart ↔ Card View)
     // =========================================================================
 
@@ -628,7 +643,7 @@
 
       try {
         // Fetch trending topics with category grouping
-        const response = await fetch('/api/analytics/topics/trending?days=7');
+        const response = await fetch(`/api/analytics/topics/trending?${buildAnalyticsQuery()}`);
 
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);
@@ -675,8 +690,8 @@
       loading.style.display = 'flex';
 
       try {
-        // Fetch sentiment distribution
-        const response = await fetch('/api/analytics/sentiment?days=7');
+        // Fetch sentiment distribution (uses date parameter)
+        const response = await fetch(`/api/analytics/sentiment?date=${VIEW_DATE || new Date().toISOString().split('T')[0]}`);
 
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);
@@ -744,7 +759,7 @@
 
       try {
         // Fetch top topics with sentiment data
-        const response = await fetch('/api/analytics/topics/trending?days=7');
+        const response = await fetch(`/api/analytics/topics/trending?${buildAnalyticsQuery()}`);
 
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);
@@ -792,7 +807,7 @@
 
       try {
         // Fetch parish data
-        const response = await fetch('/api/analytics/parishes?days=7');
+        const response = await fetch(`/api/analytics/parishes?${buildAnalyticsQuery()}`);
 
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);

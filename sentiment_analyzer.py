@@ -461,11 +461,12 @@ CRITICAL: Output ONLY valid JSON. No narrative text before or after.
                 'error': str(e)
             }
 
-    def get_parish_sentiment_map(self, days: int = 7) -> List[Dict]:
+    def get_parish_sentiment_map(self, days: int = 7, end_date: date = None) -> List[Dict]:
         """Get parish-level sentiment aggregation for recent days.
 
         Args:
             days: Number of recent days to analyze
+            end_date: Optional end date (defaults to today)
 
         Returns:
             List of parish sentiment data
@@ -475,35 +476,73 @@ CRITICAL: Output ONLY valid JSON. No narrative text before or after.
                 with db.get_connection() as conn:
                     from sqlalchemy import text
 
-                    query = """
-                    SELECT pm.parish,
-                           COUNT(*) as mention_count,
-                           AVG(pm.sentiment_score) as avg_sentiment,
-                           STRING_AGG(DISTINCT pm.topic, ', ') as topics
-                    FROM parish_mentions pm
-                    JOIN blocks b ON b.id = pm.block_id
-                    JOIN shows s ON s.id = b.show_id
-                    WHERE s.show_date >= DATEADD(day, :days, GETDATE())
-                    GROUP BY pm.parish
-                    ORDER BY mention_count DESC
-                    """
-                    rows = conn.execute(str(text(query)), {"days": -int(days)}).fetchall()
+                    # Use subquery to get distinct topics (STRING_AGG doesn't support DISTINCT in SQL Server)
+                    if end_date:
+                        query = """
+                        SELECT pm.parish,
+                               COUNT(*) as mention_count,
+                               AVG(pm.sentiment_score) as avg_sentiment,
+                               (SELECT STRING_AGG(t.topic, ', ')
+                                FROM (SELECT DISTINCT pm2.topic
+                                      FROM parish_mentions pm2
+                                      WHERE pm2.parish = pm.parish AND pm2.topic IS NOT NULL) t
+                               ) as topics
+                        FROM parish_mentions pm
+                        JOIN blocks b ON b.id = pm.block_id
+                        JOIN shows s ON s.id = b.show_id
+                        WHERE s.show_date BETWEEN DATEADD(day, :days, :end_date) AND :end_date
+                        GROUP BY pm.parish
+                        ORDER BY mention_count DESC
+                        """
+                        rows = conn.execute(str(text(query)), {"days": -int(days), "end_date": end_date.strftime('%Y-%m-%d')}).fetchall()
+                    else:
+                        query = """
+                        SELECT pm.parish,
+                               COUNT(*) as mention_count,
+                               AVG(pm.sentiment_score) as avg_sentiment,
+                               (SELECT STRING_AGG(t.topic, ', ')
+                                FROM (SELECT DISTINCT pm2.topic
+                                      FROM parish_mentions pm2
+                                      WHERE pm2.parish = pm.parish AND pm2.topic IS NOT NULL) t
+                               ) as topics
+                        FROM parish_mentions pm
+                        JOIN blocks b ON b.id = pm.block_id
+                        JOIN shows s ON s.id = b.show_id
+                        WHERE s.show_date >= DATEADD(day, :days, GETDATE())
+                        GROUP BY pm.parish
+                        ORDER BY mention_count DESC
+                        """
+                        rows = conn.execute(str(text(query)), {"days": -int(days)}).fetchall()
                     results = [dict(r._mapping) for r in rows]
             else:
                 # SQLite
                 with db.get_connection() as conn:
-                    rows = conn.execute("""
-                        SELECT pm.parish,
-                               COUNT(*) as mention_count,
-                               AVG(pm.sentiment_score) as avg_sentiment,
-                               GROUP_CONCAT(DISTINCT pm.topic) as topics
-                        FROM parish_mentions pm
-                        JOIN blocks b ON b.id = pm.block_id
-                        JOIN shows s ON s.id = b.show_id
-                        WHERE s.show_date >= date('now', ?)
-                        GROUP BY pm.parish
-                        ORDER BY mention_count DESC
-                    """, (f'-{int(days)} days',)).fetchall()
+                    if end_date:
+                        rows = conn.execute("""
+                            SELECT pm.parish,
+                                   COUNT(*) as mention_count,
+                                   AVG(pm.sentiment_score) as avg_sentiment,
+                                   GROUP_CONCAT(DISTINCT pm.topic) as topics
+                            FROM parish_mentions pm
+                            JOIN blocks b ON b.id = pm.block_id
+                            JOIN shows s ON s.id = b.show_id
+                            WHERE s.show_date BETWEEN date(?, ?) AND ?
+                            GROUP BY pm.parish
+                            ORDER BY mention_count DESC
+                        """, (end_date.strftime('%Y-%m-%d'), f'-{int(days)} days', end_date.strftime('%Y-%m-%d'))).fetchall()
+                    else:
+                        rows = conn.execute("""
+                            SELECT pm.parish,
+                                   COUNT(*) as mention_count,
+                                   AVG(pm.sentiment_score) as avg_sentiment,
+                                   GROUP_CONCAT(DISTINCT pm.topic) as topics
+                            FROM parish_mentions pm
+                            JOIN blocks b ON b.id = pm.block_id
+                            JOIN shows s ON s.id = b.show_id
+                            WHERE s.show_date >= date('now', ?)
+                            GROUP BY pm.parish
+                            ORDER BY mention_count DESC
+                        """, (f'-{int(days)} days',)).fetchall()
                     results = [dict(r) for r in rows]
 
             # Add sentiment labels
