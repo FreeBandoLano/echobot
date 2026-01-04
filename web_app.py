@@ -1044,67 +1044,11 @@ async def analytics_dashboard(request: Request, date_param: Optional[str] = None
     })
 
 
-@app.get("/analytics", response_class=HTMLResponse)
-async def tech_analytics(request: Request):
-    """Technical analytics page with system metrics and processing stats."""
-    # Get basic metrics from database
-    try:
-        if db.use_azure_sql:
-            with db.get_connection() as conn:
-                from sqlalchemy import text
-                # Get show and block counts
-                shows_row = conn.execute(str(text("SELECT COUNT(*) as cnt FROM shows"))).fetchone()
-                total_shows = shows_row[0] if shows_row else 0
-
-                blocks_row = conn.execute(str(text("SELECT COUNT(*) as total, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed FROM blocks"))).fetchone()
-                total_blocks = blocks_row[0] if blocks_row else 0
-                completed_blocks = blocks_row[1] if blocks_row else 0
-        else:
-            with db.get_connection() as conn:
-                shows_row = conn.execute("SELECT COUNT(*) as cnt FROM shows").fetchone()
-                total_shows = shows_row['cnt'] if shows_row else 0
-
-                blocks_row = conn.execute("SELECT COUNT(*) as total, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed FROM blocks").fetchone()
-                total_blocks = blocks_row['total'] if blocks_row else 0
-                completed_blocks = blocks_row['completed'] if blocks_row else 0
-
-        avg_completion = round(completed_blocks / total_blocks * 100) if total_blocks > 0 else 0
-
-        metrics = {
-            "total_shows": total_shows,
-            "total_blocks": total_blocks,
-            "completed_blocks": completed_blocks,
-            "avg_completion_rate": avg_completion
-        }
-    except Exception as e:
-        logger.error(f"Error fetching tech analytics metrics: {e}")
-        metrics = {
-            "total_shows": 0,
-            "total_blocks": 0,
-            "completed_blocks": 0,
-            "avg_completion_rate": 0
-        }
-
-    # Get filler stats
-    try:
-        filler = db.get_filler_content_stats(days=7)
-    except Exception as e:
-        logger.error(f"Error fetching filler stats: {e}")
-        filler = {
-            "days": 7,
-            "total_segments": 0,
-            "filler_segments": 0,
-            "filler_pct": 0,
-            "content_seconds": 0,
-            "filler_seconds": 0,
-            "avg_filler_pct_per_block": 0
-        }
-
-    return templates.TemplateResponse("analytics.html", {
-        "request": request,
-        "metrics": metrics,
-        "filler": filler
-    })
+@app.get("/analytics")
+async def legacy_analytics_redirect():
+    """Redirect legacy /analytics to the new executive dashboard."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/dashboard/analytics", status_code=301)
 
 
 @app.get("/dashboard/export/pdf")

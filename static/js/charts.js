@@ -25,13 +25,13 @@ window.EchobotCharts = (function() {
     textTertiary: '#7d8896'
   };
 
-  // Sentiment Color Coding (per CLAUDE.md spec)
+  // Sentiment Color Coding - Executive-grade palette (softer, less alarming)
   const SENTIMENT_COLORS = {
-    stronglyPositive: { color: '#33b07a', range: [0.6, 1.0], label: 'Public strongly supports this' },
-    somewhatPositive: { color: '#7bc99d', range: [0.2, 0.6], label: 'Generally favorable reception' },
-    mixed: { color: '#f5c342', range: [-0.2, 0.2], label: 'Public opinion divided' },
-    somewhatNegative: { color: '#e7a538', range: [-0.6, -0.2], label: 'Growing public concern' },
-    stronglyNegative: { color: '#d34141', range: [-1.0, -0.6], label: 'Significant public opposition' }
+    stronglyPositive: { color: '#2A9D8F', range: [0.6, 1.0], label: 'Public strongly supports this' },
+    somewhatPositive: { color: '#6BBF59', range: [0.2, 0.6], label: 'Generally favorable reception' },
+    mixed: { color: '#E9C46A', range: [-0.2, 0.2], label: 'Public opinion divided' },
+    somewhatNegative: { color: '#F4A261', range: [-0.6, -0.2], label: 'Growing public concern' },
+    stronglyNegative: { color: '#E07A5F', range: [-1.0, -0.6], label: 'Significant public opposition' }
   };
 
   // Default Plotly config for executive styling
@@ -414,7 +414,7 @@ window.EchobotCharts = (function() {
      TACTICAL THEME CHARTS (Grok-Inspired)
      ==================================================================== */
 
-  // Tactical color configuration (matches tactical.css)
+  // Tactical color configuration (matches tactical.css) - Executive-grade palette
   const TACTICAL_CONFIG = {
     colors: {
       bg: '#121823',
@@ -423,11 +423,11 @@ window.EchobotCharts = (function() {
       textMuted: '#7d8896',
       grid: '#2a3f5f',
       red: '#b51227',
-      gold: '#f5c342',
-      positive: '#00ff41',
+      gold: '#E9C46A',
+      positive: '#2A9D8F',       // Teal green (softer than neon)
       teal: '#4dd9d9',
-      negative: '#ff4444',
-      neutral: '#888888'
+      negative: '#E07A5F',       // Terracotta (softer than bright red)
+      neutral: '#9CA3AF'         // Cool gray
     },
     fonts: {
       family: 'Roboto Mono, Courier New, monospace',

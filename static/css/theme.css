@@ -655,13 +655,13 @@ body::after {
    Target Audience: Government executives tracking public sentiment
    ============================================================================ */
 
-/* Sentiment Color Variables */
+/* Sentiment Color Variables - Executive-grade palette (softer, less alarming) */
 :root {
-  --sentiment-strong-positive: #33b07a;
-  --sentiment-somewhat-positive: #7bc99d;
-  --sentiment-mixed: #f5c342;
-  --sentiment-somewhat-negative: #e7a538;
-  --sentiment-strong-negative: #d34141;
+  --sentiment-strong-positive: #2A9D8F;    /* Teal green - professional */
+  --sentiment-somewhat-positive: #6BBF59;   /* Sage green */
+  --sentiment-mixed: #E9C46A;               /* Soft gold - neutral */
+  --sentiment-somewhat-negative: #F4A261;   /* Sandy orange - warm concern */
+  --sentiment-strong-negative: #E07A5F;     /* Terracotta - softer than red */
 }
 
 /* Sentiment Card Base */

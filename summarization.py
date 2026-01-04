@@ -198,69 +198,106 @@ class RadioSummarizer:
             return None
     
     def _create_summary_prompt(self, block_code: str, block_name: str, transcript: str, caller_count: int, stats: Dict) -> str:
-        """Create structured prompt for policy-intelligence briefing format."""
-        
+        """Create structured prompt for executive-grade policy intelligence briefing."""
+
         return f"""
-You are producing a policy-intelligence briefing from a Barbados public affairs call-in radio program.
+You are a senior intelligence analyst producing an EXECUTIVE BRIEF for government ministers and senior civil servants in Barbados.
 
-INSTRUCTIONS:
-1. Public concerns: ONLY caller-origin issues (skip ads, music, promos).
-2. Official / Host announcements separate.
-3. Commercial/promotional content: list briefly; never elevate to public concerns.
-4. Music/filler acknowledged only as metrics.
-5. Provide actionable follow-ups (who, what, urgency: low|medium|high) where grounded.
-6. Categorize entities: government, private_sector, civil_society, individuals.
-7. Provide metrics (caller_count, caller_talk_ratio, filler_ratio, ads_count, music_count).
-8. Output ONLY a valid JSON object matching the schema below. NO narrative text, NO extra prose before or after JSON.
+Your goal is to extract ACTIONABLE INTELLIGENCE, not just summarize what was said. Focus on:
+- WHAT is the public demanding?
+- WHO needs to act?
+- HOW URGENT is the issue?
+- WHAT are the political risks?
 
-CRITICAL - JSON ONLY:
-- DO NOT write a narrative paragraph before the JSON
-- DO NOT include metrics (caller_count, ratios, percentages) in text descriptions
-- Metrics belong ONLY in the "metrics" JSON field
-- All content goes into structured JSON fields (public_concerns, official_announcements, commercial_items)
-- Output must start with {{ and end with }}
+EXECUTIVE BRIEF REQUIREMENTS:
+1. PUBLIC CONCERNS: Capture the emotional intensity and specific grievances
+   - Include SPECIFIC details: parish names, street names, timeframes, amounts
+   - Preserve impactful direct quotes (exact caller words in quotation marks)
+   - Note the SCALE: is this widespread or localized?
 
-DETAIL PRESERVATION (CRITICAL):
-When summarizing topics, preserve:
-- Specific locations (neighborhoods, streets, areas)
-- Timelines (how long, since when, duration)
-- Quantities (how many people affected, cost amounts, counts)
-- Direct quote fragments (impactful phrases from callers in quotation marks)
+2. SENTIMENT ANALYSIS: Rate each concern
+   - "strongly_negative" = significant public opposition
+   - "somewhat_negative" = growing concern
+   - "mixed" = divided opinion
+   - "somewhat_positive" = generally favorable
+   - "strongly_positive" = strong public support
+
+3. STAKEHOLDERS: Who was mentioned and what are people demanding from them?
+   - Ministers, MPs, government departments
+   - Private sector entities
+   - What specific ACTION is the public demanding?
+
+4. POLICY IMPLICATIONS: What should government DO about this?
+   - Immediate response needed vs. ongoing monitoring
+   - Political risks if unaddressed
+   - Opportunities for positive engagement
+
+5. KEY QUOTES: Select 2-3 quotes per topic that:
+   - Capture the emotional intensity of public sentiment
+   - Provide specific examples or evidence
+   - Would be suitable for a ministerial briefing
 
 BLOCK META:
 Block: {block_code} ({block_name})
+Location: Barbados
 Approx Caller Count: {caller_count}
-Raw Duration Seconds: {stats.get('total_seconds', 0)}
-Ad Segments (estimated): {stats.get('ad_count', 0)} | Music Segments: {stats.get('music_count', 0)}
+Duration: {stats.get('total_seconds', 0)} seconds
+Ad Segments: {stats.get('ad_count', 0)} | Music Segments: {stats.get('music_count', 0)}
 
-TRANSCRIPT (raw – may include music/ads/promos):
+TRANSCRIPT (raw – filter out ads/music/promos):
 {transcript[:12000]}
 
-JSON SCHEMA (return ONLY this structure):
+OUTPUT FORMAT - Return ONLY this JSON structure:
 {{
-  "public_concerns": [{{"topic": str, "summary": str, "callers_involved": int, "key_quotes": [str]}}],
-  "official_announcements": [{{"topic": str, "summary": str, "key_quotes": [str]}}],
-  "commercial_items": [str],
-  "actions": [{{"who": str, "what": str, "urgency": "low|medium|high"}}],
+  "public_concerns": [
+    {{
+      "topic": "Concise issue title (e.g., 'Water Supply Disruptions in St. Michael')",
+      "summary": "Executive-level summary focusing on WHAT public wants done, WHO is affected, HOW LONG this has been an issue. Include specific parishes, areas, timeframes.",
+      "callers_involved": 1,
+      "sentiment": "strongly_negative|somewhat_negative|mixed|somewhat_positive|strongly_positive",
+      "affected_area": "Parish or area name if mentioned",
+      "urgency": "high|medium|low",
+      "key_quotes": ["Direct quote from caller - exact words in quotation marks"]
+    }}
+  ],
+  "official_announcements": [
+    {{
+      "topic": "Topic announced by host/official",
+      "summary": "What was announced and its significance",
+      "key_quotes": ["Direct quote from host/official"]
+    }}
+  ],
+  "commercial_items": ["Brief list of any promos/ads mentioned"],
+  "actions": [
+    {{
+      "who": "Specific ministry, minister, or department",
+      "what": "Specific action the public is demanding",
+      "urgency": "high|medium|low",
+      "political_risk": "What happens if government doesn't act"
+    }}
+  ],
   "entities": {{
-      "government": [str], "private_sector": [str], "civil_society": [str], "individuals": [str]
+    "government": ["Ministers, ministries, MPs mentioned"],
+    "private_sector": ["Companies, businesses mentioned"],
+    "civil_society": ["NGOs, unions, community groups"],
+    "individuals": ["Named public figures"]
   }},
   "metrics": {{
-      "caller_count": int,
-      "caller_talk_ratio": float,
-      "filler_ratio": float,
-      "ads_count": int,
-      "music_count": int
-  }}
+    "caller_count": {caller_count},
+    "caller_talk_ratio": 0.0,
+    "filler_ratio": 0.0,
+    "ads_count": {stats.get('ad_count', 0)},
+    "music_count": {stats.get('music_count', 0)}
+  }},
+  "executive_summary": "2-3 sentence summary suitable for a ministerial brief - what are the KEY issues and what action is needed?"
 }}
 
-RULES:
-- Empty arrays instead of fabrication.
-- No duplicate topics.
-- Keep commercial_items short phrases.
-- caller_talk_ratio + filler_ratio between 0 and 1 (approx ok).
-- Include 1-3 impactful quotes per topic in key_quotes array (actual caller words in quotes).
-- Output MUST be valid JSON only - no text before or after.
+CRITICAL RULES:
+- Output MUST be valid JSON only - no text before or after
+- Empty arrays instead of fabrication
+- ALWAYS include affected_area and urgency for public_concerns when identifiable
+- Quotes must be actual caller words, not paraphrased
+- Focus on ACTIONABLE intelligence, not neutral description
 """
     
     def _create_empty_summary(self, block_code: str, block_name: str, transcript_data: Dict) -> Dict:
@@ -324,15 +361,22 @@ RULES:
         
         # Map structured JSON to legacy fields for UI compatibility
         if json_part:
-            # Build key_points from public_concerns
+            # Build key_points from public_concerns with executive-style formatting
             key_points = []
             for concern in json_part.get('public_concerns', [])[:10]:
                 topic = concern.get('topic', 'Concern')
                 summary = concern.get('summary', '')
                 callers_involved = concern.get('callers_involved', 0)
+                sentiment = concern.get('sentiment', 'mixed')
+                urgency = concern.get('urgency', 'medium')
+                affected_area = concern.get('affected_area', '')
+
+                # Build executive-style key point
                 caller_text = f" ({callers_involved} callers)" if callers_involved > 0 else ""
-                key_points.append(f"{topic}{caller_text}: {summary}")
-            
+                area_text = f" [{affected_area}]" if affected_area else ""
+                urgency_marker = "!" if urgency == 'high' else ""
+                key_points.append(f"{urgency_marker}{topic}{area_text}{caller_text}: {summary}")
+
             # Extract entities from categorized structure
             entities_dict = json_part.get('entities', {})
             entities = list({
@@ -341,53 +385,78 @@ RULES:
                 *entities_dict.get('civil_society', []),
                 *entities_dict.get('individuals', [])
             })[:20]
-            
-            # Build readable summary narrative from structured data (NO METRICS)
+
+            # Build executive-style summary with structured sections
             lines = []
-            
-            # Public concerns
+
+            # Executive Summary (if available)
+            if json_part.get('executive_summary'):
+                lines.append(json_part.get('executive_summary'))
+                lines.append("")
+
+            # Public concerns with sentiment and urgency indicators
             if json_part.get('public_concerns'):
-                for i, concern in enumerate(json_part.get('public_concerns', [])[:5], 1):
+                for concern in json_part.get('public_concerns', [])[:5]:
                     topic = concern.get('topic', 'Topic')
                     summary_detail = concern.get('summary', '')
                     callers = concern.get('callers_involved', 0)
+                    sentiment = concern.get('sentiment', 'mixed')
+                    urgency = concern.get('urgency', 'medium')
+                    affected_area = concern.get('affected_area', '')
+
+                    # Format sentiment label for executives
+                    sentiment_labels = {
+                        'strongly_negative': 'CRITICAL',
+                        'somewhat_negative': 'CONCERN',
+                        'mixed': 'DIVIDED',
+                        'somewhat_positive': 'FAVORABLE',
+                        'strongly_positive': 'POSITIVE'
+                    }
+                    sentiment_label = sentiment_labels.get(sentiment, 'MIXED')
+
                     caller_mention = f" (reported by {callers} caller{'s' if callers != 1 else ''})" if callers > 0 else ""
-                    lines.append(f"{topic}{caller_mention}: {summary_detail}")
-            
+                    area_mention = f" in {affected_area}" if affected_area else ""
+
+                    # Build structured concern entry
+                    concern_line = f"[{sentiment_label}] {topic}{area_mention}{caller_mention}: {summary_detail}"
+                    lines.append(concern_line)
+
             # Official announcements
             if json_part.get('official_announcements'):
                 if lines:
-                    lines.append("")  # Blank line separator
+                    lines.append("")
                 lines.append("Official Announcements:")
                 for ann in json_part.get('official_announcements', [])[:3]:
                     lines.append(f"• {ann.get('topic', 'Topic')}: {ann.get('summary', '')}")
-            
+
             # Commercial content
             if json_part.get('commercial_items'):
                 if lines:
                     lines.append("")
                 commercial_list = ", ".join(json_part.get('commercial_items', [])[:5])
                 lines.append(f"Commercial content: {commercial_list}")
-            
+
             summary_text = "\n\n".join(lines) if lines else "No substantive content during this block."
-            
-            # Extract quotes from new key_quotes field (with fallback to existing_quotes)
+
+            # Extract quotes with enhanced metadata
             extracted_quotes = []
-            
+
             # Collect quotes from public_concerns
             for concern in json_part.get('public_concerns', []):
-                for quote_text in concern.get('key_quotes', [])[:2]:  # Max 2 quotes per topic
+                for quote_text in concern.get('key_quotes', [])[:3]:  # Up to 3 quotes per topic
                     if quote_text:
                         extracted_quotes.append({
                             'text': quote_text,
                             'speaker': 'Caller',
                             'timestamp': '',
-                            'topic': concern.get('topic', 'Unknown')
+                            'topic': concern.get('topic', 'Unknown'),
+                            'sentiment': concern.get('sentiment', 'mixed'),
+                            'area': concern.get('affected_area', '')
                         })
-            
+
             # Collect quotes from official_announcements
             for announcement in json_part.get('official_announcements', []):
-                for quote_text in announcement.get('key_quotes', [])[:1]:  # Max 1 quote per announcement
+                for quote_text in announcement.get('key_quotes', [])[:1]:
                     if quote_text:
                         extracted_quotes.append({
                             'text': quote_text,
@@ -395,7 +464,7 @@ RULES:
                             'timestamp': '',
                             'topic': announcement.get('topic', 'Unknown')
                         })
-            
+
             # Use extracted quotes, fallback to existing quotes if none found
             quotes = extracted_quotes[:10] if extracted_quotes else existing_quotes[:3]
             
@@ -409,7 +478,9 @@ RULES:
                 'official_announcements': json_part.get('official_announcements', []),
                 'commercial_items': json_part.get('commercial_items', []),
                 'actions': json_part.get('actions', []),
-                'metrics': json_part.get('metrics', {})
+                'metrics': json_part.get('metrics', {}),
+                'executive_summary': json_part.get('executive_summary', ''),
+                'public_concerns': json_part.get('public_concerns', [])  # Include full concern data
             }
         else:
             # No structured data, return simple format
@@ -423,7 +494,9 @@ RULES:
                 'official_announcements': [],
                 'commercial_items': [],
                 'actions': [],
-                'metrics': {}
+                'metrics': {},
+                'executive_summary': '',
+                'public_concerns': []
             }
     
     

@@ -23,11 +23,11 @@
   --tactical-red: #b51227;
   --tactical-gold: #f5c342;
 
-  /* Sentiment Colors */
-  --tactical-positive: #00ff41;
+  /* Sentiment Colors - Executive-grade palette (softer, less alarming) */
+  --tactical-positive: #2A9D8F;    /* Teal green - professional */
   --tactical-teal: #4dd9d9;
-  --tactical-negative: #ff4444;
-  --tactical-neutral: #888888;
+  --tactical-negative: #E07A5F;    /* Terracotta - softer than bright red */
+  --tactical-neutral: #9CA3AF;     /* Cool gray */
 
   /* Text Colors */
   --tactical-text: #e0e6ed;
