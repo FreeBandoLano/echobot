@@ -37,7 +37,7 @@ reportlab==4.0.7
 
 # Chart generation for email digests
 plotly>=5.18.0
-kaleido>=0.2.1
+kaleido==0.2.1  # Pin to 0.2.1 - newer versions require external Chrome
 
 # Optional audio system dependencies (uncomment if needed)
 # sounddevice==0.4.6
