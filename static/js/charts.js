@@ -411,6 +411,239 @@ window.EchobotCharts = (function() {
   }
 
   /* ====================================================================
+     EXECUTIVE THEME CONFIG (Bloomberg/McKinsey style)
+     ==================================================================== */
+
+  const EXECUTIVE_CONFIG = {
+    colors: {
+      bg: '#0d1117',
+      bgSecondary: '#161b22',
+      bgTertiary: '#21262d',
+      paper: '#161b22',
+      text: '#f0f6fc',
+      textSecondary: '#8b949e',
+      textMuted: '#6e7681',
+      border: '#30363d',
+      positive: '#3fb950',
+      negative: '#f85149',
+      neutral: '#6e7681',
+      warning: '#d29922',
+      accent: '#58a6ff'
+    },
+    fonts: {
+      family: 'SF Mono, Roboto Mono, Consolas, monospace',
+      size: 11,
+      titleSize: 12
+    }
+  };
+
+  /**
+   * Get executive layout template
+   * @param {string} title - Chart title
+   * @param {object} options - Additional layout options
+   * @returns {object} Plotly layout object
+   */
+  function getExecutiveLayout(title, options = {}) {
+    const baseLayout = {
+      title: {
+        text: title.toUpperCase(),
+        font: {
+          family: EXECUTIVE_CONFIG.fonts.family,
+          size: EXECUTIVE_CONFIG.fonts.titleSize,
+          color: EXECUTIVE_CONFIG.colors.textMuted
+        },
+        x: 0,
+        xanchor: 'left',
+        y: 0.98
+      },
+      paper_bgcolor: EXECUTIVE_CONFIG.colors.paper,
+      plot_bgcolor: EXECUTIVE_CONFIG.colors.bg,
+      font: {
+        family: EXECUTIVE_CONFIG.fonts.family,
+        size: EXECUTIVE_CONFIG.fonts.size,
+        color: EXECUTIVE_CONFIG.colors.textMuted
+      },
+      xaxis: {
+        gridcolor: EXECUTIVE_CONFIG.colors.border,
+        linecolor: EXECUTIVE_CONFIG.colors.border,
+        tickfont: { color: EXECUTIVE_CONFIG.colors.textMuted, size: 10 },
+        showgrid: true,
+        zeroline: true,
+        zerolinecolor: EXECUTIVE_CONFIG.colors.textMuted,
+        zerolinewidth: 1
+      },
+      yaxis: {
+        gridcolor: EXECUTIVE_CONFIG.colors.border,
+        linecolor: EXECUTIVE_CONFIG.colors.border,
+        tickfont: { color: EXECUTIVE_CONFIG.colors.textSecondary, size: 10 },
+        showgrid: false
+      },
+      margin: { l: 120, r: 40, t: 35, b: 40 },
+      hovermode: 'closest',
+      hoverlabel: {
+        bgcolor: EXECUTIVE_CONFIG.colors.bgTertiary,
+        bordercolor: EXECUTIVE_CONFIG.colors.border,
+        font: { size: 10, color: EXECUTIVE_CONFIG.colors.text, family: EXECUTIVE_CONFIG.fonts.family }
+      },
+      showlegend: false
+    };
+
+    return Object.assign({}, baseLayout, options, {
+      xaxis: { ...baseLayout.xaxis, ...(options.xaxis || {}) },
+      yaxis: { ...baseLayout.yaxis, ...(options.yaxis || {}) }
+    });
+  }
+
+  /**
+   * Create sentiment distribution horizontal bar (replaces donut)
+   * Executive style - single stacked bar showing distribution
+   * @param {string} containerId - DOM element ID
+   * @param {Array} data - Sentiment data [{label, value, color}, ...]
+   */
+  function createSentimentDistributionBar(containerId, data) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+      console.error('Container not found:', containerId);
+      return;
+    }
+
+    const total = data.reduce((sum, d) => sum + d.value, 0);
+    if (total === 0) {
+      container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--exec-text-muted); font-size: 0.75rem;">No sentiment data available</div>';
+      return;
+    }
+
+    // Map to executive colors
+    const execColors = {
+      'Strongly Positive': EXECUTIVE_CONFIG.colors.positive,
+      'Somewhat Positive': '#2ea043',
+      'Mixed/Neutral': EXECUTIVE_CONFIG.colors.neutral,
+      'Somewhat Negative': '#d29922',
+      'Strongly Negative': EXECUTIVE_CONFIG.colors.negative
+    };
+
+    // Build HTML stacked bar
+    const segments = data
+      .filter(d => d.value > 0)
+      .map(d => {
+        const pct = ((d.value / total) * 100).toFixed(0);
+        const color = execColors[d.label] || d.color || EXECUTIVE_CONFIG.colors.neutral;
+        return `<div class="sentiment-dist-segment" style="flex: ${d.value}; background: ${color};" title="${d.label}: ${d.value} (${pct}%)">${pct > 8 ? pct + '%' : ''}</div>`;
+      })
+      .join('');
+
+    const legend = data
+      .filter(d => d.value > 0)
+      .map(d => {
+        const color = execColors[d.label] || d.color || EXECUTIVE_CONFIG.colors.neutral;
+        return `<span class="sentiment-dist-legend-item"><span class="sentiment-dist-legend-dot" style="background: ${color};"></span>${d.label}: ${d.value}</span>`;
+      })
+      .join('');
+
+    container.innerHTML = `
+      <div style="padding: 1rem;">
+        <div class="sentiment-dist-bar">${segments}</div>
+        <div class="sentiment-dist-legend" style="flex-wrap: wrap;">${legend}</div>
+        <div style="text-align: center; margin-top: 0.75rem; font-size: 1.5rem; font-weight: 600; color: var(--exec-text-primary); font-family: SF Mono, monospace;">${total} <span style="font-size: 0.7rem; color: var(--exec-text-muted); font-weight: 400;">blocks analyzed</span></div>
+      </div>
+    `;
+  }
+
+  /**
+   * Create parish data table (replaces radial chart)
+   * Executive style - sortable table with inline bars
+   * @param {string} containerId - DOM element ID
+   * @param {Array} data - Parish data [{parish, sentiment, count}, ...]
+   */
+  function createParishTable(containerId, data) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+      console.error('Container not found:', containerId);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--exec-text-muted); font-size: 0.75rem;">No parish data available</div>';
+      return;
+    }
+
+    // Sort by count descending by default
+    let sorted = [...data].sort((a, b) => b.count - a.count);
+    const maxCount = Math.max(...sorted.map(d => d.count));
+
+    function getSentimentClass(sentiment) {
+      if (sentiment > 0.1) return 'positive';
+      if (sentiment < -0.1) return 'negative';
+      return 'neutral';
+    }
+
+    function renderTable(sortedData) {
+      return `
+        <table class="exec-table" id="parishDataTable">
+          <thead>
+            <tr>
+              <th data-sort="parish">Parish</th>
+              <th data-sort="count">Mentions</th>
+              <th data-sort="sentiment">Sentiment</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sortedData.map(d => `
+              <tr>
+                <td style="font-family: -apple-system, sans-serif;">${d.parish}</td>
+                <td>
+                  <div class="mini-bar-container">
+                    <span class="mini-bar" style="width: ${Math.max(4, (d.count / maxCount) * 60)}px;"></span>
+                    <span>${d.count}</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="sentiment-badge-inline sentiment-badge-inline--${getSentimentClass(d.sentiment)}">
+                    ${d.sentiment > 0 ? '+' : ''}${d.sentiment.toFixed(2)}
+                  </span>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    container.innerHTML = renderTable(sorted);
+
+    // Add sort functionality
+    let sortOrder = { parish: 'asc', count: 'desc', sentiment: 'desc' };
+    container.querySelectorAll('th[data-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.sort;
+        sortOrder[col] = sortOrder[col] === 'asc' ? 'desc' : 'asc';
+
+        sorted = [...data].sort((a, b) => {
+          let valA = a[col];
+          let valB = b[col];
+          if (typeof valA === 'string') {
+            valA = valA.toLowerCase();
+            valB = valB.toLowerCase();
+          }
+          if (sortOrder[col] === 'asc') {
+            return valA > valB ? 1 : -1;
+          }
+          return valA < valB ? 1 : -1;
+        });
+
+        container.innerHTML = renderTable(sorted);
+
+        // Re-attach event listeners and mark sorted column
+        container.querySelectorAll('th[data-sort]').forEach(newTh => {
+          if (newTh.dataset.sort === col) {
+            newTh.classList.add(sortOrder[col] === 'asc' ? 'sorted-asc' : 'sorted-desc');
+          }
+        });
+      });
+    });
+  }
+
+  /* ====================================================================
      TACTICAL THEME CHARTS (Grok-Inspired)
      ==================================================================== */
 
@@ -496,8 +729,8 @@ window.EchobotCharts = (function() {
   }
 
   /**
-   * Create policy topics horizontal bar chart (Grok-style)
-   * Horizontal bars with colored BORDERS (not fills) based on sentiment
+   * Create policy topics horizontal bar chart (Executive style)
+   * Solid fill bars with muted colors, sentiment indicator
    * @param {string} containerId - DOM element ID
    * @param {Array} data - Policy data [{category, count, sentiment}, ...]
    */
@@ -511,11 +744,11 @@ window.EchobotCharts = (function() {
     // Sort by count descending, take top 8
     const sorted = data.sort((a, b) => b.count - a.count).slice(0, 8);
 
-    // Map sentiment to border color
-    function getBorderColor(sentiment) {
-      if (sentiment > 0.2) return TACTICAL_CONFIG.colors.positive;
-      if (sentiment < -0.2) return TACTICAL_CONFIG.colors.negative;
-      return TACTICAL_CONFIG.colors.neutral;
+    // Get bar color based on sentiment (muted executive palette)
+    function getBarColor(sentiment) {
+      if (sentiment > 0.2) return EXECUTIVE_CONFIG.colors.positive;
+      if (sentiment < -0.2) return EXECUTIVE_CONFIG.colors.negative;
+      return EXECUTIVE_CONFIG.colors.neutral;
     }
 
     const trace = {
@@ -524,33 +757,35 @@ window.EchobotCharts = (function() {
       y: sorted.map(d => d.category),
       x: sorted.map(d => d.count),
       marker: {
-        color: 'rgba(0, 0, 0, 0)',  // Transparent fill
+        color: sorted.map(d => getBarColor(d.sentiment)),
+        opacity: 0.8,
         line: {
-          color: sorted.map(d => getBorderColor(d.sentiment)),
-          width: 3
+          color: EXECUTIVE_CONFIG.colors.border,
+          width: 1
         }
       },
       text: sorted.map(d => d.count),
       textposition: 'outside',
       textfont: {
-        color: TACTICAL_CONFIG.colors.text,
-        family: TACTICAL_CONFIG.fonts.family,
-        size: 13
+        color: EXECUTIVE_CONFIG.colors.textSecondary,
+        family: EXECUTIVE_CONFIG.fonts.family,
+        size: 11
       },
       hovertemplate: '<b>%{y}</b><br>Mentions: %{x}<br>Sentiment: %{customdata:.2f}<extra></extra>',
       customdata: sorted.map(d => d.sentiment)
     };
 
-    const layout = getTacticalLayout('Policy Category Activity', {
+    const layout = getExecutiveLayout('Policy Category Activity', {
       xaxis: {
-        title: 'Mention Count',
-        titlefont: { color: TACTICAL_CONFIG.colors.teal }
+        title: '',
+        showticklabels: true
       },
       yaxis: {
         automargin: true,
         title: ''
       },
-      height: 400
+      height: 350,
+      margin: { l: 140, r: 50, t: 30, b: 30 }
     });
 
     Plotly.newPlot(container, [trace], layout, DEFAULT_CONFIG);
@@ -617,8 +852,8 @@ window.EchobotCharts = (function() {
   }
 
   /**
-   * Create topic sentiment diverging bar chart with line overlay (Grok-style)
-   * Diverging horizontal bars (positive=green, negative=red) + line graph for mention counts
+   * Create topic sentiment diverging bar chart (Executive style)
+   * Simple diverging horizontal bars with numeric labels
    * @param {string} containerId - DOM element ID
    * @param {Array} data - Topic data [{topic, avgSentiment, count}, ...]
    */
@@ -629,114 +864,58 @@ window.EchobotCharts = (function() {
       return;
     }
 
-    // Sort by sentiment descending, take top 10
-    const sorted = data.sort((a, b) => b.avgSentiment - a.avgSentiment).slice(0, 10);
+    // Sort by absolute sentiment (most polarizing first), take top 10
+    const sorted = data.sort((a, b) => Math.abs(b.avgSentiment) - Math.abs(a.avgSentiment)).slice(0, 10);
 
-    // Create diverging bar colors
-    const barColors = sorted.map(d =>
-      d.avgSentiment > 0 ? TACTICAL_CONFIG.colors.positive : TACTICAL_CONFIG.colors.negative
-    );
+    // Get bar color based on sentiment
+    const barColors = sorted.map(d => {
+      if (d.avgSentiment > 0.1) return EXECUTIVE_CONFIG.colors.positive;
+      if (d.avgSentiment < -0.1) return EXECUTIVE_CONFIG.colors.negative;
+      return EXECUTIVE_CONFIG.colors.neutral;
+    });
 
-    // Normalize counts to fit sentiment scale for overlay
-    const maxCount = Math.max(...sorted.map(d => d.count));
-    const normalizedCounts = sorted.map(d => (d.count / maxCount) * 2 - 1);  // Scale to [-1, 1]
-
-    // Trace 1: Diverging sentiment bars
-    const barTrace = {
+    const trace = {
       type: 'bar',
       orientation: 'h',
       y: sorted.map(d => d.topic),
       x: sorted.map(d => d.avgSentiment),
       marker: {
         color: barColors,
+        opacity: 0.8,
         line: {
-          color: TACTICAL_CONFIG.colors.teal,
-          width: 1
-        },
-        opacity: 0.7
-      },
-      text: sorted.map(d => d.avgSentiment.toFixed(2)),
-      textposition: 'outside',
-      textfont: {
-        color: TACTICAL_CONFIG.colors.text,
-        family: TACTICAL_CONFIG.fonts.family,
-        size: 11
-      },
-      hovertemplate: '<b>%{y}</b><br>Sentiment: %{x:.2f}<extra></extra>',
-      name: 'Sentiment'
-    };
-
-    // Trace 2: Line overlay for mention counts
-    const lineTrace = {
-      type: 'scatter',
-      mode: 'lines+markers',
-      y: sorted.map(d => d.topic),
-      x: normalizedCounts,
-      marker: {
-        color: TACTICAL_CONFIG.colors.gold,
-        size: 8,
-        line: {
-          color: TACTICAL_CONFIG.colors.teal,
+          color: EXECUTIVE_CONFIG.colors.border,
           width: 1
         }
       },
-      line: {
-        color: TACTICAL_CONFIG.colors.gold,
-        width: 2,
-        dash: 'dot'
+      text: sorted.map(d => (d.avgSentiment > 0 ? '+' : '') + d.avgSentiment.toFixed(2)),
+      textposition: 'outside',
+      textfont: {
+        color: EXECUTIVE_CONFIG.colors.textSecondary,
+        family: EXECUTIVE_CONFIG.fonts.family,
+        size: 10
       },
-      hovertemplate: '<b>%{y}</b><br>Mentions: %{customdata}<extra></extra>',
-      customdata: sorted.map(d => d.count),
-      name: 'Mention Count'
+      hovertemplate: '<b>%{y}</b><br>Sentiment: %{x:.2f}<br>Mentions: %{customdata}<extra></extra>',
+      customdata: sorted.map(d => d.count)
     };
 
-    const layout = getTacticalLayout('Topic Sentiment Analysis', {
+    const layout = getExecutiveLayout('Topic Sentiment Analysis', {
       xaxis: {
-        title: 'Average Sentiment',
+        title: '',
         range: [-1, 1],
         zeroline: true,
-        zerolinecolor: TACTICAL_CONFIG.colors.teal,
-        zerolinewidth: 4
+        zerolinecolor: EXECUTIVE_CONFIG.colors.textMuted,
+        zerolinewidth: 2,
+        dtick: 0.5
       },
       yaxis: {
         automargin: true,
         title: ''
       },
-      height: 500,
-      showlegend: true,
-      legend: {
-        font: { family: TACTICAL_CONFIG.fonts.family, color: TACTICAL_CONFIG.colors.text },
-        bgcolor: 'rgba(0,0,0,0)',
-        x: 1,
-        xanchor: 'right',
-        y: 1,
-        yanchor: 'top'
-      },
-      shapes: [
-        {
-          type: 'line',
-          x0: 0,
-          x1: 0,
-          y0: 0,
-          y1: 1,
-          yref: 'paper',
-          line: {
-            color: TACTICAL_CONFIG.colors.teal,
-            width: 4
-          }
-        }
-      ]
+      height: 400,
+      margin: { l: 140, r: 50, t: 30, b: 30 }
     });
 
-    Plotly.newPlot(container, [barTrace, lineTrace], layout, DEFAULT_CONFIG);
-
-    // Add glow effect to zero line post-render (via CSS manipulation)
-    setTimeout(() => {
-      const zeroLine = container.querySelector('.zerolinelayer line');
-      if (zeroLine) {
-        zeroLine.style.filter = `drop-shadow(0 0 8px ${TACTICAL_CONFIG.colors.teal}) drop-shadow(0 0 12px ${TACTICAL_CONFIG.colors.teal})`;
-      }
-    }, 100);
+    Plotly.newPlot(container, [trace], layout, DEFAULT_CONFIG);
   }
 
   /**
@@ -835,6 +1014,11 @@ window.EchobotCharts = (function() {
     createTopicSentimentChart,
     createParishRadialChart,
     getTacticalLayout,
+    // Executive theme charts (Bloomberg/McKinsey style)
+    createSentimentDistributionBar,
+    createParishTable,
+    getExecutiveLayout,
+    EXECUTIVE_CONFIG,
     // Utilities
     getSentimentCategory,
     SENTIMENT_COLORS,

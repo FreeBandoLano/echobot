@@ -67,6 +67,26 @@
 
   /* Decorative */
   --noise-opacity: 0.08;
+
+  /* ========================================================================
+     EXECUTIVE PALETTE - Bloomberg/McKinsey inspired
+     Used by analytics dashboard for professional, data-forward styling
+     ======================================================================== */
+  --exec-bg-primary: #0d1117;
+  --exec-bg-secondary: #161b22;
+  --exec-bg-tertiary: #21262d;
+  --exec-bg-hover: #30363d;
+  --exec-border: #30363d;
+  --exec-border-muted: #21262d;
+  --exec-text-primary: #f0f6fc;
+  --exec-text-secondary: #8b949e;
+  --exec-text-muted: #6e7681;
+  --exec-positive: #3fb950;
+  --exec-negative: #f85149;
+  --exec-neutral: #6e7681;
+  --exec-warning: #d29922;
+  --exec-accent: #58a6ff;
+  --exec-accent-muted: #388bfd;
 }
 
 /* Light Mode */
@@ -859,5 +879,445 @@ body::after {
   .sentiment-badge {
     font-size: 0.6rem;
     padding: 0.2rem 0.5rem;
+  }
+}
+
+/* ============================================================================
+   EXECUTIVE DASHBOARD STYLES - Bloomberg/McKinsey aesthetic
+   Dense, data-forward, professional styling for analytics dashboard
+   ============================================================================ */
+
+/* Executive Dashboard Container */
+.exec-dashboard {
+  --color-bg: var(--exec-bg-primary);
+  --color-panel: var(--exec-bg-secondary);
+  --color-panel-alt: var(--exec-bg-tertiary);
+  --color-border: var(--exec-border);
+  --text-primary: var(--exec-text-primary);
+  --text-secondary: var(--exec-text-secondary);
+  --text-tertiary: var(--exec-text-muted);
+
+  background: var(--exec-bg-primary);
+  min-height: 100vh;
+  padding: 0;
+}
+
+/* Executive Header */
+.exec-header {
+  background: var(--exec-bg-secondary);
+  border-bottom: 1px solid var(--exec-border);
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.exec-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.exec-badge {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--exec-negative);
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.exec-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--exec-text-primary);
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+.exec-subtitle {
+  font-size: 0.75rem;
+  color: var(--exec-text-muted);
+  margin: 0;
+}
+
+.exec-header-right {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.exec-btn {
+  background: var(--exec-bg-tertiary);
+  border: 1px solid var(--exec-border);
+  color: var(--exec-text-secondary);
+  padding: 0.4rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms ease;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.exec-btn:hover {
+  background: var(--exec-bg-hover);
+  color: var(--exec-text-primary);
+}
+
+.exec-btn i {
+  font-size: 0.8rem;
+}
+
+/* Executive Metrics Bar */
+.exec-metrics-bar {
+  display: flex;
+  gap: 2rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--exec-bg-tertiary);
+  border-bottom: 1px solid var(--exec-border);
+  overflow-x: auto;
+}
+
+.exec-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: max-content;
+}
+
+.exec-metric-label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--exec-text-muted);
+  font-weight: 500;
+}
+
+.exec-metric-value {
+  font-family: 'SF Mono', 'Roboto Mono', 'Consolas', monospace;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--exec-text-primary);
+}
+
+.exec-metric-value--positive {
+  color: var(--exec-positive);
+}
+
+.exec-metric-value--negative {
+  color: var(--exec-negative);
+}
+
+.exec-metric-value--neutral {
+  color: var(--exec-text-secondary);
+}
+
+/* Executive Alert Banner */
+.exec-alert {
+  background: rgba(248, 81, 73, 0.1);
+  border-bottom: 1px solid rgba(248, 81, 73, 0.3);
+  padding: 0.6rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.exec-alert-icon {
+  color: var(--exec-negative);
+  font-size: 0.9rem;
+}
+
+.exec-alert-text {
+  font-size: 0.75rem;
+  color: var(--exec-text-secondary);
+}
+
+.exec-alert-text strong {
+  color: var(--exec-negative);
+}
+
+/* Executive Grid Layout */
+.exec-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+}
+
+/* Executive Panel */
+.exec-panel {
+  background: var(--exec-bg-secondary);
+  border: 1px solid var(--exec-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.exec-panel-header {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--exec-text-muted);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--exec-border);
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.exec-panel-body {
+  padding: 0;
+}
+
+/* Executive Data Table */
+.exec-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.exec-table th {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--exec-border);
+  color: var(--exec-text-muted);
+  font-weight: 500;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.exec-table th:hover {
+  color: var(--exec-accent);
+}
+
+.exec-table th.sorted-asc::after {
+  content: ' ▲';
+  font-size: 0.5rem;
+}
+
+.exec-table th.sorted-desc::after {
+  content: ' ▼';
+  font-size: 0.5rem;
+}
+
+.exec-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--exec-border-muted);
+  color: var(--exec-text-secondary);
+  font-family: 'SF Mono', 'Roboto Mono', monospace;
+}
+
+.exec-table tr:hover td {
+  background: var(--exec-bg-hover);
+}
+
+.exec-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Mini Bar (inline visualization in tables) */
+.mini-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mini-bar {
+  height: 4px;
+  background: var(--exec-text-muted);
+  border-radius: 2px;
+  min-width: 4px;
+}
+
+.mini-bar--positive {
+  background: var(--exec-positive);
+}
+
+.mini-bar--negative {
+  background: var(--exec-negative);
+}
+
+/* Sentiment Badge Inline */
+.sentiment-badge-inline {
+  display: inline-block;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Roboto Mono', monospace;
+}
+
+.sentiment-badge-inline--positive {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--exec-positive);
+}
+
+.sentiment-badge-inline--negative {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--exec-negative);
+}
+
+.sentiment-badge-inline--neutral {
+  background: rgba(139, 148, 158, 0.15);
+  color: var(--exec-text-secondary);
+}
+
+/* Sentiment Distribution Bar */
+.sentiment-dist-bar {
+  display: flex;
+  height: 24px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--exec-bg-tertiary);
+}
+
+.sentiment-dist-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--exec-bg-primary);
+  min-width: 0;
+  transition: flex 300ms ease;
+}
+
+.sentiment-dist-segment--positive {
+  background: var(--exec-positive);
+}
+
+.sentiment-dist-segment--neutral {
+  background: var(--exec-neutral);
+}
+
+.sentiment-dist-segment--negative {
+  background: var(--exec-negative);
+}
+
+/* Distribution Legend */
+.sentiment-dist-legend {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.65rem;
+  color: var(--exec-text-muted);
+}
+
+.sentiment-dist-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sentiment-dist-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+/* Executive Methodology Footer */
+.exec-methodology {
+  background: var(--exec-bg-secondary);
+  border-top: 1px solid var(--exec-border);
+  padding: 1rem 1.5rem;
+  margin-top: 1rem;
+}
+
+.exec-methodology-title {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--exec-text-muted);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.exec-methodology-content {
+  font-size: 0.7rem;
+  color: var(--exec-text-muted);
+  line-height: 1.5;
+}
+
+.exec-methodology-content dt {
+  color: var(--exec-text-secondary);
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.exec-methodology-content dd {
+  margin-left: 0;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 1024px) {
+  .exec-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .exec-metrics-bar {
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .exec-header {
+    padding: 1rem;
+  }
+
+  .exec-metrics-bar {
+    padding: 0.75rem 1rem;
+    gap: 1rem;
+  }
+
+  .exec-metric {
+    flex: 1;
+    min-width: 80px;
+  }
+
+  .exec-grid {
+    padding: 1rem;
+    gap: 0.75rem;
+  }
+
+  .exec-table {
+    font-size: 0.7rem;
+  }
+
+  .exec-table th,
+  .exec-table td {
+    padding: 0.4rem 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .exec-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .exec-header-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .exec-metrics-bar {
+    flex-wrap: wrap;
+  }
+
+  .exec-metric {
+    flex: 1 1 45%;
   }
 }
