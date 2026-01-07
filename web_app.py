@@ -1036,11 +1036,17 @@ async def analytics_dashboard(request: Request, date_param: Optional[str] = None
             "policy_categories": []
         }
 
+    # Build dynamic data sources from configured programs
+    programs = Config.get_all_programs()
+    program_names = [Config.get_program_config(p)['name'] for p in programs]
+    data_sources = " & ".join(program_names)
+
     return templates.TemplateResponse("analytics_dashboard.html", {
         "request": request,
         "view_date": view_date,
         "analytics": analytics,
-        "is_today": view_date == get_local_date()
+        "is_today": view_date == get_local_date(),
+        "data_sources": data_sources
     })
 
 
