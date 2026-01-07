@@ -2041,6 +2041,81 @@ async def backfill_topics(days: int = 7):
         raise HTTPException(status_code=500, detail=f"Backfill failed: {str(e)}")
 
 
+@app.get("/debug/test-topic-extraction")
+async def debug_test_topic_extraction(block_id: int = None):
+    """Test topic extraction for a specific block or latest block with topics."""
+    from summarization import extract_and_save_topics
+    import json as json_module
+
+    try:
+        # Get a summary with public_concerns
+        if db.use_azure_sql:
+            with db.get_connection() as conn:
+                if block_id:
+                    query = "SELECT s.block_id, s.raw_json FROM summaries s WHERE s.block_id = :block_id"
+                    row = conn.execute(text(query), {"block_id": block_id}).fetchone()
+                else:
+                    query = """
+                        SELECT TOP 1 s.block_id, s.raw_json
+                        FROM summaries s
+                        WHERE s.raw_json LIKE '%public_concerns%'
+                        AND s.raw_json LIKE '%"topic"%'
+                        ORDER BY s.id DESC
+                    """
+                    row = conn.execute(text(query)).fetchone()
+        else:
+            with db.get_connection() as conn:
+                if block_id:
+                    row = conn.execute("SELECT block_id, raw_json FROM summaries WHERE block_id = ?", (block_id,)).fetchone()
+                else:
+                    row = conn.execute("""
+                        SELECT block_id, raw_json FROM summaries
+                        WHERE raw_json LIKE '%public_concerns%'
+                        AND raw_json LIKE '%"topic"%'
+                        ORDER BY id DESC LIMIT 1
+                    """).fetchone()
+
+        if not row:
+            return {"error": "No summary found with topic data"}
+
+        row_dict = dict(row._mapping) if hasattr(row, '_mapping') else dict(row)
+        block_id = row_dict['block_id']
+        raw_json_str = row_dict['raw_json']
+
+        # Parse JSON
+        raw_json = json_module.loads(raw_json_str) if isinstance(raw_json_str, str) else raw_json_str
+
+        # Extract topics info
+        public_concerns = raw_json.get('public_concerns', [])
+        announcements = raw_json.get('official_announcements', [])
+
+        topics_found = []
+        for concern in public_concerns:
+            topic = concern.get('topic', '')
+            if topic:
+                topics_found.append({"source": "public_concerns", "topic": topic})
+        for ann in announcements:
+            topic = ann.get('topic', '')
+            if topic:
+                topics_found.append({"source": "official_announcements", "topic": topic})
+
+        # Try extraction
+        topics_saved = extract_and_save_topics(block_id, raw_json)
+
+        return {
+            "block_id": block_id,
+            "public_concerns_count": len(public_concerns),
+            "announcements_count": len(announcements),
+            "topics_found": topics_found,
+            "topics_saved": topics_saved
+        }
+
+    except Exception as e:
+        logger.error(f"Debug topic extraction error: {e}")
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}
+
+
 @app.get("/debug/summary-structure")
 async def debug_summary_structure(limit: int = 3):
     """Debug endpoint to check raw_json structure in summaries."""
