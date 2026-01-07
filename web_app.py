@@ -2041,6 +2041,58 @@ async def backfill_topics(days: int = 7):
         raise HTTPException(status_code=500, detail=f"Backfill failed: {str(e)}")
 
 
+@app.get("/debug/test-upsert-topic")
+async def debug_test_upsert_topic(topic_name: str = "Test Topic Debug"):
+    """Directly test db.upsert_topic to diagnose failures."""
+    import traceback
+
+    try:
+        # Test the upsert
+        topic_id = db.upsert_topic(topic_name)
+
+        if topic_id:
+            # Try linking to a block
+            # Get any block ID
+            if db.use_azure_sql:
+                with db.get_connection() as conn:
+                    block_row = conn.execute(text("SELECT TOP 1 id FROM blocks ORDER BY id DESC")).fetchone()
+            else:
+                with db.get_connection() as conn:
+                    block_row = conn.execute("SELECT id FROM blocks ORDER BY id DESC LIMIT 1").fetchone()
+
+            block_id = block_row[0] if block_row else None
+
+            link_result = None
+            if block_id:
+                try:
+                    db.link_topic_to_block(block_id, topic_id, 0.5)
+                    link_result = "success"
+                except Exception as le:
+                    link_result = f"failed: {str(le)}"
+
+            return {
+                "success": True,
+                "topic_name": topic_name,
+                "topic_id": topic_id,
+                "block_id": block_id,
+                "link_result": link_result
+            }
+        else:
+            return {
+                "success": False,
+                "topic_name": topic_name,
+                "topic_id": None,
+                "error": "upsert_topic returned None"
+            }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+
+
 @app.get("/debug/test-topic-extraction")
 async def debug_test_topic_extraction(block_id: int = None):
     """Test topic extraction for a specific block or latest block with topics."""
