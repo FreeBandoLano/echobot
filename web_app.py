@@ -2041,6 +2041,52 @@ async def backfill_topics(days: int = 7):
         raise HTTPException(status_code=500, detail=f"Backfill failed: {str(e)}")
 
 
+@app.get("/debug/summary-structure")
+async def debug_summary_structure(limit: int = 3):
+    """Debug endpoint to check raw_json structure in summaries."""
+    try:
+        if db.use_azure_sql:
+            with db.get_connection() as conn:
+                rows = conn.execute(text(f"""
+                    SELECT TOP {limit} s.id, s.block_id, b.block_code,
+                           LEN(s.raw_json) as json_length,
+                           LEFT(s.raw_json, 800) as json_preview
+                    FROM summaries s
+                    JOIN blocks b ON b.id = s.block_id
+                    WHERE s.raw_json IS NOT NULL AND s.raw_json != ''
+                    ORDER BY s.id DESC
+                """)).fetchall()
+        else:
+            with db.get_connection() as conn:
+                rows = conn.execute(f"""
+                    SELECT s.id, s.block_id, b.block_code,
+                           LENGTH(s.raw_json) as json_length,
+                           SUBSTR(s.raw_json, 1, 800) as json_preview
+                    FROM summaries s
+                    JOIN blocks b ON b.id = s.block_id
+                    WHERE s.raw_json IS NOT NULL AND s.raw_json != ''
+                    ORDER BY s.id DESC
+                    LIMIT {limit}
+                """).fetchall()
+
+        results = []
+        for row in rows:
+            row_dict = dict(row._mapping) if hasattr(row, '_mapping') else dict(row)
+            preview = row_dict.get('json_preview', '')
+            has_public_concerns = 'public_concerns' in preview
+            has_topic = '"topic"' in preview
+            results.append({
+                **row_dict,
+                'has_public_concerns_key': has_public_concerns,
+                'has_topic_key': has_topic
+            })
+
+        return {"summaries": results}
+    except Exception as e:
+        logger.error(f"Debug summary structure error: {e}")
+        return {"error": str(e)}
+
+
 @app.get("/debug/topics")
 async def debug_topics():
     """Debug endpoint to check topics and block_topics tables."""
