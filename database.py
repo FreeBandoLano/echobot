@@ -1342,40 +1342,51 @@ class Database:
         norm = self._normalize_topic(name)
         if not norm:
             raise ValueError("Empty topic")
-            
+
         if self.use_azure_sql:
             with self.get_connection() as conn:
-                # Check if topic exists
-                check_query = "SELECT id FROM topics WHERE normalized_name = :norm"
-                existing = conn.execute(str(text(check_query)), {"norm": norm}).fetchone()
-                
-                if existing:
-                    return existing[0]
-                else:
-                    # Insert new topic
-                    insert_query = "INSERT INTO topics (name, normalized_name) VALUES (:name, :norm)"
-                    try:
-                        conn.execute(str(text(insert_query)), {"name": name.strip(), "norm": norm})
-                        conn.commit()
-                        
-                        # Get the inserted ID
-                        id_result = conn.execute(str(text("SELECT id FROM topics WHERE normalized_name = :norm")), {"norm": norm})
-                        return id_result.fetchone()[0]
-                    except Exception as e:
-                        # If UNIQUE constraint violation, the topic likely already exists
-                        if "UNIQUE KEY constraint" in str(e):
-                            logger.warning(f"🔧 Topic '{name}' already exists, fetching existing ID")
-                            # Try to find the existing topic again (race condition handling)
+                try:
+                    # Check if topic exists
+                    check_query = "SELECT id FROM topics WHERE normalized_name = :norm"
+                    existing = conn.execute(str(text(check_query)), {"norm": norm}).fetchone()
+
+                    if existing:
+                        logger.debug(f"Topic '{name}' already exists with ID {existing[0]}")
+                        return existing[0]
+
+                    # Insert new topic using OUTPUT clause to get ID in one query
+                    insert_query = """
+                        INSERT INTO topics (name, normalized_name)
+                        OUTPUT INSERTED.id
+                        VALUES (:name, :norm)
+                    """
+                    result = conn.execute(str(text(insert_query)), {"name": name.strip(), "norm": norm})
+                    row = result.fetchone()
+                    conn.commit()
+
+                    if row:
+                        topic_id = row[0]
+                        logger.info(f"✅ Created topic '{name}' with ID {topic_id}")
+                        return topic_id
+                    else:
+                        logger.error(f"❌ INSERT succeeded but no ID returned for topic '{name}'")
+                        return None
+
+                except Exception as e:
+                    error_str = str(e)
+                    # If UNIQUE constraint violation, the topic likely already exists
+                    if "UNIQUE" in error_str or "duplicate" in error_str.lower():
+                        logger.warning(f"🔧 Topic '{name}' constraint violation, fetching existing ID")
+                        try:
                             existing_retry = conn.execute(str(text(check_query)), {"norm": norm}).fetchone()
                             if existing_retry:
                                 return existing_retry[0]
-                            else:
-                                # Skip emergency cleanup to reduce database load
-                                logger.debug(f"⚠️ Skipping topic '{name}' to avoid constraint violations")
-                                return None
-                        else:
-                            logger.error(f"❌ Unexpected error creating topic '{name}': {e}")
-                            return None
+                        except:
+                            pass
+                        return None
+                    else:
+                        logger.error(f"❌ Error creating topic '{name}': {e}")
+                        return None
         else:
             with self.get_connection() as conn:
                 row = conn.execute("SELECT id FROM topics WHERE normalized_name = ?", (norm,)).fetchone()
