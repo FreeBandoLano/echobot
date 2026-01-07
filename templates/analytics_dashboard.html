@@ -593,7 +593,8 @@
      */
     async function loadSentimentDistChart() {
       try {
-        const response = await fetch(`/api/analytics/sentiment?date=${VIEW_DATE || new Date().toISOString().split('T')[0]}`);
+        // Use 7-day rolling window for consistent data display
+        const response = await fetch(`/api/analytics/sentiment?date=${VIEW_DATE || new Date().toISOString().split('T')[0]}&days=${ANALYTICS_DAYS}`);
 
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);

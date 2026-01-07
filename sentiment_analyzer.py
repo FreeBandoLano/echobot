@@ -461,6 +461,95 @@ CRITICAL: Output ONLY valid JSON. No narrative text before or after.
                 'error': str(e)
             }
 
+    def get_sentiment_for_period(self, days: int = 7, end_date: date = None) -> Dict:
+        """Get aggregated sentiment data over a rolling period.
+
+        Args:
+            days: Number of days to look back
+            end_date: Optional end date (defaults to today)
+
+        Returns:
+            Dict with sentiment statistics over the period
+        """
+        from datetime import timedelta
+
+        try:
+            if end_date is None:
+                end_date = date.today()
+            start_date = end_date - timedelta(days=days)
+
+            if db.use_azure_sql:
+                with db.get_connection() as conn:
+                    from sqlalchemy import text
+
+                    query = """
+                    SELECT ss.overall_score, ss.label, ss.display_text, ss.confidence,
+                           b.block_code, s.show_date
+                    FROM sentiment_scores ss
+                    JOIN blocks b ON b.id = ss.block_id
+                    JOIN shows s ON s.id = b.show_id
+                    WHERE s.show_date BETWEEN :start_date AND :end_date
+                    ORDER BY s.show_date DESC, b.block_code
+                    """
+                    rows = conn.execute(str(text(query)), {
+                        "start_date": start_date.strftime('%Y-%m-%d'),
+                        "end_date": end_date.strftime('%Y-%m-%d')
+                    }).fetchall()
+                    results = [dict(r._mapping) for r in rows]
+            else:
+                # SQLite
+                with db.get_connection() as conn:
+                    rows = conn.execute("""
+                        SELECT ss.overall_score, ss.label, ss.display_text, ss.confidence,
+                               b.block_code, s.show_date
+                        FROM sentiment_scores ss
+                        JOIN blocks b ON b.id = ss.block_id
+                        JOIN shows s ON s.id = b.show_id
+                        WHERE s.show_date BETWEEN ? AND ?
+                        ORDER BY s.show_date DESC, b.block_code
+                    """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))).fetchall()
+                    results = [dict(r) for r in rows]
+
+            if not results:
+                return {
+                    'period_days': days,
+                    'start_date': start_date.strftime('%Y-%m-%d'),
+                    'end_date': end_date.strftime('%Y-%m-%d'),
+                    'average_sentiment': 0.0,
+                    'blocks_analyzed': 0,
+                    'sentiment_distribution': {},
+                    'blocks': []
+                }
+
+            # Calculate statistics
+            scores = [r['overall_score'] for r in results]
+            avg_sentiment = sum(scores) / len(scores)
+
+            # Count distribution by label
+            distribution = {}
+            for r in results:
+                label = r['label']
+                distribution[label] = distribution.get(label, 0) + 1
+
+            return {
+                'period_days': days,
+                'start_date': start_date.strftime('%Y-%m-%d'),
+                'end_date': end_date.strftime('%Y-%m-%d'),
+                'average_sentiment': round(avg_sentiment, 3),
+                'blocks_analyzed': len(results),
+                'sentiment_distribution': distribution,
+                'blocks': results
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get sentiment for period: {e}")
+            return {
+                'period_days': days,
+                'average_sentiment': 0.0,
+                'blocks_analyzed': 0,
+                'error': str(e)
+            }
+
     def get_parish_sentiment_map(self, days: int = 7, end_date: date = None) -> List[Dict]:
         """Get parish-level sentiment aggregation for recent days.
 

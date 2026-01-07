@@ -665,14 +665,15 @@ async def api_rolling_summary(minutes: int = 30):
 # ============================================================================
 
 @app.get("/api/analytics/sentiment")
-async def api_analytics_sentiment(date: Optional[str] = None):
-    """Get sentiment analysis for a specific date with human-readable labels.
+async def api_analytics_sentiment(date: Optional[str] = None, days: int = 7):
+    """Get sentiment analysis with support for rolling window.
 
     Query params:
-        date: YYYY-MM-DD format (defaults to today)
+        date: YYYY-MM-DD format end date (defaults to today)
+        days: Number of days to look back (default 7, use 1 for single day)
 
     Returns:
-        - date
+        - date/period info
         - average_sentiment (numeric score)
         - blocks_analyzed
         - sentiment_distribution (label counts)
@@ -684,14 +685,20 @@ async def api_analytics_sentiment(date: Optional[str] = None):
         # Parse date or use today
         if date:
             try:
-                show_date = datetime.strptime(date, '%Y-%m-%d').date()
+                end_date = datetime.strptime(date, '%Y-%m-%d').date()
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
         else:
-            show_date = get_local_date()
+            end_date = get_local_date()
 
-        # Get sentiment data
-        result = sentiment_analyzer.get_sentiment_for_date(show_date)
+        # Validate days parameter
+        days = max(1, min(int(days), 30))
+
+        # Use rolling window for multi-day, single date for days=1
+        if days == 1:
+            result = sentiment_analyzer.get_sentiment_for_date(end_date)
+        else:
+            result = sentiment_analyzer.get_sentiment_for_period(days=days, end_date=end_date)
 
         return result
 
@@ -905,9 +912,11 @@ async def analytics_dashboard(request: Request, date_param: Optional[str] = None
         view_date = get_local_date()
 
     # Fetch REAL data from sentiment analyzer and database
+    # Use 7-day rolling window for consistent data display
+    days = 7
     try:
-        # Get overall sentiment for the date
-        sentiment_data = sentiment_analyzer.get_sentiment_for_date(view_date)
+        # Get overall sentiment for rolling period (not just single date)
+        sentiment_data = sentiment_analyzer.get_sentiment_for_period(days=days, end_date=view_date)
         avg_score = sentiment_data.get('average_sentiment', 0) if sentiment_data else 0
 
         # Map score to label and display text
@@ -931,7 +940,8 @@ async def analytics_dashboard(request: Request, date_param: Optional[str] = None
             "score": round(avg_score, 2),
             "label": sentiment_label,
             "display_text": display_text,
-            "blocks_analyzed": sentiment_data.get('blocks_analyzed', 0) if sentiment_data else 0
+            "blocks_analyzed": sentiment_data.get('blocks_analyzed', 0) if sentiment_data else 0,
+            "sentiment_distribution": sentiment_data.get('sentiment_distribution', {})
         }
 
         # Get parish data (last 7 days)
@@ -2031,19 +2041,64 @@ async def backfill_topics(days: int = 7):
         raise HTTPException(status_code=500, detail=f"Backfill failed: {str(e)}")
 
 
+@app.get("/debug/topics")
+async def debug_topics():
+    """Debug endpoint to check topics and block_topics tables."""
+    try:
+        if db.use_azure_sql:
+            with db.get_connection() as conn:
+                # Count topics
+                topics_count = conn.execute(text("SELECT COUNT(*) FROM topics")).fetchone()[0]
+                # Count block_topics
+                block_topics_count = conn.execute(text("SELECT COUNT(*) FROM block_topics")).fetchone()[0]
+                # Get sample topics
+                sample_topics = conn.execute(text("SELECT TOP 10 id, name, normalized_name FROM topics ORDER BY id DESC")).fetchall()
+                # Get sample block_topics
+                sample_links = conn.execute(text("""
+                    SELECT TOP 10 bt.block_id, t.name, bt.weight, b.block_code
+                    FROM block_topics bt
+                    JOIN topics t ON t.id = bt.topic_id
+                    JOIN blocks b ON b.id = bt.block_id
+                    ORDER BY bt.block_id DESC
+                """)).fetchall()
+        else:
+            with db.get_connection() as conn:
+                topics_count = conn.execute("SELECT COUNT(*) FROM topics").fetchone()[0]
+                block_topics_count = conn.execute("SELECT COUNT(*) FROM block_topics").fetchone()[0]
+                sample_topics = conn.execute("SELECT id, name, normalized_name FROM topics ORDER BY id DESC LIMIT 10").fetchall()
+                sample_links = conn.execute("""
+                    SELECT bt.block_id, t.name, bt.weight, b.block_code
+                    FROM block_topics bt
+                    JOIN topics t ON t.id = bt.topic_id
+                    JOIN blocks b ON b.id = bt.block_id
+                    ORDER BY bt.block_id DESC
+                    LIMIT 10
+                """).fetchall()
+
+        return {
+            "topics_count": topics_count,
+            "block_topics_count": block_topics_count,
+            "sample_topics": [dict(r._mapping) if hasattr(r, '_mapping') else dict(r) for r in sample_topics],
+            "sample_block_topic_links": [dict(r._mapping) if hasattr(r, '_mapping') else dict(r) for r in sample_links]
+        }
+    except Exception as e:
+        logger.error(f"Debug topics error: {e}")
+        return {"error": str(e)}
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    
+
     try:
         # Test database connection
         with db.get_connection() as conn:
             conn.execute("SELECT 1").fetchone()
-        
+
         db_status = "healthy"
     except:
         db_status = "unhealthy"
-    
+
     return {
         "status": "healthy" if db_status == "healthy" else "unhealthy",
         "database": db_status,
