@@ -1948,6 +1948,89 @@ async def backfill_program_names(request: Request):
         logger.error(f"Program name backfill failed: {e}")
         raise HTTPException(status_code=500, detail=f"Backfill failed: {str(e)}")
 
+
+@app.post("/api/backfill-topics")
+async def backfill_topics(days: int = 7):
+    """Backfill topics from existing summaries that have raw_json data.
+
+    This extracts topics from the raw_json field of existing summaries
+    and populates the topics and block_topics tables.
+
+    Query params:
+        days: Number of days to look back (default 7, max 30)
+    """
+    from summarization import extract_and_save_topics
+
+    try:
+        days = max(1, min(int(days), 30))
+        total_topics = 0
+        blocks_processed = 0
+        errors = []
+
+        # Get recent blocks with summaries
+        end_date = get_local_date()
+        start_date = end_date - timedelta(days=days)
+
+        logger.info(f"Backfilling topics for {days} days ({start_date} to {end_date})")
+
+        # Query all summaries with raw_json in the date range
+        if db.use_azure_sql:
+            query = """
+                SELECT s.id, s.block_id, s.raw_json, b.block_code
+                FROM summaries s
+                JOIN blocks b ON b.id = s.block_id
+                JOIN shows sh ON sh.id = b.show_id
+                WHERE sh.show_date BETWEEN :start_date AND :end_date
+                AND s.raw_json IS NOT NULL AND s.raw_json != ''
+            """
+            with db.get_connection() as conn:
+                rows = conn.execute(
+                    text(query),
+                    {"start_date": start_date.strftime('%Y-%m-%d'), "end_date": end_date.strftime('%Y-%m-%d')}
+                ).fetchall()
+        else:
+            query = """
+                SELECT s.id, s.block_id, s.raw_json, b.block_code
+                FROM summaries s
+                JOIN blocks b ON b.id = s.block_id
+                JOIN shows sh ON sh.id = b.show_id
+                WHERE sh.show_date BETWEEN ? AND ?
+                AND s.raw_json IS NOT NULL AND s.raw_json != ''
+            """
+            with db.get_connection() as conn:
+                rows = conn.execute(query, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))).fetchall()
+
+        for row in rows:
+            try:
+                row_dict = dict(row._mapping) if hasattr(row, '_mapping') else dict(row)
+                block_id = row_dict['block_id']
+                raw_json_str = row_dict['raw_json']
+
+                if raw_json_str:
+                    raw_json = json.loads(raw_json_str) if isinstance(raw_json_str, str) else raw_json_str
+                    topics_count = extract_and_save_topics(block_id, raw_json)
+                    total_topics += topics_count
+                    blocks_processed += 1
+                    logger.info(f"Backfilled {topics_count} topics for block {block_id}")
+
+            except Exception as e:
+                errors.append(f"Block {row_dict.get('block_id', 'unknown')}: {str(e)}")
+                logger.error(f"Error backfilling topics for block: {e}")
+
+        return {
+            "success": True,
+            "days_processed": days,
+            "blocks_processed": blocks_processed,
+            "total_topics_created": total_topics,
+            "errors": errors[:10] if errors else [],
+            "message": f"Backfilled {total_topics} topics from {blocks_processed} blocks"
+        }
+
+    except Exception as e:
+        logger.error(f"Topic backfill failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Backfill failed: {str(e)}")
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""

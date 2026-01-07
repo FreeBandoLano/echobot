@@ -24,6 +24,57 @@ def get_sentiment_analyzer():
         _sentiment_analyzer = sentiment_analyzer
     return _sentiment_analyzer
 
+
+def extract_and_save_topics(block_id: int, raw_json: Dict) -> int:
+    """Extract topics from summary JSON and save to database.
+
+    Args:
+        block_id: The block ID to link topics to
+        raw_json: The parsed JSON from GPT summarization
+
+    Returns:
+        Number of topics saved
+    """
+    topics_saved = 0
+
+    try:
+        # Extract topics from public_concerns
+        public_concerns = raw_json.get('public_concerns', [])
+        for i, concern in enumerate(public_concerns):
+            topic_name = concern.get('topic', '').strip()
+            if topic_name and len(topic_name) > 2:
+                # Weight based on position and urgency
+                urgency = concern.get('urgency', 'medium')
+                base_weight = 1.0 - (i * 0.1)  # First topics weighted higher
+                urgency_boost = {'high': 0.3, 'medium': 0.0, 'low': -0.2}.get(urgency, 0)
+                weight = max(0.1, min(1.0, base_weight + urgency_boost))
+
+                topic_id = db.upsert_topic(topic_name)
+                if topic_id:
+                    db.link_topic_to_block(block_id, topic_id, weight)
+                    topics_saved += 1
+                    logger.debug(f"Linked topic '{topic_name}' to block {block_id} (weight: {weight:.2f})")
+
+        # Extract topics from official_announcements
+        announcements = raw_json.get('official_announcements', [])
+        for i, ann in enumerate(announcements):
+            topic_name = ann.get('topic', '').strip()
+            if topic_name and len(topic_name) > 2:
+                weight = 0.7 - (i * 0.1)  # Announcements slightly lower weight
+                topic_id = db.upsert_topic(topic_name)
+                if topic_id:
+                    db.link_topic_to_block(block_id, topic_id, max(0.1, weight))
+                    topics_saved += 1
+                    logger.debug(f"Linked announcement topic '{topic_name}' to block {block_id}")
+
+        if topics_saved > 0:
+            logger.info(f"✅ Extracted and saved {topics_saved} topics for block {block_id}")
+
+    except Exception as e:
+        logger.error(f"Failed to extract topics for block {block_id}: {e}")
+
+    return topics_saved
+
 class RadioSummarizer:
     """Generates summaries for radio transcripts using OpenAI GPT."""
     
@@ -81,11 +132,21 @@ class RadioSummarizer:
                     quotes=summary_data['quotes'],
                     raw_json=summary_data.get('raw_json', {})
                 )
-                
+
                 # Update block status
                 db.update_block_status(block_id, 'completed')
 
                 logger.info(f"Summarization completed for block {block_id}")
+
+                # Extract and save topics from summary
+                try:
+                    raw_json = summary_data.get('raw_json', {})
+                    if raw_json:
+                        topics_count = extract_and_save_topics(block_id, raw_json)
+                        logger.info(f"📊 Topic extraction: {topics_count} topics saved for block {block_id}")
+                except Exception as e:
+                    logger.error(f"❌ Topic extraction failed for block {block_id}: {e}")
+                    # Don't fail summarization if topic extraction fails
 
                 # Run sentiment analysis after summarization
                 try:
