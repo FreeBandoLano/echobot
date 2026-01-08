@@ -498,8 +498,8 @@ https://echobot-docker-app.azurewebsites.net/
             # Fetch analytics data
             from sentiment_analyzer import sentiment_analyzer
 
-            # Get trending topics from database
-            topics = db.get_top_topics(days=7, limit=10)
+            # Get trending topics with sentiment from database
+            topics = db.get_top_topics_with_sentiment(days=7, limit=10)
 
             # Get parish sentiment map from sentiment_analyzer
             parish_data = sentiment_analyzer.get_parish_sentiment_map(days=7)
@@ -512,9 +512,9 @@ https://echobot-docker-app.azurewebsites.net/
             analytics_data = {
                 'topics': [
                     {
-                        'topic': t.get('topic', 'Unknown'),
-                        'count': t.get('count', 0),
-                        'sentiment': t.get('avg_sentiment', 0)
+                        'topic': t.get('name', 'Unknown'),
+                        'count': t.get('blocks', t.get('total_weight', 0)),
+                        'sentiment': t.get('avg_sentiment', 0) or 0
                     }
                     for t in (topics or [])
                 ],
