@@ -404,24 +404,49 @@ class Database:
             elif 'word' in topics_columns and 'name' in topics_columns:
                 logger.info("🔄 Detected partial topics migration - cleaning up schema...")
                 try:
+                    # CRITICAL: Drop UNIQUE constraint on 'word' column if it exists
+                    # This constraint causes INSERT failures when word is NULL
+                    drop_constraint_query = """
+                        DECLARE @constraint_name NVARCHAR(200);
+                        SELECT @constraint_name = name FROM sys.key_constraints
+                        WHERE type = 'UQ' AND parent_object_id = OBJECT_ID('topics')
+                        AND OBJECT_NAME(parent_object_id) = 'topics'
+                        AND EXISTS (
+                            SELECT 1 FROM sys.index_columns ic
+                            JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+                            WHERE ic.object_id = OBJECT_ID('topics') AND c.name = 'word'
+                            AND ic.index_id = (SELECT unique_index_id FROM sys.key_constraints WHERE name = @constraint_name)
+                        );
+                        IF @constraint_name IS NOT NULL
+                        BEGIN
+                            EXEC('ALTER TABLE topics DROP CONSTRAINT ' + @constraint_name);
+                        END
+                    """
+                    try:
+                        conn.execute(text(drop_constraint_query))
+                        conn.commit()
+                        logger.info("✅ Dropped UNIQUE constraint on 'word' column")
+                    except Exception as ce:
+                        logger.info(f"Constraint drop note: {ce}")
+
                     # Make 'word' column nullable
-                    conn.execute("ALTER TABLE topics ALTER COLUMN word NVARCHAR(200) NULL", ())
+                    conn.execute(text("ALTER TABLE topics ALTER COLUMN word NVARCHAR(200) NULL"))
                     conn.commit()
-                    
+
                     # CRITICAL: Fix NULL values in normalized_name that violate UNIQUE constraint
                     # First, find and fix any NULL normalized_name values
-                    null_check = conn.execute(str(text("SELECT COUNT(*) FROM topics WHERE normalized_name IS NULL"))).fetchone()[0]
+                    null_check = conn.execute(text("SELECT COUNT(*) FROM topics WHERE normalized_name IS NULL")).fetchone()[0]
                     if null_check > 0:
                         logger.info(f"🔧 Found {null_check} topics with NULL normalized_name, fixing...")
                         # Update NULL normalized_name values using the name column or generate unique values
-                        conn.execute(str(text("""
-                            UPDATE topics 
+                        conn.execute(text("""
+                            UPDATE topics
                             SET normalized_name = LOWER(REPLACE(COALESCE(name, 'topic_' + CAST(id AS NVARCHAR)), ' ', ''))
                             WHERE normalized_name IS NULL
-                        """)))
+                        """))
                         conn.commit()
                         logger.info("✅ Fixed NULL normalized_name values")
-                    
+
                     logger.info("✅ Completed partial migration cleanup")
                 except Exception as e:
                     logger.info(f"Partial migration cleanup error: {e}")

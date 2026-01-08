@@ -2041,6 +2041,68 @@ async def backfill_topics(days: int = 7):
         raise HTTPException(status_code=500, detail=f"Backfill failed: {str(e)}")
 
 
+@app.post("/debug/fix-topics-schema")
+async def debug_fix_topics_schema():
+    """Fix the topics table schema by dropping the UNIQUE constraint on 'word' column."""
+    import traceback
+
+    results = {"use_azure_sql": db.use_azure_sql}
+
+    if not db.use_azure_sql:
+        return {"error": "This fix is only for Azure SQL"}
+
+    try:
+        with db.get_connection() as conn:
+            # Find all UNIQUE constraints on topics table
+            constraints = conn.execute(text("""
+                SELECT kc.name as constraint_name, c.name as column_name
+                FROM sys.key_constraints kc
+                JOIN sys.index_columns ic ON kc.unique_index_id = ic.index_id AND kc.parent_object_id = ic.object_id
+                JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+                WHERE kc.parent_object_id = OBJECT_ID('topics') AND kc.type = 'UQ'
+            """)).fetchall()
+
+            results["constraints_found"] = [{"name": c[0], "column": c[1]} for c in constraints]
+
+            # Drop constraint on 'word' column if it exists
+            for constraint in constraints:
+                if constraint[1] == 'word':
+                    try:
+                        conn.execute(text(f"ALTER TABLE topics DROP CONSTRAINT [{constraint[0]}]"))
+                        conn.commit()
+                        results["dropped_constraint"] = constraint[0]
+                    except Exception as de:
+                        results["drop_error"] = str(de)
+
+            # Also make 'word' column nullable
+            try:
+                conn.execute(text("ALTER TABLE topics ALTER COLUMN word NVARCHAR(200) NULL"))
+                conn.commit()
+                results["word_nullable"] = True
+            except Exception as ae:
+                results["alter_error"] = str(ae)
+
+            # Test insert
+            try:
+                test_name = f"schema_fix_test_{datetime.now().strftime('%H%M%S')}"
+                test_norm = test_name.lower().replace("_", "")
+                result = conn.execute(
+                    text("INSERT INTO topics (name, normalized_name) OUTPUT INSERTED.id VALUES (:name, :norm)"),
+                    {"name": test_name, "norm": test_norm}
+                )
+                row = result.fetchone()
+                conn.commit()
+                results["test_insert"] = {"success": True, "id": row[0] if row else None}
+            except Exception as te:
+                results["test_insert"] = {"success": False, "error": str(te)}
+
+    except Exception as e:
+        results["error"] = str(e)
+        results["traceback"] = traceback.format_exc()
+
+    return results
+
+
 @app.get("/debug/check-topics-table")
 async def debug_check_topics_table():
     """Check if topics table exists and try raw insert."""
