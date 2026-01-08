@@ -424,9 +424,15 @@ window.EchobotCharts = (function() {
       textSecondary: '#8b949e',
       textMuted: '#6e7681',
       border: '#30363d',
-      positive: '#3fb950',
-      negative: '#f85149',
-      neutral: '#6e7681',
+      // 5-tier sentiment palette (executive-grade, PowerPoint-ready)
+      stronglyPositive: '#2A9D8F',   // Teal
+      somewhatPositive: '#6BBF59',   // Sage Green
+      neutral: '#E9C46A',            // Soft Gold (was grey #6e7681)
+      somewhatNegative: '#F4A261',   // Sandy Orange
+      stronglyNegative: '#E07A5F',   // Terracotta
+      // Legacy aliases
+      positive: '#2A9D8F',
+      negative: '#E07A5F',
       warning: '#d29922',
       accent: '#58a6ff'
     },
@@ -744,11 +750,15 @@ window.EchobotCharts = (function() {
     // Sort by count descending, take top 8
     const sorted = data.sort((a, b) => b.count - a.count).slice(0, 8);
 
-    // Get bar color based on sentiment (muted executive palette)
+    // Get bar color based on sentiment (5-tier executive palette)
     function getBarColor(sentiment) {
-      if (sentiment > 0.2) return EXECUTIVE_CONFIG.colors.positive;
-      if (sentiment < -0.2) return EXECUTIVE_CONFIG.colors.negative;
-      return EXECUTIVE_CONFIG.colors.neutral;
+      // Handle null/undefined sentiment
+      if (sentiment === null || sentiment === undefined) return EXECUTIVE_CONFIG.colors.neutral;
+      if (sentiment >= 0.6) return EXECUTIVE_CONFIG.colors.stronglyPositive;    // Teal
+      if (sentiment >= 0.2) return EXECUTIVE_CONFIG.colors.somewhatPositive;    // Sage
+      if (sentiment > -0.2) return EXECUTIVE_CONFIG.colors.neutral;              // Gold
+      if (sentiment > -0.6) return EXECUTIVE_CONFIG.colors.somewhatNegative;    // Sandy
+      return EXECUTIVE_CONFIG.colors.stronglyNegative;                           // Terracotta
     }
 
     const trace = {
@@ -784,8 +794,8 @@ window.EchobotCharts = (function() {
         automargin: true,
         title: ''
       },
-      height: 350,
-      margin: { l: 140, r: 50, t: 30, b: 30 }
+      height: 320,
+      margin: { l: 140, r: 50, t: 20, b: 20 }
     });
 
     Plotly.newPlot(container, [trace], layout, DEFAULT_CONFIG);
@@ -867,11 +877,14 @@ window.EchobotCharts = (function() {
     // Sort by absolute sentiment (most polarizing first), take top 10
     const sorted = data.sort((a, b) => Math.abs(b.avgSentiment) - Math.abs(a.avgSentiment)).slice(0, 10);
 
-    // Get bar color based on sentiment
+    // Get bar color based on sentiment (5-tier executive palette)
     const barColors = sorted.map(d => {
-      if (d.avgSentiment > 0.1) return EXECUTIVE_CONFIG.colors.positive;
-      if (d.avgSentiment < -0.1) return EXECUTIVE_CONFIG.colors.negative;
-      return EXECUTIVE_CONFIG.colors.neutral;
+      const sentiment = d.avgSentiment || 0;
+      if (sentiment >= 0.6) return EXECUTIVE_CONFIG.colors.stronglyPositive;    // Teal
+      if (sentiment >= 0.2) return EXECUTIVE_CONFIG.colors.somewhatPositive;    // Sage
+      if (sentiment > -0.2) return EXECUTIVE_CONFIG.colors.neutral;              // Gold
+      if (sentiment > -0.6) return EXECUTIVE_CONFIG.colors.somewhatNegative;    // Sandy
+      return EXECUTIVE_CONFIG.colors.stronglyNegative;                           // Terracotta
     });
 
     const trace = {
@@ -911,8 +924,8 @@ window.EchobotCharts = (function() {
         automargin: true,
         title: ''
       },
-      height: 400,
-      margin: { l: 140, r: 50, t: 30, b: 30 }
+      height: 370,
+      margin: { l: 140, r: 50, t: 20, b: 20 }
     });
 
     Plotly.newPlot(container, [trace], layout, DEFAULT_CONFIG);

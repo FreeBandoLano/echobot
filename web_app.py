@@ -773,8 +773,8 @@ async def api_analytics_topics_trending(days: int = 7, end_date: Optional[str] =
             except ValueError:
                 pass  # Use default behavior
 
-        # Get top topics from existing database method
-        topics = db.get_top_topics(days=days, limit=15, end_date=parsed_end_date)
+        # Get top topics with sentiment from database
+        topics = db.get_top_topics_with_sentiment(days=days, limit=15, end_date=parsed_end_date)
 
         return {
             "days": days,

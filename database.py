@@ -1521,6 +1521,95 @@ class Database:
                     ).fetchall()
         return [dict(r._mapping) if hasattr(r, '_mapping') else dict(r) for r in rows]
 
+    def get_top_topics_with_sentiment(self, days: int = 14, limit: int = 15, end_date: date = None) -> List[Dict]:
+        """Get top topics by weight with aggregated sentiment scores.
+
+        This method joins block_topics with sentiment_scores to include
+        average sentiment for each topic.
+
+        Args:
+            days: Number of days to look back
+            limit: Maximum number of topics to return
+            end_date: Optional end date (defaults to today)
+        """
+        if self.use_azure_sql:
+            with self.get_connection() as conn:
+                if end_date:
+                    query = str(text("""
+                    SELECT TOP (:limit)
+                        t.name,
+                        SUM(bt.weight) as total_weight,
+                        COUNT(DISTINCT bt.block_id) as blocks,
+                        AVG(ss.overall_score) as avg_sentiment
+                    FROM block_topics bt
+                    JOIN topics t ON t.id = bt.topic_id
+                    JOIN blocks b ON b.id = bt.block_id
+                    JOIN shows s ON s.id = b.show_id
+                    LEFT JOIN sentiment_scores ss ON ss.block_id = bt.block_id
+                    WHERE s.show_date BETWEEN DATEADD(day, :days, :end_date) AND :end_date
+                    GROUP BY t.id, t.name
+                    ORDER BY total_weight DESC
+                    """))
+                    rows = conn.execute(query, {"days": -int(days), "limit": limit, "end_date": end_date.strftime('%Y-%m-%d')}).fetchall()
+                else:
+                    query = str(text("""
+                    SELECT TOP (:limit)
+                        t.name,
+                        SUM(bt.weight) as total_weight,
+                        COUNT(DISTINCT bt.block_id) as blocks,
+                        AVG(ss.overall_score) as avg_sentiment
+                    FROM block_topics bt
+                    JOIN topics t ON t.id = bt.topic_id
+                    JOIN blocks b ON b.id = bt.block_id
+                    JOIN shows s ON s.id = b.show_id
+                    LEFT JOIN sentiment_scores ss ON ss.block_id = bt.block_id
+                    WHERE s.show_date >= DATEADD(day, :days, GETDATE())
+                    GROUP BY t.id, t.name
+                    ORDER BY total_weight DESC
+                    """))
+                    rows = conn.execute(query, {"days": -int(days), "limit": limit}).fetchall()
+        else:
+            with self.get_connection() as conn:
+                if end_date:
+                    rows = conn.execute(
+                        """
+                        SELECT t.name,
+                               SUM(bt.weight) as total_weight,
+                               COUNT(DISTINCT bt.block_id) as blocks,
+                               AVG(ss.overall_score) as avg_sentiment
+                        FROM block_topics bt
+                        JOIN topics t ON t.id = bt.topic_id
+                        JOIN blocks b ON b.id = bt.block_id
+                        JOIN shows s ON s.id = b.show_id
+                        LEFT JOIN sentiment_scores ss ON ss.block_id = bt.block_id
+                        WHERE s.show_date BETWEEN date(?, ?) AND ?
+                        GROUP BY t.id
+                        ORDER BY total_weight DESC
+                        LIMIT ?
+                        """,
+                        (end_date.strftime('%Y-%m-%d'), f'-{int(days)} days', end_date.strftime('%Y-%m-%d'), limit)
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        """
+                        SELECT t.name,
+                               SUM(bt.weight) as total_weight,
+                               COUNT(DISTINCT bt.block_id) as blocks,
+                               AVG(ss.overall_score) as avg_sentiment
+                        FROM block_topics bt
+                        JOIN topics t ON t.id = bt.topic_id
+                        JOIN blocks b ON b.id = bt.block_id
+                        JOIN shows s ON s.id = b.show_id
+                        LEFT JOIN sentiment_scores ss ON ss.block_id = bt.block_id
+                        WHERE s.show_date >= date('now', ?)
+                        GROUP BY t.id
+                        ORDER BY total_weight DESC
+                        LIMIT ?
+                        """,
+                        (f'-{int(days)} days', limit)
+                    ).fetchall()
+        return [dict(r._mapping) if hasattr(r, '_mapping') else dict(r) for r in rows]
+
     def get_topics_for_day(self, show_date: date, limit: int = 15) -> List[Dict]:
         """Get topics for a specific day with their weights and block coverage."""
         if self.use_azure_sql:

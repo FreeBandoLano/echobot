@@ -422,21 +422,25 @@
   </style>
 </head>
 <body class="exec-dashboard">
-  <!-- Executive Header -->
-  <header class="exec-header">
-    <div class="exec-header-left">
-      <span class="exec-badge">Intelligence Brief</span>
-      <div>
-        <h1 class="exec-title">Executive Analytics Dashboard</h1>
-        <p class="exec-subtitle">Public Sentiment Analysis • {{ view_date.strftime('%B %d, %Y') if view_date else 'Current' }}</p>
-      </div>
+  <!-- Analytics Header (matches home page style) -->
+  <header class="app-header analytics-header">
+    <div class="analytics-header-left">
+      <a href="/" class="app-logo">
+        <i class="bi bi-broadcast"></i>
+        <span>Radio Synopsis</span>
+      </a>
+      <span class="analytics-badge">Intelligence Brief</span>
     </div>
-    <div class="exec-header-right">
-      <a href="/" class="exec-btn"><i class="bi bi-house"></i> Home</a>
-      <a href="/dashboard/export/pdf?date={{ view_date }}" class="exec-btn"><i class="bi bi-file-pdf"></i> PDF</a>
-      <a href="/dashboard/export/csv?dataset=sentiment&date={{ view_date }}" class="exec-btn"><i class="bi bi-filetype-csv"></i> CSV</a>
-      <a href="/dashboard/export/json?date={{ view_date }}" class="exec-btn"><i class="bi bi-code-square"></i> JSON</a>
+    <div class="analytics-header-center">
+      <h1 class="analytics-title">Executive Analytics Dashboard</h1>
+      <p class="analytics-subtitle">Public Sentiment Analysis • {{ view_date.strftime('%B %d, %Y') if view_date else 'Current' }}</p>
     </div>
+    <nav class="app-nav">
+      <a href="/" class="app-nav__link">Today</a>
+      <a href="/archive" class="app-nav__link">Archive</a>
+      <a href="/dashboard/export/pdf?date={{ view_date }}" class="app-nav__link"><i class="bi bi-file-pdf"></i> PDF</a>
+      <a href="/dashboard/export/csv?dataset=sentiment&date={{ view_date }}" class="app-nav__link"><i class="bi bi-filetype-csv"></i> CSV</a>
+    </nav>
   </header>
 
   <!-- Key Metrics Bar -->
@@ -483,14 +487,27 @@
   <div class="exec-grid">
     <!-- Row 1: Topic Activity + Parish Table -->
     <div class="exec-panel">
-      <div class="exec-panel-header">Policy Category Activity</div>
+      <div class="exec-panel-header">
+        Policy Category Activity
+        <span class="exec-panel-subtitle">Topics ranked by discussion volume. Bar color indicates public sentiment.</span>
+      </div>
       <div class="exec-panel-body" style="padding: 0.5rem;">
-        <div id="policyTopicsChart" style="height: 350px;"></div>
+        <div id="policyTopicsChart" style="height: 320px;"></div>
+        <div class="chart-legend">
+          <span class="legend-item"><span class="legend-dot" style="background:#2A9D8F;"></span> Strongly Positive</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#6BBF59;"></span> Positive</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#E9C46A;"></span> Neutral</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#F4A261;"></span> Negative</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#E07A5F;"></span> Strongly Negative</span>
+        </div>
       </div>
     </div>
 
     <div class="exec-panel">
-      <div class="exec-panel-header">Parish Sentiment by Mentions</div>
+      <div class="exec-panel-header">
+        Parish Sentiment by Mentions
+        <span class="exec-panel-subtitle">Geographic breakdown of public discourse across Barbados parishes.</span>
+      </div>
       <div class="exec-panel-body">
         <div id="parishTableContainer"></div>
       </div>
@@ -498,14 +515,27 @@
 
     <!-- Row 2: Topic Sentiment + Sentiment Distribution -->
     <div class="exec-panel">
-      <div class="exec-panel-header">Topic Sentiment Analysis</div>
+      <div class="exec-panel-header">
+        Topic Sentiment Analysis
+        <span class="exec-panel-subtitle">Topics sorted by sentiment intensity. Bars extend left (negative) or right (positive) from center.</span>
+      </div>
       <div class="exec-panel-body" style="padding: 0.5rem;">
-        <div id="topicSentimentChart" style="height: 400px;"></div>
+        <div id="topicSentimentChart" style="height: 370px;"></div>
+        <div class="chart-legend">
+          <span class="legend-item"><span class="legend-dot" style="background:#2A9D8F;"></span> Strongly Positive</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#6BBF59;"></span> Positive</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#E9C46A;"></span> Neutral</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#F4A261;"></span> Negative</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#E07A5F;"></span> Strongly Negative</span>
+        </div>
       </div>
     </div>
 
     <div class="exec-panel">
-      <div class="exec-panel-header">Sentiment Distribution</div>
+      <div class="exec-panel-header">
+        Sentiment Distribution
+        <span class="exec-panel-subtitle">Overall breakdown of public sentiment across all analyzed broadcasts.</span>
+      </div>
       <div class="exec-panel-body">
         <div id="sentimentDistChart"></div>
       </div>
