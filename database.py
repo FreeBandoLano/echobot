@@ -1346,21 +1346,26 @@ class Database:
         if self.use_azure_sql:
             with self.get_connection() as conn:
                 try:
-                    # Check if topic exists
-                    check_query = "SELECT id FROM topics WHERE normalized_name = :norm"
-                    existing = conn.execute(str(text(check_query)), {"norm": norm}).fetchone()
+                    # Check if topic exists - use text() properly without str()
+                    existing = conn.execute(
+                        text("SELECT id FROM topics WHERE normalized_name = :norm"),
+                        {"norm": norm}
+                    ).fetchone()
 
                     if existing:
                         logger.debug(f"Topic '{name}' already exists with ID {existing[0]}")
                         return existing[0]
 
                     # Insert new topic using OUTPUT clause to get ID in one query
-                    insert_query = """
-                        INSERT INTO topics (name, normalized_name)
-                        OUTPUT INSERTED.id
-                        VALUES (:name, :norm)
-                    """
-                    result = conn.execute(str(text(insert_query)), {"name": name.strip(), "norm": norm})
+                    # Use text() properly for parameter binding
+                    result = conn.execute(
+                        text("""
+                            INSERT INTO topics (name, normalized_name)
+                            OUTPUT INSERTED.id
+                            VALUES (:name, :norm)
+                        """),
+                        {"name": name.strip(), "norm": norm}
+                    )
                     row = result.fetchone()
                     conn.commit()
 
@@ -1378,7 +1383,10 @@ class Database:
                     if "UNIQUE" in error_str or "duplicate" in error_str.lower():
                         logger.warning(f"🔧 Topic '{name}' constraint violation, fetching existing ID")
                         try:
-                            existing_retry = conn.execute(str(text(check_query)), {"norm": norm}).fetchone()
+                            existing_retry = conn.execute(
+                                text("SELECT id FROM topics WHERE normalized_name = :norm"),
+                                {"norm": norm}
+                            ).fetchone()
                             if existing_retry:
                                 return existing_retry[0]
                         except:
