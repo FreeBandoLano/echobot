@@ -119,26 +119,36 @@ Programs are configured in `config.py` with independent blocks and stream URLs:
    - **Tier 2**: Government Services, Housing, Tourism, Environment, Social Welfare, Transportation
 
 4. **Executive Dashboard**: `/dashboard/analytics`
-   - Sentiment trend charts (Plotly.js)
-   - Parish heatmap
-   - Emerging issues alerts
-   - Export capabilities (PDF, CSV, JSON)
+   - Sentiment trend charts (Plotly.js) with 5-tier color palette
+   - Parish sentiment table with color-coded badges
+   - Chart legends and explanatory subtitles for intuitive interpretation
+   - Export capabilities (PDF, CSV) - designed for PowerPoint inclusion
+   - Header matches main Radio Synopsis branding
 
-5. **Email Chart Integration**: Tactical charts embedded in digest emails
+5. **Email Chart Integration**: Charts embedded in digest emails
    - `email_chart_generator.py` generates server-side PNG charts using Plotly + kaleido
    - 4 chart types: Policy Topics, Sentiment Donut, Topic Sentiment, Parish Radial
    - Charts auto-included in `send_program_digests()` when analytics data available
    - Uses MIME multipart/related for inline CID image embedding
-   - Charts also attached as downloadable PNG files
+   - Charts use same 5-tier executive color palette as dashboard
 
-**Sentiment Labels**:
-| Score Range | Label | Display Text |
-|-------------|-------|--------------|
-| 0.6 to 1.0 | Strongly Positive | "Public strongly supports this" |
-| 0.2 to 0.6 | Somewhat Positive | "Generally favorable reception" |
-| -0.2 to 0.2 | Mixed/Neutral | "Public opinion divided" |
-| -0.6 to -0.2 | Somewhat Negative | "Growing public concern" |
-| -1.0 to -0.6 | Strongly Negative | "Significant public opposition" |
+**Sentiment Color Palette** (Executive-grade, PowerPoint-ready):
+| Score Range | Label | Color | Hex Code |
+|-------------|-------|-------|----------|
+| 0.6 to 1.0 | Strongly Positive | Teal | `#2A9D8F` |
+| 0.2 to 0.6 | Somewhat Positive | Sage Green | `#6BBF59` |
+| -0.2 to 0.2 | Mixed/Neutral | Soft Gold | `#E9C46A` |
+| -0.6 to -0.2 | Somewhat Negative | Sandy Orange | `#F4A261` |
+| -1.0 to -0.6 | Strongly Negative | Terracotta | `#E07A5F` |
+
+**Sentiment Labels** (Human-readable display text):
+| Score Range | Display Text |
+|-------------|--------------|
+| 0.6 to 1.0 | "Public strongly supports this" |
+| 0.2 to 0.6 | "Generally favorable reception" |
+| -0.2 to 0.2 | "Public opinion divided" |
+| -0.6 to -0.2 | "Growing public concern" |
+| -1.0 to -0.6 | "Significant public opposition" |
 
 ## Key Configuration (Environment Variables)
 
@@ -257,7 +267,6 @@ az webapp config appsettings list --name echobot-docker-app --resource-group ech
 - `GET /dashboard/analytics` - Executive analytics dashboard
 - `GET /dashboard/export/pdf?days=7` - PDF export for ministerial briefings
 - `GET /dashboard/export/csv?days=7` - Raw data CSV export
-- `GET /dashboard/export/json?days=7` - JSON export for API consumers
 
 ## Development Notes
 
@@ -277,6 +286,7 @@ az webapp config appsettings list --name echobot-docker-app --resource-group ech
 - **New summary field**: Modify GPT prompt in `summarization.py`
 - **New policy category**: Update `POLICY_CATEGORIES` in `config.py`
 - **New analytics metric**: Extend `sentiment_analyzer.py` methods
+- **New chart colors**: Update `EXECUTIVE_CONFIG.colors` in `charts.js` AND `SENTIMENT_COLORS` in `email_chart_generator.py` to keep both in sync
 
 ### Debugging Analytics
 
@@ -352,5 +362,5 @@ curl http://localhost:8001/api/analytics/parishes?days=7 | jq
 open http://localhost:8001/dashboard/analytics
 
 # Test export functionality
-curl http://localhost:8001/dashboard/export/json?days=7 > analytics.json
+curl http://localhost:8001/dashboard/export/csv?dataset=sentiment > analytics.csv
 ```
