@@ -33,10 +33,10 @@ TACTICAL_COLORS = {
     'grid': '#2a3f5f',
     'red': '#b51227',
     'gold': '#f5c342',
-    'positive': '#00ff41',
+    'positive': '#2A9D8F',            # Teal (executive palette)
     'teal': '#4dd9d9',
-    'negative': '#ff4444',
-    'neutral': '#888888'
+    'negative': '#E07A5F',            # Terracotta (executive palette)
+    'neutral': '#E9C46A'              # Soft Gold (was grey #888888)
 }
 
 TACTICAL_FONTS = {
@@ -45,23 +45,27 @@ TACTICAL_FONTS = {
     'title_size': 16
 }
 
-# Sentiment category colors (per CLAUDE.md spec)
+# Sentiment category colors - 5-tier executive palette (matches dashboard)
 SENTIMENT_COLORS = {
-    'strongly_positive': '#00ff41',   # Green
-    'somewhat_positive': '#7bc99d',   # Light green
-    'mixed': '#f5c342',               # Gold
-    'somewhat_negative': '#e7a538',   # Orange
-    'strongly_negative': '#ff4444'    # Red
+    'strongly_positive': '#2A9D8F',   # Teal
+    'somewhat_positive': '#6BBF59',   # Sage Green
+    'mixed': '#E9C46A',               # Soft Gold
+    'somewhat_negative': '#F4A261',   # Sandy Orange
+    'strongly_negative': '#E07A5F'    # Terracotta
 }
 
 
 def get_sentiment_color(score: float) -> str:
-    """Map sentiment score to tactical theme color."""
-    if score > 0.2:
-        return TACTICAL_COLORS['positive']
-    elif score < -0.2:
-        return TACTICAL_COLORS['negative']
-    return TACTICAL_COLORS['neutral']
+    """Map sentiment score to 5-tier executive palette."""
+    if score >= 0.6:
+        return SENTIMENT_COLORS['strongly_positive']
+    elif score >= 0.2:
+        return SENTIMENT_COLORS['somewhat_positive']
+    elif score > -0.2:
+        return SENTIMENT_COLORS['mixed']
+    elif score > -0.6:
+        return SENTIMENT_COLORS['somewhat_negative']
+    return SENTIMENT_COLORS['strongly_negative']
 
 
 def get_sentiment_category_color(score: float) -> str:
