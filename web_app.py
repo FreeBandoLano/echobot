@@ -2041,6 +2041,60 @@ async def backfill_topics(days: int = 7):
         raise HTTPException(status_code=500, detail=f"Backfill failed: {str(e)}")
 
 
+@app.get("/debug/check-topics-table")
+async def debug_check_topics_table():
+    """Check if topics table exists and try raw insert."""
+    import traceback
+
+    results = {"use_azure_sql": db.use_azure_sql}
+
+    try:
+        with db.get_connection() as conn:
+            # Check if table exists
+            if db.use_azure_sql:
+                table_check = conn.execute(text("""
+                    SELECT COUNT(*) FROM sys.objects
+                    WHERE object_id = OBJECT_ID(N'[dbo].[topics]') AND type in (N'U')
+                """)).fetchone()
+                results["table_exists"] = table_check[0] > 0
+
+                # Get table structure
+                if results["table_exists"]:
+                    cols = conn.execute(text("""
+                        SELECT COLUMN_NAME, DATA_TYPE
+                        FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_NAME = 'topics'
+                    """)).fetchall()
+                    results["columns"] = [{"name": c[0], "type": c[1]} for c in cols]
+
+                    # Count rows
+                    count = conn.execute(text("SELECT COUNT(*) FROM topics")).fetchone()
+                    results["row_count"] = count[0]
+
+                    # Try raw insert
+                    try:
+                        test_name = f"debug_test_{datetime.now().strftime('%H%M%S')}"
+                        test_norm = test_name.lower().replace("_", "")
+                        insert_result = conn.execute(text("""
+                            INSERT INTO topics (name, normalized_name)
+                            OUTPUT INSERTED.id
+                            VALUES (:name, :norm)
+                        """), {"name": test_name, "norm": test_norm})
+                        row = insert_result.fetchone()
+                        conn.commit()
+                        results["insert_test"] = {"success": True, "id": row[0] if row else None}
+                    except Exception as ie:
+                        results["insert_test"] = {"success": False, "error": str(ie)}
+            else:
+                results["table_exists"] = "sqlite - check manually"
+
+    except Exception as e:
+        results["error"] = str(e)
+        results["traceback"] = traceback.format_exc()
+
+    return results
+
+
 @app.get("/debug/test-upsert-topic")
 async def debug_test_upsert_topic(topic_name: str = "Test Topic Debug"):
     """Directly test db.upsert_topic to diagnose failures."""
