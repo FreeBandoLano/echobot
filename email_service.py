@@ -830,7 +830,7 @@ Generated: {datetime.now().strftime('%H:%M AST')} | View full archive: https://e
             'policy_topics': ('Policy Category Activity', 'Top policy topics by mention count with sentiment indicators'),
             'sentiment_donut': ('Sentiment Distribution', 'Breakdown of public sentiment across all discussions'),
             'topic_sentiment': ('Topic Sentiment Analysis', 'Average sentiment by topic with mention frequency'),
-            'parish_radial': ('Parish Sentiment Radial', 'Geographic distribution of mentions and sentiment by parish')
+            'parish_sentiment': ('Parish Sentiment by Mentions', 'Geographic distribution of mentions and sentiment by parish')
         }
 
         for chart_name, chart_path in chart_paths.items():
@@ -1549,13 +1549,13 @@ View interactive dashboard: https://echobot-docker-app.azurewebsites.net/dashboa
                 </tr>
 """
 
-        # Chart 4: Parish Radial
-        if 'parish_radial' in chart_paths:
+        # Chart 4: Parish Sentiment Bar Chart
+        if 'parish_sentiment' in chart_paths:
             chart_sections += f"""
                 <tr>
                     <td style="padding: 20px;">
-                        <h3 style="color: {c['teal']}; margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">Parish Sentiment Radial</h3>
-                        <img src="cid:chart_parish_radial" alt="Parish Radial Chart" style="width: 100%; max-width: 500px; border: 1px solid {c['border']}; border-radius: 8px;">
+                        <h3 style="color: {c['teal']}; margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">Parish Sentiment by Mentions</h3>
+                        <img src="cid:chart_parish_sentiment" alt="Parish Sentiment Chart" style="width: 100%; max-width: 600px; border: 1px solid {c['border']}; border-radius: 8px;">
                     </td>
                 </tr>
 """

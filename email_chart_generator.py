@@ -7,7 +7,7 @@ Charts generated:
 1. Policy Topics - Horizontal bars with colored borders (transparent fill)
 2. Sentiment Donut - Pie chart with hole=0.6, center annotation
 3. Topic Sentiment - Diverging horizontal bars + gold dotted line overlay
-4. Parish Radial - Polar bar chart for geographic sentiment
+4. Parish Sentiment - Horizontal bar chart for geographic sentiment (by mention count)
 """
 
 import logging
@@ -455,15 +455,15 @@ def generate_topic_sentiment_png(data: List[Dict],
     return _save_chart_to_png(fig, filename, width=800, height=500)
 
 
-def generate_parish_radial_png(data: List[Dict],
-                                output_path: Path = None) -> Path:
-    """Generate Parish Radial polar bar chart PNG.
+def generate_parish_bar_png(data: List[Dict],
+                             output_path: Path = None) -> Path:
+    """Generate Parish Sentiment horizontal bar chart PNG.
 
-    Matches JavaScript createParishRadialChart():
-    - Polar bar chart (barpolar) showing parishes around circle
-    - Bar length = mention count
-    - Bar color = sentiment (green/red/gray)
-    - Teal borders on bars
+    Replaces the radial chart with a cleaner bar visualization that matches
+    the webapp's parish table data display:
+    - Horizontal bars showing mention count
+    - Bar color = sentiment (5-tier executive palette)
+    - Sorted by mention count descending
 
     Args:
         data: List of dicts with 'parish', 'sentiment', 'count' keys
@@ -473,79 +473,63 @@ def generate_parish_radial_png(data: List[Dict],
         Path to generated PNG file
     """
     if not data:
-        logger.warning("No data provided for parish radial chart")
+        logger.warning("No data provided for parish bar chart")
         data = [{'parish': 'No Data', 'sentiment': 0, 'count': 0}]
 
-    parishes = [d.get('parish', 'Unknown') for d in data]
-    sentiments = [d.get('sentiment', 0) for d in data]
-    counts = [d.get('count', 0) for d in data]
+    # Sort by count descending
+    sorted_data = sorted(data, key=lambda x: x.get('count', 0), reverse=True)
 
-    # Map sentiment to colors
+    parishes = [d.get('parish', 'Unknown') for d in sorted_data]
+    sentiments = [d.get('sentiment', 0) for d in sorted_data]
+    counts = [d.get('count', 0) for d in sorted_data]
+
+    # Map sentiment to colors (5-tier executive palette)
     colors = [get_sentiment_color(s) for s in sentiments]
-
-    # Create hover text
-    hover_text = [
-        f"{c} mentions<br>Sentiment: {s:.2f}"
-        for c, s in zip(counts, sentiments)
-    ]
 
     fig = go.Figure()
 
-    fig.add_trace(go.Barpolar(
-        r=counts,
-        theta=parishes,
+    fig.add_trace(go.Bar(
+        y=parishes,
+        x=counts,
+        orientation='h',
         marker=dict(
             color=colors,
             line=dict(
                 color=TACTICAL_COLORS['teal'],
-                width=2
+                width=1
             ),
-            opacity=0.8
+            opacity=0.85
         ),
-        text=hover_text,
-        hovertemplate='<b>%{theta}</b><br>%{text}<extra></extra>',
-        name='Parish Mentions'
+        text=counts,
+        textposition='outside',
+        textfont=dict(
+            color=TACTICAL_COLORS['text'],
+            family=TACTICAL_FONTS['family'],
+            size=11
+        ),
+        customdata=sentiments,
+        hovertemplate='<b>%{y}</b><br>Mentions: %{x}<br>Sentiment: %{customdata:.2f}<extra></extra>'
     ))
 
-    layout = {
-        'title': {
-            'text': 'PARISH SENTIMENT RADIAL',
-            'font': {
-                'family': TACTICAL_FONTS['family'],
-                'size': TACTICAL_FONTS['title_size'],
-                'color': TACTICAL_COLORS['teal']
-            }
+    layout = get_tactical_layout(
+        'PARISH SENTIMENT BY MENTIONS',
+        xaxis={
+            'title': {'text': 'Mention Count', 'font': {'color': TACTICAL_COLORS['teal']}},
+            'gridcolor': TACTICAL_COLORS['grid'],
+            'zerolinecolor': TACTICAL_COLORS['teal']
         },
-        'paper_bgcolor': TACTICAL_COLORS['paper'],
-        'plot_bgcolor': TACTICAL_COLORS['bg'],
-        'font': {
-            'family': TACTICAL_FONTS['family'],
-            'size': TACTICAL_FONTS['size'],
-            'color': TACTICAL_COLORS['text']
+        yaxis={
+            'automargin': True,
+            'title': {'text': ''},
+            'gridcolor': TACTICAL_COLORS['grid']
         },
-        'polar': {
-            'radialaxis': {
-                'visible': True,
-                'gridcolor': TACTICAL_COLORS['grid'],
-                'color': TACTICAL_COLORS['text_muted'],
-                'tickfont': {'color': TACTICAL_COLORS['text_muted']}
-            },
-            'angularaxis': {
-                'gridcolor': TACTICAL_COLORS['grid'],
-                'color': TACTICAL_COLORS['text'],
-                'tickfont': {'color': TACTICAL_COLORS['text'], 'size': 11}
-            },
-            'bgcolor': TACTICAL_COLORS['bg']
-        },
-        'showlegend': False,
-        'height': 500,
-        'margin': {'l': 80, 'r': 80, 't': 100, 'b': 80}
-    }
+        height=450
+    )
 
     fig.update_layout(**layout)
 
-    filename = output_path.name if output_path else 'parish_radial.png'
-    return _save_chart_to_png(fig, filename, width=600, height=500)
+    filename = output_path.name if output_path else 'parish_sentiment.png'
+    return _save_chart_to_png(fig, filename, width=700, height=450)
 
 
 # ============================================================================
@@ -622,7 +606,7 @@ def generate_all_analytics_charts(analytics_data: Dict) -> Dict[str, Path]:
         logger.error(f"Failed to generate topic sentiment chart: {e}")
 
     try:
-        # 4. Parish Radial Chart
+        # 4. Parish Sentiment Bar Chart
         if 'parishes' in analytics_data:
             parish_data = [
                 {
@@ -632,10 +616,10 @@ def generate_all_analytics_charts(analytics_data: Dict) -> Dict[str, Path]:
                 }
                 for p in analytics_data['parishes']
             ]
-            charts['parish_radial'] = generate_parish_radial_png(parish_data)
-            logger.info("Generated parish radial chart")
+            charts['parish_sentiment'] = generate_parish_bar_png(parish_data)
+            logger.info("Generated parish sentiment bar chart")
     except Exception as e:
-        logger.error(f"Failed to generate parish radial chart: {e}")
+        logger.error(f"Failed to generate parish sentiment chart: {e}")
 
     return charts
 
@@ -719,8 +703,8 @@ if __name__ == "__main__":
         path3 = generate_topic_sentiment_png(mock_topic_sentiment)
         print(f"   Saved to: {path3}")
 
-        print("\n4. Generating Parish Radial chart...")
-        path4 = generate_parish_radial_png(mock_parishes)
+        print("\n4. Generating Parish Sentiment Bar chart...")
+        path4 = generate_parish_bar_png(mock_parishes)
         print(f"   Saved to: {path4}")
 
         print("\n" + "=" * 60)
