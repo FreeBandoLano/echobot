@@ -1403,3 +1403,59 @@ body::after {
     flex: 1 1 45%;
   }
 }
+
+/* ==========================================================================
+   MOBILE TYPOGRAPHY IMPROVEMENTS
+   Ensures readable font sizes on small screens (min 14px / 0.875rem)
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* Base body font size - ensures minimum readability */
+  body {
+    font-size: 0.9375rem; /* 15px base */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Ensure small utility text is still readable */
+  .text-sm,
+  .text-muted,
+  small,
+  .badge,
+  .status-badge,
+  .block-status,
+  .theme-tag {
+    font-size: 0.8125rem !important; /* 13px minimum for utility text */
+  }
+
+  /* Navigation and interactive elements */
+  .app-nav__link,
+  .block-action,
+  button {
+    font-size: 0.875rem; /* 14px for interactive elements */
+  }
+
+  /* Section headings should be prominent */
+  h1, .h1 { font-size: 1.5rem; }
+  h2, .h2 { font-size: 1.25rem; }
+  h3, .h3 { font-size: 1.125rem; }
+  h4, .h4 { font-size: 1rem; }
+
+  /* Body text and paragraphs */
+  p,
+  .block-body,
+  .block-summary,
+  .digest-box {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  /* Hub and orbit text */
+  .orbit-btn span {
+    font-size: 0.6875rem; /* 11px for orbit labels - space constrained */
+  }
+
+  /* Tables and data displays */
+  .segments-table td,
+  .exec-table td {
+    font-size: 0.8125rem;
+  }
+}

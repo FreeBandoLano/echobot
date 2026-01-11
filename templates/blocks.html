@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+
+{% block title %}Blocks • {{ view_date.strftime('%b %d, %Y') }} • Radio Synopsis{% endblock %}
+
+{% block nav_blocks %}app-nav__link--active{% endblock %}
+
+{% block head_extra %}
+<style>
+    .blocks-page {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 1.5rem;
+    }
+
+    .blocks-header {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .blocks-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .blocks-title i {
+        color: var(--color-gold);
+    }
+
+    .date-nav {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .date-nav__btn {
+        background: var(--color-panel);
+        border: 1px solid var(--color-border);
+        color: var(--text-secondary);
+        padding: 0.5rem 1rem;
+        border-radius: var(--radius-sm);
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all var(--dur-ui) var(--ease-standard);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .date-nav__btn:hover {
+        background: var(--color-panel-alt);
+        color: var(--text-primary);
+        border-color: var(--color-gold);
+    }
+
+    .date-nav__btn--today {
+        background: var(--color-gold);
+        color: var(--color-bg);
+        border-color: var(--color-gold);
+        font-weight: 600;
+    }
+
+    .date-nav__btn--today:hover {
+        background: var(--color-gold-soft);
+    }
+
+    .date-nav__current {
+        font-size: 1rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        padding: 0 0.5rem;
+    }
+
+    .live-badge {
+        background: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+        padding: 0.25rem 0.5rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+
+    .program-section {
+        margin-bottom: 2rem;
+    }
+
+    .program-title {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--color-gold);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--color-border);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .blocks-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .block-card {
+        background: var(--color-panel);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: 1.25rem;
+        transition: all var(--dur-ui) var(--ease-standard);
+        cursor: pointer;
+    }
+
+    .block-card:hover {
+        border-color: var(--color-gold);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .block-card__header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+    }
+
+    .block-card__title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .block-card__code {
+        color: var(--color-gold);
+        margin-right: 0.5rem;
+    }
+
+    .block-card__status {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 0.25rem 0.6rem;
+        border-radius: var(--radius-pill);
+    }
+
+    .block-card__status--completed {
+        background: rgba(51, 176, 122, 0.15);
+        color: #33b07a;
+    }
+
+    .block-card__status--processing {
+        background: rgba(245, 195, 66, 0.15);
+        color: #f5c342;
+    }
+
+    .block-card__status--pending {
+        background: rgba(125, 136, 150, 0.15);
+        color: #7d8896;
+    }
+
+    .block-card__summary {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        line-height: 1.5;
+        margin-bottom: 0.75rem;
+    }
+
+    .block-card__themes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .theme-tag {
+        background: var(--color-overlay);
+        border: 1px solid var(--color-border);
+        padding: 0.25rem 0.6rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.75rem;
+        color: var(--text-tertiary);
+    }
+
+    .block-card__meta {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        font-size: 0.8rem;
+        color: var(--text-tertiary);
+    }
+
+    .block-card__meta i {
+        margin-right: 0.25rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--text-tertiary);
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .empty-state p {
+        font-size: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+        .blocks-page {
+            padding: 1rem;
+        }
+
+        .blocks-header {
+            gap: 0.75rem;
+        }
+
+        .blocks-title {
+            font-size: 1.25rem;
+        }
+
+        .date-nav {
+            gap: 0.5rem;
+        }
+
+        .date-nav__btn {
+            padding: 0.4rem 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        .date-nav__current {
+            font-size: 0.9rem;
+            width: 100%;
+            text-align: center;
+            order: -1;
+        }
+
+        .block-card {
+            padding: 1rem;
+        }
+
+        .block-card__title {
+            font-size: 1rem;
+        }
+
+        .block-card__summary {
+            font-size: 0.875rem;
+        }
+
+        .block-card__meta {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .theme-tag {
+            font-size: 0.7rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="blocks-page">
+    <header class="blocks-header">
+        <h1 class="blocks-title">
+            <i class="bi bi-collection-play"></i>
+            Program Blocks
+            {% if is_today %}<span class="live-badge">LIVE</span>{% endif %}
+        </h1>
+
+        <nav class="date-nav">
+            <a href="/blocks?date_param={{ prev_date }}" class="date-nav__btn">
+                <i class="bi bi-chevron-left"></i> Prev
+            </a>
+
+            {% if not is_today %}
+            <a href="/blocks" class="date-nav__btn date-nav__btn--today">Today</a>
+            {% endif %}
+
+            <a href="/blocks?date_param={{ next_date }}" class="date-nav__btn">
+                Next <i class="bi bi-chevron-right"></i>
+            </a>
+
+            <span class="date-nav__current">{{ view_date.strftime('%A, %B %d, %Y') }}</span>
+        </nav>
+    </header>
+
+    {% if blocks %}
+        {% for program_name, program_blocks in programs.items() %}
+        <section class="program-section">
+            <h2 class="program-title">
+                <i class="bi bi-broadcast"></i>
+                {{ program_name }}
+                <span style="font-weight: 400; color: var(--text-tertiary);">({{ program_blocks|length }} blocks)</span>
+            </h2>
+
+            <div class="blocks-grid">
+                {% for block in program_blocks %}
+                <article class="block-card" onclick="location.href='/block/{{ block.id }}'">
+                    <div class="block-card__header">
+                        <h3 class="block-card__title">
+                            <span class="block-card__code">{{ block.block_code }}</span>
+                            {{ block.block_name }}
+                        </h3>
+                        <span class="block-card__status block-card__status--{{ block.status }}">
+                            {{ block.status }}
+                        </span>
+                    </div>
+
+                    {% if block.summary and block.summary.text %}
+                    <p class="block-card__summary">
+                        {{ block.summary.text[:200] }}{% if block.summary.text|length > 200 %}...{% endif %}
+                    </p>
+                    {% elif block.status == 'pending' %}
+                    <p class="block-card__summary" style="font-style: italic;">
+                        <i class="bi bi-clock"></i> Scheduled for {{ block.start_time }}
+                    </p>
+                    {% elif block.status in ['recording', 'transcribing', 'summarizing'] %}
+                    <p class="block-card__summary" style="font-style: italic;">
+                        <i class="bi bi-hourglass-split"></i> Currently processing...
+                    </p>
+                    {% endif %}
+
+                    {% if block.emergent_themes %}
+                    <div class="block-card__themes">
+                        {% for theme in block.emergent_themes %}
+                        <span class="theme-tag">{{ theme }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="block-card__meta">
+                        {% if block.caller_count %}
+                        <span><i class="bi bi-people"></i> {{ block.caller_count }} callers</span>
+                        {% endif %}
+                        {% if block.duration_minutes %}
+                        <span><i class="bi bi-clock"></i> {{ block.duration_minutes }} min</span>
+                        {% endif %}
+                        {% if block.start_time and block.end_time %}
+                        <span><i class="bi bi-calendar3"></i> {{ block.start_time }} - {{ block.end_time }}</span>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <i class="bi bi-collection"></i>
+            <p>No blocks found for {{ view_date.strftime('%B %d, %Y') }}</p>
+            <a href="/blocks" class="date-nav__btn date-nav__btn--today">View Today</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Keyboard shortcuts for date navigation
+    document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        if (e.key === 'ArrowLeft') {
+            location.href = '/blocks?date_param={{ prev_date }}';
+        } else if (e.key === 'ArrowRight') {
+            location.href = '/blocks?date_param={{ next_date }}';
+        } else if (e.key === 't' || e.key === 'T') {
+            location.href = '/blocks';
+        }
+    });
+</script>
+{% endblock %}

@@ -542,10 +542,93 @@ async def archive(request: Request):
         "archive_data": archive_data
     })
 
+@app.get("/blocks", response_class=HTMLResponse)
+async def blocks_page(request: Request, date_param: Optional[str] = None):
+    """Dedicated blocks listing page - cleaner navigation than inline panels."""
+
+    # Parse date parameter or use today
+    if date_param:
+        try:
+            view_date = datetime.strptime(date_param, '%Y-%m-%d').date()
+        except ValueError:
+            view_date = get_local_date()
+    else:
+        view_date = get_local_date()
+
+    # Get blocks data
+    blocks = db.get_blocks_by_date(view_date)
+    all_blocks_config = Config.get_all_blocks()
+
+    # Build block data with summaries
+    block_data = []
+    for block in blocks:
+        summary = db.get_summary(block['id'])
+
+        # Extract themes for display
+        emergent_themes = []
+        key_themes_data = []
+        caller_count = 0
+        if summary and summary.get('raw_json'):
+            try:
+                if isinstance(summary['raw_json'], dict):
+                    raw_data = summary['raw_json']
+                else:
+                    raw_data = json.loads(summary['raw_json'])
+                themes = raw_data.get('key_themes', [])[:3]
+                emergent_themes = [theme.get('title', '') for theme in themes if theme.get('title')]
+                key_themes_data = themes
+                caller_count = raw_data.get('caller_count', 0)
+            except:
+                pass
+
+        block_code = block['block_code']
+        block_config = all_blocks_config.get(block_code, {})
+
+        block_info = {
+            **block,
+            'summary': summary,
+            'block_name': block_config.get('name', f'Block {block_code}'),
+            'program_name': block.get('program_name', block_config.get('program_name', 'Down to Brass Tacks')),
+            'duration_display': f"{block['duration_minutes']} min" if block['duration_minutes'] else "N/A",
+            'emergent_themes': emergent_themes,
+            'key_themes': key_themes_data,
+            'caller_count': caller_count
+        }
+        block_data.append(block_info)
+
+    # Sort blocks by code
+    block_data.sort(key=lambda x: x['block_code'])
+
+    # Group by program
+    programs = {}
+    for block in block_data:
+        prog = block['program_name']
+        if prog not in programs:
+            programs[prog] = []
+        programs[prog].append(block)
+
+    # Date navigation
+    today = get_local_date()
+    prev_date = view_date - timedelta(days=1)
+    next_date = view_date + timedelta(days=1)
+    is_today = view_date == today
+
+    return templates.TemplateResponse("blocks.html", {
+        "request": request,
+        "view_date": view_date,
+        "blocks": block_data,
+        "programs": programs,
+        "is_today": is_today,
+        "prev_date": prev_date,
+        "next_date": next_date,
+        "today": today
+    })
+
+
 @app.get("/api/status")
 async def api_status():
     """API endpoint for current system status."""
-    
+
     today = get_local_date()
     blocks = db.get_blocks_by_date(today)
     

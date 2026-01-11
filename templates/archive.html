@@ -117,72 +117,7 @@
             opacity: 0.5;
         }
 
-        /* Mobile action bar styles */
-        .mobile-action-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: var(--surface-color);
-            border-top: 1px solid var(--border-color);
-            padding: 0.75rem;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            z-index: 1000;
-            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        .mobile-action-bar button {
-            background: none;
-            border: none;
-            padding: 0.5rem;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.25rem;
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            transition: all 0.2s ease;
-            min-width: 60px;
-            cursor: pointer;
-        }
-
-        .mobile-action-bar button:hover {
-            background: var(--surface-hover);
-            color: var(--primary-color);
-        }
-
-        .mobile-action-bar button.active {
-            color: var(--primary-color);
-            background: var(--primary-light);
-        }
-
-        .mobile-action-bar button i {
-            font-size: 1.2rem;
-        }
-
-        .mobile-action-bar button span {
-            font-size: 0.7rem;
-            font-weight: 500;
-        }
-
-        /* Adjust main content for mobile action bar */
-        main {
-            padding-bottom: 5rem;
-        }
-    }
-
-    /* Hide mobile action bar on desktop */
-    @media (min-width: 769px) {
-        .mobile-action-bar {
-            display: none;
-        }
-
-        main {
-            padding-bottom: 2rem;
-        }
+        /* Mobile action bar removed - hub is primary navigation */
     }
 </style>
 {% endblock %}
@@ -223,10 +158,5 @@
 {% endblock %}
 
 {% block mobile_action_bar %}
-    <!-- Mobile Action Bar -->
-    <nav class="mobile-action-bar" aria-label="Quick actions">
-        <button onclick="location.href='/'"><i class="bi bi-house"></i><span>Home</span></button>
-        <button onclick="location.href='/archive'" class="active"><i class="bi bi-archive"></i><span>Archive</span></button>
-        <button onclick="window.history.back()"><i class="bi bi-arrow-left"></i><span>Back</span></button>
-    </nav>
+    <!-- Mobile action bar removed - hub is primary navigation -->
 {% endblock %}

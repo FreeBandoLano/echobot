@@ -489,7 +489,7 @@ pre.raw-json { max-height:300px; overflow:auto; font-size:.6rem; line-height:1.2
 <script>
 // Mobile collapsible sections
 (function(){
-    const isSmall = () => window.matchMedia('(max-width:760px)').matches;
+    const isSmall = () => window.matchMedia('(max-width:768px)').matches;
     function applyCollapses(){
         document.querySelectorAll('.mobile-collapse').forEach(anchor => {
             let targetSection = anchor.getAttribute('data-section');
@@ -545,7 +545,7 @@ pre.raw-json { max-height:300px; overflow:auto; font-size:.6rem; line-height:1.2
 .mobile-collapse[data-collapsed='true'] .collapse-toggle i{ transform:rotate(0deg); }
 .mobile-collapse[data-collapsed='false'] .collapse-toggle i{ transform:rotate(180deg); }
 /* Responsive segment table -> cards */
-@media (max-width:760px){
+@media (max-width:768px){
   .segments-wrapper{ max-height:none !important; overflow:visible !important; }
   table.segments-table{ border:0; }
   .segments-table thead{ display:none; }
