@@ -462,7 +462,7 @@ class TaskManager:
         date_obj = datetime.strptime(task.show_date, '%Y-%m-%d').date()
         
         # ✅ NEW: Send separate program-specific digest emails (VOB + CBC)
-        return email_service.send_program_digests(date_obj)
+        return email_service.send_program_digests(date_obj, include_charts=False)
     
     def get_task_status(self, task_id: int) -> Optional[Dict]:
         """Get status of a specific task."""

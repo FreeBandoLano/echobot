@@ -430,7 +430,7 @@ class RadioScheduler:
                 # Send program-specific digest emails (VOB + CBC)
                 try:
                     from email_service import email_service
-                    email_sent = email_service.send_program_digests(today)
+                    email_sent = email_service.send_program_digests(today, include_charts=False)
                     if email_sent:
                         logger.info("📧 Program digest emails sent successfully")
                     else:

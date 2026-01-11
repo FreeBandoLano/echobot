@@ -1878,7 +1878,7 @@ async def send_digest_email(date: str = Form(...)):
         # Send program-specific digest emails (VOB + CBC)
         logger.info(f"Sending program digest emails for {target_date}")
         from email_service import email_service
-        success = email_service.send_program_digests(target_date)
+        success = email_service.send_program_digests(target_date, include_charts=False)
         
         if success:
             return {
